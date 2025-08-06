@@ -1,0 +1,109 @@
+{
+  "components": {
+	  "Select": {
+		"meta": {
+		  "parameters": {
+			"backgroundColor": "white"
+		  }
+		},
+		"appearances": {
+		  "default": {
+			"variantGroups": {
+			  "status": {
+				"control": {
+				  "state": {
+				    "active": {
+					  "backgroundColor": "color-basic-control-transparent-500"
+                    }
+				  }
+				},
+				"basic": {
+					"backgroundColor": "white"
+				}
+			  }
+			}
+		  }
+		}
+	  },
+		"List": {
+			"appearances": {
+                "default": {
+                    "mapping": {
+                        "backgroundColor": "text-control-color"
+                    }
+                }
+            }
+		},
+		"Button": {
+			"appearances": {
+                "filled": {
+                    "variantGroups": {
+                        "size": {
+							"tiny": {
+                                "textFontSize": 12,
+								"paddingHorizontal": 0,
+                                "paddingVertical": 0,
+                                "textMarginHorizontal": 0,
+                                "iconMarginHorizontal": 0
+                            },
+						},
+						"status": {
+							"info": {
+								"backgroundColor": "#3366FF"
+							}
+						}
+                    }
+                },
+				"outline": {
+                    "variantGroups": {
+                        "status": {
+							"primary": {
+								"borderColor": "transparent"
+							}
+						}
+                    }
+                }
+            }
+		},
+		"Text": {
+			"appearances": {
+                "default": {
+                    "variantGroups": {
+						"category": {
+							"label": {
+								"fontSize": 14,
+							}
+						}
+                    }
+                }
+            }
+		},
+		"Datepicker": {
+			"appearances": {
+			  "default": {
+				"variantGroups": {
+				  "status": {
+					"basic": {
+					  "textColor": "text-basic-color",
+					  "backgroundColor": "white"
+					}
+				  }
+				}
+			  }
+			}
+		},
+		"Input": {
+			"appearances": {
+			  "default": {
+				"variantGroups": {
+				  "status": {
+					"basic": {
+					  "backgroundColor": "white"
+					}
+				  }
+				}
+			  }
+			}
+		}
+	}
+}
