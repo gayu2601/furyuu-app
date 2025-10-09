@@ -4,7 +4,6 @@ class AppStateManager {
   constructor() {
     this.isListening = false;
     this.subscription = null;
-    this.deviceChecked = false;
     this.appState = AppState.currentState;
     this.debounceTimer = null;
     this.lastActiveTime = Date.now();
@@ -61,14 +60,12 @@ class AppStateManager {
       
       // Handle background state
       if (nextAppState.match(/inactive|background/)) {
-        this.deviceChecked = false;
         this.lastActiveTime = Date.now();
       }
       
       // Handle foreground state with multiple safeguards
       if (this.appState.match(/inactive|background/) && 
           nextAppState === 'active' && 
-          !this.deviceChecked &&
           !this.isProcessingCallbacks &&
           currentUser) {
         
@@ -118,15 +115,8 @@ class AppStateManager {
     }
     
     this.isListening = false;
-    this.deviceChecked = false;
     this.isProcessingCallbacks = false;
     this.transitionCount = 0;
-    //this.currentUserId = null;
-  }
-
-  // Method to reset device check status
-  resetDeviceCheck() {
-    this.deviceChecked = false;
   }
 
   // Method to check if currently listening
@@ -148,7 +138,6 @@ class AppStateManager {
     if (userChanged && this.isListening && !this.isProcessingCallbacks) {
       console.log('User changed from', this.currentUserId, 'to', newUser?.id);
       this.currentUserId = newUser?.id;
-      this.deviceChecked = false;
       
       // Trigger callbacks immediately for user change
       if (newUser && AppState.currentState === 'active') {
@@ -170,14 +159,7 @@ class AppStateManager {
     console.log(`Executing callbacks - Reason: ${reason}`);
     
     try {
-      const { isActive, gracePeriodActive } = await callbacks.getUserDetails();
-      console.log('getUserDetails result:', { isActive, gracePeriodActive });
-      
-      await callbacks.checkDevice(isActive, gracePeriodActive);
-      await callbacks.activatePubSub(isActive || gracePeriodActive);
-	  callbacks.checkProfileCompletion();
-      
-      this.deviceChecked = true;
+      await callbacks.activatePubSub();
       console.log('Callbacks completed successfully');
     } catch (error) {
       console.error('Error handling callbacks:', error);

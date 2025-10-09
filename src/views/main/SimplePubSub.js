@@ -4,7 +4,6 @@ import { storage } from '../extra/storage';
 import * as Application from 'expo-application';
 import eventEmitter from './eventEmitter';
 import { useUser } from '../main/UserContext';
-import { useRevenueCat } from '../main/RevenueCatContext';
 
 // Create the PubSub Context
 const PubSubContext = createContext();
@@ -34,7 +33,7 @@ export const PubSubProvider = ({ children }) => {
     };
   }, []);
 
-  const checkPubSubEligibility = async (userId, isActive) => {
+  const checkPubSubEligibility = async (userId) => {
     try {
       const { data: devices, error: devicesError } = await supabase
         .from('user_last_device_v2')
@@ -43,9 +42,9 @@ export const PubSubProvider = ({ children }) => {
 		
       const multipleDevices = devices && devices.length > 1;
 	  
-	  console.log(multipleDevices + ',' + isActive);
+	  console.log(multipleDevices);
 
-      if (devicesError || !multipleDevices || !isActive) {
+      if (devicesError || !multipleDevices) {
 		 return false;
       }
 	  return true;
@@ -55,41 +54,51 @@ export const PubSubProvider = ({ children }) => {
     }
   };
   
-  const getOrders = useCallback((currentUsername, orderStatus) => {
-    const cached = storage.getString(`${currentUsername}_${orderStatus}`);
+  const getOrders = useCallback((key) => {
+    const cached = storage.getString(key);
     return cached ? JSON.parse(cached) : [];
   }, []);
 
-  const saveOrders = useCallback((orders, currentUsername, orderStatus) => {
-	  console.log(`${currentUsername}_${orderStatus}`)
+  const saveOrders = useCallback((orders, key) => {
+	  console.log(key)
 	  console.log(JSON.stringify(orders))
-	storage.set(`${currentUsername}_${orderStatus}`, JSON.stringify(orders));
+	storage.set(key, JSON.stringify(orders));
   }, []);
 
-  const updateCache = useCallback((type, orderData = null, prefix, suffix, itemOrderNo = null, custInserted = false) => {
+  const updateCache = useCallback((type, orderData = null, prefix, itemOrderNo = null, custInserted = false) => {
 	  console.log('in updateCache ' + custInserted)
-    const orders = getOrders(prefix, suffix);
+    const orders = getOrders(prefix);
+	console.log('orders', orders)
 
     if (type === 'NEW_ORDER') {
         orders.unshift(orderData);
-        saveOrders(orders, prefix, suffix);
+        saveOrders(orders, prefix);
 		if(custInserted) {
 			console.log('inside custInserted')
-			const customers = storage.getString(prefix+'_Customers');
+			const customers = storage.getString('Customers');
 			let customersArray = customers ? JSON.parse(customers) : [];
 			customersArray.push({custName: orderData.custName, phoneNo: orderData.phoneNo});
-			storage.set(prefix+'_Customers', JSON.stringify(customersArray, ['custName', 'phoneNo'])); 
+			storage.set('Customers', JSON.stringify(customersArray, ['custName', 'phoneNo'])); 
 		}
     } else if (type === 'UPDATE_ORDER') {
 		console.log('in UPDATE_ORDER')
       const updated = orders.map(o => o.orderNo === orderData.orderNo ? orderData : o);
-	  saveOrders(updated, prefix, suffix);
+	  console.log('updated', updated);
+	  saveOrders(updated, prefix);
     } else if (type === 'DELETE_ORDER') {
       const filtered = orders.filter(o => o.orderNo !== itemOrderNo);
-      saveOrders(filtered, prefix, suffix);
+      saveOrders(filtered, prefix);
     } else if (type === 'UPDATE_MEAS') {
-		saveOrders(orderData, prefix, suffix);
-	}
+		saveOrders(orderData, prefix);
+	} else if (type === 'BULK_UPDATE_ORDER') {
+		console.log('in BULK_UPDATE_ORDER')
+      saveOrders(orderData, prefix);
+    } else if (type === 'UPDATE_SLOTS') {
+		console.log('in UPDATE_SLOTS')
+		const updated = orders.map(o => o.orderNo === orderData.orderNo ? { ...o, slots: {regular: orderData.regular, express: orderData.express, total: orderData.total} } : o);
+	  console.log('updated', updated);
+      saveOrders(updated, prefix);
+    }
   }, [getOrders, saveOrders]);
   
   const subscriptionListener = (userId) => {
@@ -109,12 +118,12 @@ export const PubSubProvider = ({ children }) => {
       }, (payload) => {
 		  console.log('user_notifications Change received!', payload);
         const notification = payload.new;
-		console.log('notification')
+		console.warn('notification')
         if (notification.device_id === deviceIdRef.current) return;
 		if(notification.type === 'DELETE_ORDER') {
-			updateCache(notification.type, null, notification.username, notification.orderStatus, notification.data);
+			updateCache(notification.type, null, notification.orderStatus, notification.data);
 		} else {
-			updateCache(notification.type, notification.data, notification.username, notification.orderStatus, null, notification.newCustomer);
+			updateCache(notification.type, notification.data, notification.orderStatus, null, notification.newCustomer);
 		}
 		console.log('emitting events')
 		if(notification.type === 'NEW_ORDER' || notification.type === 'DELETE_ORDER') {
@@ -122,15 +131,16 @@ export const PubSubProvider = ({ children }) => {
 		}
 		eventEmitter.emit('newOrderAdded');
 		eventEmitter.emit('transactionAdded');
+		eventEmitter.emit('payStatusChanged');
       })
       .subscribe();
 
     subscriptionRef.current = sub;
   }
 
-  const startListening = useCallback(async (userId, isActive) => {
+  const startListening = useCallback(async (userId) => {
 	  console.log('in startListening')
-    const isEligible = await checkPubSubEligibility(userId, isActive);
+    const isEligible = await checkPubSubEligibility(userId);
     if (!isEligible) {
       console.log('User not eligible for PubSub - either not subscribed or single device');
 	  setEligible(false);
@@ -149,8 +159,8 @@ export const PubSubProvider = ({ children }) => {
     }
   }, []);
 
-  const notify = useCallback(async (isActive, userId, type, username, orderStatus, orderData = null, itemOrderNo = null, custInserted) => {
-	const isEligible = await checkPubSubEligibility(userId, isActive);
+  const notify = useCallback(async (userId, type, orderStatus, orderData = null, itemOrderNo = null, custInserted) => {
+	const isEligible = await checkPubSubEligibility(userId);
 	console.log('in notify ' + eligible + isEligible)
 	console.log(orderData + ',' + itemOrderNo)
 	if (!isEligible) {
@@ -169,7 +179,6 @@ export const PubSubProvider = ({ children }) => {
         type: type,
         data: orderData || itemOrderNo,
 		orderStatus: orderStatus,
-		username: username,
 		newCustomer: custInserted
       }]);
 	  if(error) {

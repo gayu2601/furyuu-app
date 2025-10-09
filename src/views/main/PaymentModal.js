@@ -44,12 +44,17 @@ const PaymentModal = ({ visible, onClose, onSave, orderNo, orderAmt, paymentStat
 					showSuccessMessage('Payment updated!')
 				}
 				console.log(data)
-				const cacheKey = data.username+'_'+data.orderStatus;
+				let st = data.orderStatus === 'Completed' ? 'true' : 'false';
+				const cacheKey = 'Completed_'+st;
+				console.log('cacheKey', cacheKey)
 				  const jsonCacheValue = storage.getString(cacheKey);
 				  const cacheValue = jsonCacheValue ? JSON.parse(jsonCacheValue) : null;
+				  console.log(cacheValue)
+				  console.log('orderNo ', orderNo)
 					if (cacheValue) {
 					  const orderIndex = cacheValue?.findIndex(order => order.orderNo === orderNo);
-					  if (orderIndex && orderIndex !== -1) {
+					  console.log(orderIndex)
+					  if (orderIndex !== -1) {
 						cacheValue[orderIndex].paymentStatus = payStatus;
 						cacheValue[orderIndex].advance = am;
 						storage.set(cacheKey, JSON.stringify(cacheValue));

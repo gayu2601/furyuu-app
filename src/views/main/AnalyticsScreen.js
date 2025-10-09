@@ -1,12 +1,11 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { ActivityIndicator, FlatList, SafeAreaView, ScrollView, View, StyleSheet, Dimensions, TouchableOpacity, Animated, Modal as ModalRN } from 'react-native';
-import { Layout, Text, Card, Modal, List, ListItem, useTheme, Icon, Divider, OverflowMenu, MenuItem, Button, StyleService, useStyleSheet } from '@ui-kitten/components';
+import { Layout, Text, Card, Modal, List, ListItem, useTheme, Icon, Divider, OverflowMenu, MenuItem, Button, StyleService, useStyleSheet, TopNavigationAction } from '@ui-kitten/components';
 import { MaterialIcons, Ionicons, AntDesign, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Table, TableWrapper, Row, Rows } from 'react-native-table-component';
 import { DatePickerModal } from 'react-native-paper-dates';
 import moment from 'moment';
 import { supabase } from '../../constants/supabase';
-import { logFirebaseEvent } from '../extra/firebaseUtils';
 import DateFilterModal from '../main/DateFilterModal';
 import { showSuccessMessage, showErrorMessage } from './showAlerts';
 import { useUser } from '../main/UserContext';
@@ -16,9 +15,7 @@ import {
 } from 'react-native-chart-kit'
 import { useNavigation } from '@react-navigation/native';
 import { BarChart } from 'react-native-gifted-charts';
-import { useRevenueCat } from './RevenueCatContext';
-import PaywallScreen from './PaywallScreen';
-import PremiumOverlayAnalytics from './PremiumOverlayAnalytics';
+import CustomerPaymentPending from './CustomerPaymentPending';
 import SalesOverviewCard from './SalesOverviewCard';
 import EnhancedHeatmap from './EnhancedHeatmap';
 import ARPCCard from './ARPCCard';
@@ -27,11 +24,13 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from 'expo-file-system';
 import analyticsCache from './analyticsCache';
 import eventEmitter from './eventEmitter';
+import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import { RefreshIcon } from "../extra/icons";
 
 const width = Dimensions.get('window').width
 const height = 220
 
-const AnalyticsScreen = () => {
+const StatsScreen = forwardRef((props, ref) => {
 	const theme = useTheme();
 	const styles = useStyleSheet(themedStyles);
 	const scrollViewRef = useRef(null);
@@ -41,7 +40,8 @@ const AnalyticsScreen = () => {
 	const [selectedChart, setSelectedChart] = useState("Revenue");
     const [sortColumn, setSortColumn] = useState(0);
     const [sortDirection, setSortDirection] = useState('asc');
-    const [widthArr, setWidthArr] = useState([80, 65, 80, 80]);
+    const [widthArrEmp, setWidthArrEmp] = useState([70, 100, 65, 60, 70]);
+	const [widthArr, setWidthArr] = useState([80, 65, 80, 85]);
 	const currentDate = new Date();
 	const currentYear = currentDate.getFullYear();
 	const { currentUser } = useUser();
@@ -50,9 +50,6 @@ const AnalyticsScreen = () => {
 	  const [filterTypeStr, setFilterTypeStr] = useState('This Year');
 	  const [filterType, setFilterType] = useState('this-year');
 	  const [loading, setLoading] = useState(false);
-	  const { subscriptionActive } = useRevenueCat();
-	  const [paywallVisible, setPaywallVisible] = useState(false);
-	  const [fadeAnim] = useState(new Animated.Value(0));
 	  const [orderCnt, setOrderCnt] = useState(0);
 	  const [custCnt, setCustCnt] = useState(0);
 	  const [revenueVal, setRevenueVal] = useState(0);
@@ -64,6 +61,7 @@ const AnalyticsScreen = () => {
 	  const [heatmapOrders, setHeatmapOrders] = useState([]);
 	  const [oldNewOrders, setOldNewOrders] = useState([]);
 	  const [oldNewRev, setOldNewRev] = useState([]);
+	  const [empProd, setEmpProd] = useState([]);
 	  const [heatmapNumDays, setHeatmapNumDays] = useState(90);
 	  const a = moment(new Date()).format('YYYY-MM-DD');
 	  const b = moment(`${currentYear}-01-01`).utcOffset(5.5).format("YYYY-MM-DD");
@@ -96,24 +94,36 @@ const AnalyticsScreen = () => {
 		};
 
 		// Generic function to fetch analytics data
-		const fetchAnalyticsData = async (filterType, customStart = null, customEnd = null) => {
+		const fetchAnalyticsData = async (filterType, customStart = null, customEnd = null, onlyEmployeeData = false) => {
 		  const { start: formattedDate, end: today } = getDateRange(filterType, customStart, customEnd);
 		  const nextDay = moment(today).add(1, 'days').format('YYYY-MM-DD');
 		  
-		  console.log(`Updating critical metrics for ${filterType} - revenue and profit margin ${formattedDate},${nextDay}`);
+		  console.log(`Updating ${onlyEmployeeData ? 'employee productivity' : 'critical metrics'} for ${filterType}${onlyEmployeeData ? '' : ` - revenue and profit margin ${formattedDate},${nextDay}`}`);
 		  
+		  if (onlyEmployeeData) {
+			const { data: empData, error: empError } = await supabase.rpc("get_employee_prod_efficiency", { parameter1: formattedDate, parameter2: today });
+			
+			if (empError) {
+			  throw new Error(`Error fetching employee productivity data for ${filterType}`);
+			}
+			
+			return {
+			  empProd: empData
+			};
+		  }
+
 		  const [
 			{ data: orderCount, error: orderCountError },
 			{ data: customerCount, error: customerCountError },
 			{ data: revenueData, error: revenueDataError },
 			{ data: profitMarginData, error: profitMarginError },
-			{ data: newCustData, error: newCustError },
+			{ data: newCustData, error: newCustError }
 		  ] = await Promise.all([
 			supabase.rpc("get_orders_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
 			supabase.rpc("get_customers_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
 			supabase.rpc("get_revenue", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: nextDay }).select().single(),
 			supabase.rpc("get_profit_margin", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: nextDay }).select().single(),
-			supabase.rpc("get_new_customers_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
+			supabase.rpc("get_new_customers_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single()
 		  ]);
 
 		  // Handle errors
@@ -126,20 +136,31 @@ const AnalyticsScreen = () => {
 			customerCount: customerCount.count,
 			revenueVal: revenueData.sum,
 			profitMargin: profitMarginData.sum,
-			newCustCount: newCustData.count,
+			newCustCount: newCustData.count
 		  };
 		};
 
 		// Function to update state and cache
-		const updateStateAndCache = (data, filterType) => {
-		  console.log(`Updated metrics for ${filterType}:`, data);
-		  
+		const updateStateAndCache = (data, filterType, onlyEmployeeData) => {
+		  console.log(`Updated ${onlyEmployeeData ? 'employee productivity' : 'metrics'} for ${filterType}:`, data);
+  
+		  if (onlyEmployeeData) {
+			// Update only employee productivity state
+			setEmpProd(data.empProd);
+			if (analyticsCache.isValid(filterType)) {
+				const cachedData = { ...analyticsCache.get(filterType).value };
+				cachedData.empProd = data.empProd; 
+				analyticsCache.set(filterType, cachedData);
+			}
+			return;
+		  }
+
 		  // Update state with new values
 		  setOrderCnt(data.orderCount);
 		  setCustCnt(data.customerCount);
 		  setRevenueVal(data.revenueVal);
 		  setProfitMargin(data.profitMargin);
-		  setNewCustCount(data.newCustCount);
+		  setNewCustCount(data.newCustCount);	
 		  
 		  // Update cache if it exists
 		  if (analyticsCache.isValid(filterType)) {
@@ -149,27 +170,28 @@ const AnalyticsScreen = () => {
 		  }
 		};
 
-	  const handleTransactionAdded = async () => {
-		  console.log('in updateCriticalMetrics');
+	  const handleTransactionAdded = async (options = {}) => {
+		  const { onlyEmployeeData = false } = options;
+		  
+		  console.warn(`in updateCriticalMetrics${onlyEmployeeData ? ' (employee data only)' : ''}`);
 		  const filterTypes = ['this-year', 'this-month'];
 		  try {
 					setLoading(true);
-					const results = await Promise.allSettled(
+					  const results = await Promise.allSettled(
 						filterTypes.map(async (filterType) => {
-						  const data = await fetchAnalyticsData(filterType);
+						  const data = await fetchAnalyticsData(filterType, null, null, onlyEmployeeData);
 						  return { filterType, data };
 						})
 					  );
-				  
-				  // Process results
-				  results.forEach((result, index) => {
-					if (result.status === 'fulfilled') {
-					  const { filterType, data } = result.value;
-					  updateStateAndCache(data, filterType);
-					} else {
-					  console.error(`Failed to update ${filterTypes[index]}:`, result.reason);
-					}
-				  });
+					  // Process results
+					  results.forEach((result, index) => {
+						if (result.status === 'fulfilled') {
+						  const { filterType, data } = result.value;
+						  updateStateAndCache(data, filterType, onlyEmployeeData);
+						} else {
+						  console.error(`Failed to update ${filterTypes[index]}:`, result.reason);
+						}
+					  });
 				} catch(error) {
 					console.log(error);
 				} finally {
@@ -182,11 +204,9 @@ const AnalyticsScreen = () => {
 		  eventEmitter.once('transactionAdded', handleTransactionAdded);
 	  }, []);
 	  
-	  
-	  useEffect(() => {
-		if(subscriptionActive) {
-			const getAllData = async() => {
+	  const getAllData = async() => {
 				try {
+					console.log('in getallData')
 					setLoading(true);
 				  let today = a;
 				  let formattedDate = b;
@@ -212,7 +232,8 @@ const AnalyticsScreen = () => {
 				  { data: oldNewRevenue, error: oldNewRevenueError },
 				  { data: profitMarginData, error: profitMarginError },
 				  { data: newCustData, error: newCustError },
-				  { data: arpcData, error: arpcError }
+				  { data: arpcData, error: arpcError },
+				  { data: empData, error: empError }
 				] = await Promise.all([
 				  supabase.rpc("get_orders_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
 				  supabase.rpc("get_customers_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
@@ -226,17 +247,18 @@ const AnalyticsScreen = () => {
 				  supabase.rpc("get_old_new_revenue", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select(),
 				  supabase.rpc("get_profit_margin", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: nextDay }).select().single(),
 				  supabase.rpc("get_new_customers_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
-				  supabase.rpc("get_arpc", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single()
+				  supabase.rpc("get_arpc", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
+				  supabase.rpc("get_employee_prod_efficiency", { parameter1: formattedDate, parameter2: today })
 				]);
 
 				// Handle errors if any of the API calls fail
 				if (orderCountError || customerCountError || revenueDataError || 
 					topProductsError || topCustomersError || recurrentCustomersError || heatmapOrdersError || 
-					salesTrendError || oldNewOrdersError || oldNewRevenueError || profitMarginError || newCustError || arpcError) {
+					salesTrendError || oldNewOrdersError || oldNewRevenueError || profitMarginError || newCustError || arpcError || empError) {
 				  console.error('Error fetching data from API');
 				  console.error(orderCountError || customerCountError || revenueDataError || 
 					topProductsError || topCustomersError || recurrentCustomersError || heatmapOrdersError || 
-					salesTrendError || oldNewOrdersError || oldNewRevenueError || profitMarginError || newCustError || arpcError)
+					salesTrendError || oldNewOrdersError || oldNewRevenueError || profitMarginError || newCustError || arpcError || empError)
 				  return;
 				}
 
@@ -253,6 +275,7 @@ const AnalyticsScreen = () => {
 				console.log('Profit margin:', profitMarginData);
 				console.log('New customers count:', newCustData);
 				console.log('ARPC:', arpcData);
+				console.log('Emp prod data:', empData);
 
 				const transformedData1 = oldNewOrdersData.map(item => ({
 				  stacks: [
@@ -290,6 +313,7 @@ const AnalyticsScreen = () => {
 					setProfitMargin(profitMarginData.sum);
 					setNewCustCount(newCustData.count);
 					setArpc(arpcData.arpc);
+					setEmpProd(empData);
 
 					const dashboardData = {
 					  orderCount: orderCount.count,
@@ -305,7 +329,8 @@ const AnalyticsScreen = () => {
 					  oldNewRev: transformedData2,
 					  profitMargin: profitMarginData.sum,
 					  newCustCount: newCustData.count,
-					  arpc: arpcData.arpc
+					  arpc: arpcData.arpc,
+					  empProd: empData
 					};
 					console.log('dashboardData:');
 					console.log(dashboardData);
@@ -324,7 +349,8 @@ const AnalyticsScreen = () => {
 					setLoading(false);
 				}
 		}
-
+	  
+	  useEffect(() => {
 			if(!isConnected) {
 				 showErrorMessage("No Internet Connection");
 			} else {
@@ -345,6 +371,7 @@ const AnalyticsScreen = () => {
 					setProfitMargin(analyticsData.profitMargin);
 					setNewCustCount(analyticsData.newCustCount);
 					setArpc(analyticsData.arpc);
+					setEmpProd(analyticsData.empProd)
 					//setAnalyticsState(analyticsData);
 					
 						let diff = (new Date(a) - new Date(b))/(1000 * 60 * 60 * 24);
@@ -356,8 +383,11 @@ const AnalyticsScreen = () => {
 				console.log('getting from db');
 				getAllData();
 			}
-		}
 	  }, [dateRangeStart, dateRangeEnd]);
+	  
+	  useImperativeHandle(ref, () => ({
+		getAllData
+	  }));	  
 	  
 	  const handleButtonPress = () => {
 		setModalVisible(true);
@@ -373,6 +403,8 @@ const AnalyticsScreen = () => {
 	  };
 
   const productsHead = ['Name', 'Avg Price', '# Orders', 'Revenue'];
+  
+  const empHead = ['Name', 'Designation', 'Salary', 'No. of pcs', 'Cost/pc'];
   
 const customersHead = ['Name', 'No. of Orders', 'Total Revenue'];
   
@@ -463,6 +495,51 @@ const handleMenuSelect = (chartType) => {
 		));
   };
   
+  const renderHeaderEmp = () => {
+    return empHead.map((col, index) => (
+		<View key={index} style={[styles.headerCellEmp, { width: widthArrEmp[index] }]}>
+		  <Text style={styles.headerText}>{col}</Text>
+			<TouchableOpacity onPress={() => handleSort(index)} style={styles.sortArrow}>
+			  <Text style={styles.arrowText}>
+				{sortColumn === index ? (sortDirection === 'asc' ? '↑' : '↓') : '↑'}
+			  </Text>
+			</TouchableOpacity>
+		</View>
+    ));
+  };
+  
+    const renderRowsEmp = () => {
+		console.log('renderRowsEmp', empProd);
+		return empProd.map((rowData, rowIndex) => {
+			const cellValues = [
+			  rowData.name,
+			  rowData.designation,
+			  rowData.salary,
+			  rowData.total_count,
+			  rowData.cost_per_pc
+			];
+			
+			return (
+			  <TableWrapper
+				key={rowIndex}
+				style={[
+				  styles.cellEmp,
+				  { backgroundColor: rowIndex % 2 === 0 ? '#f9f9f9' : '#ffffff' },
+				]}
+			  >
+				{cellValues.map((cellData, cellIndex) => (
+				  <Text
+					key={cellIndex}
+					style={[styles.cellTextEmp, { width: widthArrEmp[cellIndex] }]}
+				  >
+					{cellData}
+				  </Text>
+				))}
+			  </TableWrapper>
+			);
+	});
+  };
+  
   const lineChartConfig = {
     backgroundColor: '#fff',
     backgroundGradientFrom: '#fff',
@@ -523,34 +600,21 @@ const handleMenuSelect = (chartType) => {
     };
   });
 
-  const handleClose = () => {
-    Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => {
-      setPaywallVisible(false);
-    });
-  };
-
-  const handleSubscribeClick = () => {
-	logFirebaseEvent('subscribe', {from_screen: 'analytics'});
-    setPaywallVisible(true);
-  };
-  
   const scrollViewSizeChanged = (contentWidth) => {
 		if (filterType !== 'this-month') {
 		  scrollViewRef.current?.scrollToEnd({ x: contentWidth, animated: true });
 		}
 	};
+	
+	const showPaymentPending = () => {
+		navigation.navigate('CustomerPaymentPending');
+	}
   
   return (
       <SafeAreaView style={styles.container}>
 		{loading ? (
 				<ActivityIndicator size="large" style={styles.spinner} />
 			  ) : (
-			subscriptionActive ? (
-		<>
 			<ScrollView>
 			<TouchableOpacity style={styles.dateRangeContainer} onPress={handleButtonPress}>
 			  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -610,6 +674,26 @@ const handleMenuSelect = (chartType) => {
 					  <ARPCCard title="Avg. Revenue Per Customer" value={`₹ ${arpc}`} targetValue={100} />
 					  <ARPCCard title="No. of new customers" value={newCustCount} targetValue={100} />
 					</Layout>
+			
+			<Card style={styles.productCard} disabled={true}>
+			  <Text category="s1" style={styles.title}>Employee Efficiency</Text>
+			  <ScrollView horizontal persistentScrollbar={true}>
+				<View style={{marginLeft: -20}}>
+				  <Table>
+					<TableWrapper style={styles.headerEmp}>
+					  {renderHeaderEmp()} 
+					</TableWrapper>
+				  </Table>
+
+				  {/* Table Rows */}
+				  <ScrollView style={{ marginTop: -1 }}>
+					<Table>
+						{renderRowsEmp()}
+					</Table>
+				  </ScrollView>
+				</View>
+			  </ScrollView>
+			</Card>
 
 			{salesTrendLabels.length > 0 && (
 			  <Card style={styles.productCard}>
@@ -763,10 +847,6 @@ const handleMenuSelect = (chartType) => {
 			/>
 		  </Card>
 		  </ScrollView>
-		</>
-		) : (
-			<PremiumOverlayAnalytics onUpgrade={handleSubscribeClick}/>
-		)
 		)}
 		
 		<DateFilterModal 
@@ -774,29 +854,9 @@ const handleMenuSelect = (chartType) => {
 			onClose={() => setModalVisible(false)}
 			onApply={handleApply}
 		/>
-
-		<ModalRN
-		  visible={paywallVisible}
-		  animationType="slide"
-		  transparent={true}
-		  onRequestClose={() => setPaywallVisible(false)} // Handle Android back press
-		>
-		  <View style={styles.modalContainer1}>
-			<Layout style={styles.modalContent}>
-			  <TouchableOpacity
-				style={styles.closeButton}
-				onPress={handleClose}
-			  >
-				<Icon name="close-outline" fill="#555" style={styles.closeIcon} />
-			  </TouchableOpacity>
-
-			  <PaywallScreen setPaywallVisible={setPaywallVisible}/>
-			</Layout>
-		  </View>
-		</ModalRN>
       </SafeAreaView>
   );
-};
+});
 
 const themedStyles = StyleService.create({
   container: {
@@ -965,9 +1025,34 @@ const themedStyles = StyleService.create({
     fontSize: 13,
     color: '#333',
 	textTransform: 'capitalize'
+  }, 
+  headerEmp: {
+    flexDirection: 'row',
+	marginLeft: 10
+  },
+  headerCellEmp: {
+    padding: 8,
+	flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+	marginLeft: 5
+  },
+  cellEmp: {
+    flexDirection: 'row',
+    height: 50,
+    alignItems: 'center',
+    paddingHorizontal: 10,
+	marginLeft: 5
+  },
+  cellTextEmp: {
+    textAlign: 'center',
+    fontSize: 13,
+    color: '#333',
+	textTransform: 'capitalize'
   },
   sortArrow: {
-    marginLeft: 8,
+    marginLeft: 12,
+	marginBottom: 3,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1197,6 +1282,37 @@ const themedStyles = StyleService.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  navButton: {marginRight: 20}
 });
+
+const Tab = createMaterialTopTabNavigator();
+
+const AnalyticsScreen = ({ navigation, route }) => {
+	const analyticsRef = useRef(null);
+
+	useEffect(() => {
+		console.log('in useEffect route.params')
+		console.log(route.params)
+		if (route.params?.triggerSync) {
+		  handleRefreshPress();
+		  route.params.triggerSync = false;
+		}
+	}, [route.params?.triggerSync]);
+	
+	const handleRefreshPress = () => {
+		console.log('in handleRefreshPress analytics')
+		if (analyticsRef.current) {
+		  analyticsRef.current.getAllData();
+		}
+	  };
+  return (
+    <Tab.Navigator screenOptions={{ swipeEnabled: false }}>
+      <Tab.Screen name="Analytics" children={() => {
+			  return <StatsScreen ref={analyticsRef} />;
+	  }} />
+	  <Tab.Screen name="Customer Payments Overview" component={CustomerPaymentPending} />
+    </Tab.Navigator>
+  );
+};
 
 export default AnalyticsScreen;

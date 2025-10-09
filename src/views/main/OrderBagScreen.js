@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Alert, View, TouchableOpacity, ScrollView, StyleSheet, Image, Share, Linking, BackHandler } from 'react-native';
 import {
   Input,
@@ -12,13 +12,13 @@ import { FontAwesome } from '@expo/vector-icons';
 import moment from 'moment';
 import { useRoute } from '@react-navigation/native';
 import { useUser } from './UserContext';
-import { useRevenueCat } from './RevenueCatContext';
 import { useNetwork } from './NetworkContext';
+import { useSlotBooking } from './SlotBookingContext';
+import useDressConfig from './useDressConfig';
 import { useOrderItems } from '../main/OrderItemsContext';
-import OrderDetailsItem from '../main/OrderDetailsItem';
+import OrderItemComponent from './OrderItemComponent';
 import * as FileSystem from 'expo-file-system';
 import { storage } from '../extra/storage';
-import { logFirebaseEvent } from '../extra/firebaseUtils';
 import { supabase } from '../../constants/supabase'
 import { showSuccessMessage, showErrorMessage } from './showAlerts';
 import { resetIdCounter } from '../main/generateUniqueId';
@@ -34,80 +34,77 @@ import {
 } from '../extra/icons';
 import * as Contacts from 'expo-contacts';
 import eventEmitter from './eventEmitter';
-import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
 import { usePubSub } from './SimplePubSub';
 
 const OrderBagScreen = ({ navigation }) => {
-	const route = useRoute();
-	const theme = useTheme();
-	const {currentUser} = useUser();
-	const { isConnected } = useNetwork();
-	const userType = currentUser.userType;
-	const { getNewOrder, getNewOrderCust, saveOrder, resetItemsForLabel } = useOrderItems();
-	const { notify, updateCache, eligible } = usePubSub();
-	const [customerType, setCustomerType] = useState('');
-	const [orderScreenDets, setOrderScreenDets] = useState(new Map());
-	const items = getNewOrder();
-	console.log('items in orderbag')
-	console.log(items)
-	const { subscriptionActive, gracePeriodActive } = useRevenueCat();
-	const custDetails = getNewOrderCust();
-	
-	const useDatepickerState = (initialDate = null) => {
-	    const [date, setDate] = useState(initialDate);
-		const resetDate = () => setDate(null);
-		return { date, onSelect: setDate, resetDate };
-	};
-	const useDatepickerStateSub = (initialDate = null) => {
-	    const [date, setDate] = useState(initialDate);
-		const resetDate = () => setDate(null);
-		return { date, onSelect: setDate, resetDate };
-	};
-	const filterPickerState = useDatepickerState();
-	const filterPickerStateSub = useDatepickerStateSub();
-	
-	const [loading, setLoading] = useState(false)
-	const payStatuses = ['Pending', 'Fully paid', 'Partially paid'];
-	const [payStatusIndex, setPayStatusIndex] = useState(0); 
-	const [payStatus, setPayStatus] = useState('Pending'); 
-	const [advancePaid, setAdvancePaid] = useState(0)
-	const viewRef = useRef(null);
-	const [modalVisible, setModalVisible] = useState(false);
-	const workerSelected = ['Yes', 'No'];
-	const [workerIndex, setWorkerIndex] = useState(1); 
-	const [userTypeSelectedIndex, setUserTypeSelectedIndex] = useState(0);
-	const [userTypeWorker, setUserTypeWorker] = useState('')
-	const [subName, setSubName] = useState("")
-	const [subPhNo, setSubPhNo] = useState("")
-	const [subPhoneErrorValid, setSubPhoneErrorValid] = useState(false)
-	const [workerName, setWorkerName] = useState("")
-	const [workerPhNo, setWorkerPhNo] = useState("")
-	const [workerPhoneErrorValid, setWorkerPhoneErrorValid] = useState(false)
-	const [workerNameError, setWorkerNameError] = useState(false)
-	const [eventEmitted, setEventEmitted] = useState(false);
-	const data = [
-	  'Tailor',
-	  'Embroiderer',
-	];
-	const [step, setStep] = useState(1);
-	const breadcrumbRoutes = [
-		{ name: 'Order Details', screen: 'OrderBagItems' },
-		{ name: 'Create Order', screen: 'OrderBagCreate' },
-	];
+  const [expandedItems, setExpandedItems] = useState(new Set([0])); // First item expanded by default
+  const route = useRoute();
+  const theme = useTheme();
+  const { refresh, measurementFields } = useDressConfig();
+  const {currentUser} = useUser();
+  const { isConnected } = useNetwork();
+  const { getNewOrder, getNewOrderCust, saveOrder, resetItemsForLabel } = useOrderItems();
+  const { notify, updateCache, eligible } = usePubSub();
+  const [customerType, setCustomerType] = useState('');
+  const [orderScreenDets, setOrderScreenDets] = useState(new Map());
+  
+  const [loading, setLoading] = useState(false);
+  const [payStatusIndex, setPayStatusIndex] = useState(0); 
+  const [payStatus, setPayStatus] = useState('Pending'); 
+  const [advancePaid, setAdvancePaid] = useState(0);
+  const viewRef = useRef(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [eventEmitted, setEventEmitted] = useState(false);
+  const [step, setStep] = useState(1);
+  const [paymentMode, setPaymentMode] = useState('Cash');
+  const [payModeIndex, setPayModeIndex] = useState(0);
+  const { clearAllBookings, removeItemBooking } = useSlotBooking();
+
+  const userType = currentUser.userType;
+  const items = getNewOrder();
+  //const items = [{"alterDressType": "", "associateCustName": "", "backNeckDesignFile": null, "backNeckType": "Boat", "dressGiven": false, "dressPics": ["file:///data/user/0/com.thaiyal.Tailor/cache/ImageManipulator/076ee617-7261-46b2-84a1-20316c05897f.jpg", "file:///data/user/0/com.thaiyal.Tailor/cache/ImageManipulator/b5470fa0-217b-4f98-a9ce-f5f7be44777a.jpg"], "dressSubType": "Normal", "dressType": "blouse", "dueDate": "2025-08-27", "editable": true, "extraMeasurements": {"eee": 4}, "extraOptions": {"Hemming": "50", "Hook/Button": "80"}, "frontNeckDesignFile": null, "frontNeckType": "Sweetheart", "id": 1, "localId": 1, "measurementData": {"armHoleCurve": "", "armPitDepth": "", "backCut": "", "backDepth": "", "backNeck": "", "blouseLength": "", "chest": "", "cvb": "", "dartDepth": "", "frontCut": "", "frontDepth": "", "frontNeck": "", "hemCurve": "7", "hookLength": "", "red": "5", "shoulder": "", "shoulderCurve": "", "shoulderToWaist": "9", "sideCut": "", "sleeve": "", "sleeveOpening": "", "waist": ""}, "measurementPics": [], "notes": "Dd", "patternPics": ["file:///data/user/0/com.thaiyal.Tailor/cache/ImageManipulator/03418653-17b2-4cce-a941-375ed128edf0.jpg", "file:///data/user/0/com.thaiyal.Tailor/cache/ImageManipulator/bb4efe2b-4ad4-4578-a742-e2ac4212b016.jpg"], "repeatDesign": false, "repeatMeas": false, "sleeveDesignFile": null, "sleeveLength": "Medium", "sleeveType": "Sleeveless", "stitchingAmt": "500"}]
+  //const custDetails = {"custName": "lak", "occasion": "Ethnic", "phoneNo": "+919841690009"};
+  const custDetails = getNewOrderCust();
+  const payStatuses = ['Pending', 'Fully paid', 'Partially paid'];
+  const breadcrumbRoutes = [
+    { name: 'Order Details', screen: 'OrderBagItems' },
+    { name: 'Create Order', screen: 'OrderBagCreate' },
+  ];
+  const payModes = ['Cash', 'Credit/Debit Card', 'UPI', 'Net-banking'];
   
 	console.log('new order item:')
-	console.log(JSON.stringify(items))
+	console.log(items)
 	console.log(custDetails)
 	
+	const deleteAlert = (index, itemId, slotDates) => {
+		Alert.alert(
+            "Confirmation", `Do you want to delete this order item?`,
+            [
+                {
+                    text: 'Cancel',
+                    onPress: () => console.log("Cancel"),
+                    style: "cancel",
+                },
+                {
+                    text: 'OK',
+                    onPress: () => handleDelete(index, itemId, slotDates)
+                }
+            ],
+            {cancelable: true}
+        )
+	}
+	
 	useEffect(() => {
+		console.log('useEffect 1');
 		navigation.setOptions({
 		  headerRight: () => (
-			<Icon name="trash-2-outline" fill="#FF0000" style={{ width: 25, height: 25, marginRight: 20 }} onPress={() => handleDelete(null)}/>
+			<Icon name="trash-2-outline" fill="#FF0000" style={{ width: 25, height: 25, marginRight: 20 }} onPress={() => deleteAlert(null)}/>
 		  ),
 		});
 	  }, [navigation]);
 	
 	useEffect(() => {
+		console.log('useEffect 2');
 		const backAction = () => {
 		if(step === 1) {
 			if(route.params?.cleanup) {
@@ -133,6 +130,7 @@ const OrderBagScreen = ({ navigation }) => {
 	}, [step]);  
 	
 	useEffect(() => {
+		console.log('useEffect 3');
 		navigation.setOptions({
 		  headerLeft: () => (
 			<TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon} onPress={() => {
@@ -155,6 +153,7 @@ const OrderBagScreen = ({ navigation }) => {
 	
 	useFocusEffect(
 		useCallback(() => {
+			console.log('useEffect 4');
 			items.forEach(item => {
 				setOrderScreenDets(prev => new Map(prev).set(item.id, {itemName: route.params?.itemName, headerImgUri: route.params?.headerImgUri}))
 			});
@@ -169,6 +168,7 @@ const OrderBagScreen = ({ navigation }) => {
 	);
 	  
 	useEffect(() => {
+		console.log('useEffect 5');
 		if(!isConnected) {
 			 showErrorMessage("No Internet Connection");
 		}
@@ -177,83 +177,14 @@ const OrderBagScreen = ({ navigation }) => {
 		console.log(custDetails);
 	}, [getNewOrder, getNewOrderCust]);
 	
-	useEffect(() => {
-		   if(route.params?.workerNameImp) {
-			if(customerType === 'worker') {
-			  setWorkerName(route.params.workerNameImp)
-			  let ph = route.params.workerPhNoImp.includes('+91') ? route.params.workerPhNoImp.substring(3) : route.params.workerPhNoImp
-			  setWorkerPhNo(ph)
-			} else if(customerType === 'subTailor') {
-				setSubName(route.params.workerNameImp)
-				  let ph = route.params.workerPhNoImp.includes('+91') ? route.params.workerPhNoImp.substring(3) : route.params.workerPhNoImp
-				  setSubPhNo(ph)
-			}
-		  }
-	  },[route.params?.workerNameImp])
-
   const handlePayStatusSelect = (index) => {
 		setPayStatusIndex(index);
 		setPayStatus(payStatuses[index]);
 	};
 	
-	const showAdAfterAction = () => {
-		// Use test ad unit IDs in development
-		const adUnitID = __DEV__ 
-		  ? TestIds.INTERSTITIAL 
-		  : Platform.select({
-			  ios: 'ca-app-pub-3653760421436075/9615373788',
-			  android: 'ca-app-pub-3653760421436075/9615373788',
-			});
-			
-		// Create and load the interstitial ad
-		const interstitialAd = InterstitialAd.createForAdRequest(adUnitID, {
-		  requestNonPersonalizedAdsOnly: false,
-		  keywords: ['productivity', 'business'],
-		});
-		
-		// Add event listeners
-		const unsubscribeLoaded = interstitialAd.addAdEventListener(
-		  AdEventType.LOADED,
-		  () => {
-			console.log('Post-action ad loaded, showing now');
-			interstitialAd.show();
-		  }
-		);
-		
-		const unsubscribeError = interstitialAd.addAdEventListener(
-		  AdEventType.ERROR,
-		  (error) => {
-			console.error('Failed to load post-action ad:', error);
-			// Clean up event listeners on error
-			cleanup();
-		  }
-		);
-		
-		const unsubscribeClosed = interstitialAd.addAdEventListener(
-		  AdEventType.CLOSED,
-		  () => {
-			console.log('Post-action ad closed');
-			// Clean up event listeners after ad is closed
-			cleanup();
-		  }
-		);
-		
-		// Function to clean up event listeners
-		const cleanup = () => {
-		  unsubscribeLoaded();
-		  unsubscribeError();
-		  unsubscribeClosed();
-		};
-		
-		// Set a timeout to clean up if ad never loads
-		const timeoutId = setTimeout(() => {
-		  console.log('Ad load timeout - cleaning up');
-		  cleanup();
-		}, 10000); // 10 seconds timeout
-		
-		// Start loading the ad
-		console.log('Loading post-action ad...');
-		interstitialAd.load();
+	const handlePayModeSelect = (index) => {
+		setPayModeIndex(index);
+		setPaymentMode(payModes[index]);
 	};
 	
 	const uploadDesignFile = async(itemLocal, fileType) => {
@@ -274,12 +205,23 @@ const OrderBagScreen = ({ navigation }) => {
 		}
 	}
 	
+	const getPicFolder = (type) => {
+		switch(type) {
+			case 'dress':
+				return 'dressImages';
+			case 'pattern':
+				return 'patternImages';
+			case 'measurements':
+				return 'measurementImages';		
+		}
+	  }
+	
 	const uploadOrderImages = async(picType, pics) => {
 		let orderPicsString = null;
 		console.log(pics)
-		const folderName = picType === 'dress' ? 'dressImages' : 'patternImages'
+		const folderName = getPicFolder(picType);
 		let a = await Promise.all(
-							pics.map(async(pic) => {
+							pics?.map(async(pic) => {
 								const arraybuffer = await fetch(pic).then((res) => res.arrayBuffer())
 								  const fileExt = pic.split('.').pop()?.toLowerCase() ?? 'jpeg'
 								  const path = `${Date.now()}.${fileExt}`
@@ -304,15 +246,86 @@ const OrderBagScreen = ({ navigation }) => {
 		console.log(orderPicsString);
 		return orderPicsString;
 	}
-	
-	  const addDressItemsToParse = async (orderNo, customerId, custName, phNo) => {
+
+  const toggleItemExpansion = (index) => {
+    const newExpanded = new Set(expandedItems);
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index);
+    } else {
+      newExpanded.add(index);
+    }
+    setExpandedItems(newExpanded);
+  };
+
+  // Icons
+  const EditIcon = (props) => <Icon {...props} name='edit-outline' style={styles.editIcon} fill={theme['color-primary-500']}/>;
+  const DeleteIcon = (props) => <Icon {...props} name='trash-2-outline' style={styles.deleteIcon} fill={'red'}/>;
+  const ChevronDownIcon = (props) => <Icon {...props} name='chevron-down-outline' />;
+  const ChevronUpIcon = (props) => <Icon {...props} name='chevron-up-outline' />;
+  const PlusIcon = (props) => <Icon {...props} name='plus-outline' />;
+  const DateIcon = (props) => <Icon {...props} name='calendar-outline' fill={theme['color-primary-100']}/>
+  
+  const totalAmount = items.reduce((total, item) => {
+    const extraOptionsTotal = Object.values(item.extraOptions).reduce((sum, price) => sum + price, 0);
+    return total + item.stitchingPrice + extraOptionsTotal;
+  }, 0);
+
+  const renderCustomerDetails = () => (
+  <>
+  <Text category='h6' style={styles.sectionTitle}>👤 Customer Details</Text>
+    <Card style={styles.customerCard}>
+      <View style={styles.detailRow}>
+        <Text category='s1' appearance='hint'>Name</Text>
+        <Text category='s1'>{custDetails.custName}</Text>
+      </View>
+      <Divider style={styles.divider} />
+      <View style={styles.detailRow}>
+        <Text category='s1' appearance='hint'>Phone No</Text>
+        <Text category='s1'>{custDetails.phoneNo}</Text>
+      </View>
+      <Divider style={styles.divider} />
+      <View style={styles.detailRow}>
+        <Text category='s1' appearance='hint'>Order Date</Text>
+        <Text category='s1'>{moment(new Date()).format('DD-MM-YYYY')}</Text>
+      </View>
+    </Card>
+	</>
+  );
+  
+  const summarizeExpressDuration = (slotsObj) => {
+	  let minDuration = Infinity;
+	  let finalDuration = null;
+	  
+	  for (const { expressDuration } of Object.values(slotsObj)) {
+		console.log(expressDuration);
+		
+		if (expressDuration) {
+		  const daysStr = expressDuration.days;
 		  
+		  if (daysStr && typeof daysStr === 'string') {
+			const nums = daysStr.match(/\d+/g)?.map(Number) || [];
+			const lowest = Math.min(...nums, Infinity);
+			
+			if (lowest < minDuration) {
+			  minDuration = lowest;
+			  finalDuration = {
+				...expressDuration,
+				price: parseInt(expressDuration.price) || expressDuration.price
+			  };
+			}
+		  }
+		}
+	  }
+	  
+	  return finalDuration;
+	};
+
+  const addDressItemsToParse = async (orderNo, customerId, custName, phNo, itemsExp) => {
 		try {
 			const grouped = {};
 			let dressItemIds = [];
-			for (let i = 0; i < items.length; i++) {
-				const item = items[i];
-				logFirebaseEvent('new_order_creation', {item: item.dressType});
+			for (let i = 0; i < itemsExp.length; i++) {
+				const item = itemsExp[i];
 				console.log("in add: ")
 				console.log(item);
 				const jsonCacheVal = storage.getString(phNo+'_'+item.dressType);
@@ -334,73 +347,101 @@ const OrderBagScreen = ({ navigation }) => {
 						if(item.patternPics) {
 							item.patternPics = await uploadOrderImages('pattern', item.patternPics);
 						}
+						if(item.measurementPics) {
+							item.measurementPics = await uploadOrderImages('measurements', item.measurementPics);
+						}
 						
+						//let finalDurationVal = summarizeExpressDuration(item.slots);
+
 					const { data, error } = await supabase
 									  .from('DressItems')
-									  .insert({ orderNo: orderNo, dressType: item.dressType, dueDate: item.dueDate, dressSubType: item.dressSubType, stitchingAmt: parseInt(item.stitchingAmt ? item.stitchingAmt : 0), frontNeckType: item.frontNeckType, backNeckType: item.backNeckType, sleeveType: item.sleeveType, sleeveLength: item.sleeveLength, dressGiven: item.dressGiven, alterDressType: item.alterDressType, notes: item.notes, dressPics: item.dressPics, patternPics: item.patternPics, frontNeckDesignFile: item.frontNeckDesignFile, backNeckDesignFile: item.backNeckDesignFile, sleeveDesignFile: item.sleeveDesignFile, associateCustName: item.associateCustName?.trim() })
+									  .insert({ orderNo: orderNo, dressType: item.dressType, dueDate: item.dueDate, dressSubType: item.dressSubType, stitchingAmt: parseInt(item.stitchingAmt ? item.stitchingAmt : 0), frontNeckType: item.frontNeckType, backNeckType: item.backNeckType, sleeveType: item.sleeveType, sleeveLength: item.sleeveLength, dressGiven: item.dressGiven, alterDressType: item.alterDressType, notes: item.notes, dressPics: item.dressPics, patternPics: item.patternPics, measurementPics: item.measurementPics, frontNeckDesignFile: item.frontNeckDesignFile, backNeckDesignFile: item.backNeckDesignFile, sleeveDesignFile: item.sleeveDesignFile, associateCustName: item.associateCustName?.trim(), extraOptions: item.extraOptions, slots: item.slots, slotDates: item.slotDates, expressDuration: item.expressDuration })
 									  .select().single();
 					if(error) {
 						console.log(error);
 						throw error;
 					}
-					dressItemIds.push(data.id)
 					
-					try {
-						const selPr = ['type', 'frontNeck', 'backNeck', 'shoulder', 'sleeve', 'AHC', 'shoulderToWaist', 'chest', 'waist', 'hip', 'leg', 'topLength', 'bottomLength', 'extraMeasurements'];
-						
-						const values1 = selPr.map(key => item[key]);
-						let measCacheVal = jsonCacheVal ? JSON.parse(jsonCacheVal) : null;
-						const values2 = measCacheVal ? Object.values(measCacheVal) : null;
+					console.log('item.slots', item.slots);
+					const rowsToInsert = Object.entries(item.slots).map(([slot_date, { regular, express, total }]) => ({
+					  slot_date,
+					  regular_slots_booked: regular,
+					  express_slots_booked: express,
+					  total_slots_booked: total,
+					}));
+					console.log('rowsToInsert', rowsToInsert);
 
-						if (values2 === null || !values1.every((val, index) => val === values2[index])) {
-							const selectedProperties = ['dressType', 'frontNeck', 'backNeck', 'shoulder', 'sleeve', 'AHC', 'shoulderToWaist', 'chest', 'waist', 'hip', 'leg', 'topLength', 'bottomLength', 'extraMeasurements'];
-							
+					const { data: dataSlots, error: errorSlots } = await supabase
+					    .rpc('upsert_delivery_slots', { 
+							rows_data: rowsToInsert 
+						});
+
+					if (errorSlots) {
+					  console.error("Insert error:", errorSlots);
+					} else {
+					  console.log("Inserted slots:", dataSlots);
+					}
+
+					dressItemIds.push(data.id)
+					let aa = {...item.measurementData, ...item.extraMeasurements};
+					item.measurementData = aa;
+					try {
 							const { data: data1, error: error1 } = await supabase
-								  .from('Measurements')
-								  .insert({ dressType: item.dressType, customerId: customerId, frontNeck: parseInt(item.frontNeck), backNeck: parseInt(item.backNeck), sleeve: parseInt(item.sleeve), shoulder: parseInt(item.shoulder), AHC: parseInt(item.AHC), shoulderToWaist: parseInt(item.shoulderToWaist), chest: parseInt(item.chest), waist: parseInt(item.waist), hip: parseInt(item.hip), leg: parseInt(item.leg), topLength: parseInt(item.topLength), bottomLength: parseInt(item.bottomLength), extraMeasurements: item.extraMeasurements, dressItemNo: data.id, otherCust: item.associateCustName ? true : false })
+								  .from('measurements_new')
+								  .insert({ dress_type: item.dressType, customer_id: customerId, measurement_data: aa, dress_item_id: data.id, other_cust: item.associateCustName ? true : false })
 								  .select();
 							if(error1) {
 								console.log(error1)
 								throw error1;
 							}
+							
+							if(item.nameValues) {
+									const rowsToInsert = item.nameValues.map(fieldKey => ({
+										username: currentUser.username,
+										dress_type: fieldKey.dressType,
+										field_key: fieldKey.value
+									  }));
+
+									  const {error: error2} = await supabase
+										.from('dress_extra_measurement_fields')
+										.upsert(rowsToInsert);
+										
+									  await refresh();
+										
+									  if (error2) {
+										console.error('Error inserting extra measurements:', error2);
+									  }
+							}
+							
 							console.log("Measurement saved successfully:", data1);
-							const filteredObject = {};
-							selectedProperties.forEach(prop => {
-							  filteredObject[prop] = data1[0][prop];
-							});
+							const filteredObject = {dressType: item.dressType,
+								measurementData: aa
+							}
+							console.log(filteredObject);
 							if(!item.associateCustName) {
 								console.log('updating UPDATE_MEAS')
-								/*storage.set(phNo + '_' + item.dressType, resultJson);
-								console.log("storage.getString: ")
-								console.log(storage.getString(phNo + '_' + item.dressType))*/
-								updateCache('UPDATE_MEAS', filteredObject, phNo, item.dressType);    
-								await notify(subscriptionActive || gracePeriodActive, currentUser.id, 'UPDATE_MEAS', phNo, item.dressType, filteredObject);
+								updateCache('UPDATE_MEAS', filteredObject, `${phNo}_${item.dressType}`);    
+								await notify(currentUser.id, 'UPDATE_MEAS', `${phNo}_${item.dressType}`, filteredObject);
 							}
-						}
 					} catch(error) {
 						console.error('Error saving Measurement:', error.message);
 						throw error;
 					}
 				
 				const key = (item.dressType === 'Alteration' ? item.alterDressType : (item.dressSubType ? item.dressSubType : '')) + " " + item.dressType;
-							if (grouped[key]) {
-							  grouped[key].count += 1;
-							  grouped[key].groupedAmt += item.stitchingAmt;
-							} else {
-							  grouped[key] = { count: 1, groupedAmt: item.stitchingAmt };
-							}
+				if (grouped[key]) {
+				  grouped[key] += 1;
+				} else {
+				  grouped[key] = 1;
+				}
 			}
+
 			const details = Object.entries(grouped)
-						.map(([key, value]) => {
-							return `${value.count} ${key}`})
-						.join(', ');
-			const detailsAmt = Object.entries(grouped).map(([key, value]) => ({
-						  key,
-						  ...value
-						}));
+			  .map(([key, count]) => `${count} ${key}`)
+			  .join(', ');
 			console.log('dressItemIds:')
 			console.log(dressItemIds)
-			return [details, detailsAmt, dressItemIds];
+			return [details, dressItemIds];
 		} catch (error) {
 			  console.error('Error saving DressItem:', error.message);
 			  const response = await supabase
@@ -414,18 +455,45 @@ const OrderBagScreen = ({ navigation }) => {
 			  return null;
 		}
 	  };
+	  
+	  const accumulateSlots = (obj) => {
+		  let totalRegular = 0;
+		  let totalExpress = 0;
+
+		  for (const val of Object.values(obj)) {
+			totalRegular += val.regular || 0;
+			totalExpress += val.express || 0;
+		  }
+
+		  return { totalRegular, totalExpress };
+		}
 
 		const calculateTotalAmount = (data) => {
-		  return data.reduce((total, item) => total + parseInt(item.stitchingAmt ? item.stitchingAmt : 0), 0);
+		  return data.reduce((total, item) => {
+			// Add stitching amount
+			const stitchingAmount = parseInt(item.stitchingAmt ? item.stitchingAmt : 0);
+			
+			// Calculate sum of all extraOptions values
+			let extraOptionsSum = 0;
+			if (item.extraOptions && typeof item.extraOptions === 'object') {
+			  extraOptionsSum = Object.values(item.extraOptions).reduce((sum, value) => {
+				return sum + (parseInt(value) || 0);
+			  }, 0);
+			}
+			
+			return total + stitchingAmount + extraOptionsSum;
+		  }, 0);
 		};
 		
-	
-	function isValidPhoneNumber(phoneNo) {
-	  const phoneRegex = /^(?:\+91|91)?\d{10}$/;
-	  return phoneRegex.test(phoneNo);
-	}
-		
-	  const createOrder = async (shopPhNoContacts) => {
+		const calcExpressCharges = (data) => {
+			return data.reduce((max, item) => {
+			  const expressAmt = parseInt(item.expressDuration ? item.expressDuration.price : 0);
+			  return Math.max(max, expressAmt);
+			}, 0);
+		}
+
+	  const createOrder = async () => {
+		console.log('in createOrder')
 		if(!isConnected) {
 			 showErrorMessage("No Internet Connection");
 		} else {
@@ -437,10 +505,7 @@ const OrderBagScreen = ({ navigation }) => {
 				try {
 						setLoading(true);
 						let grRes = [];
-						let custInserted = false;
 							console.log(custDetails)
-							let custId = null;
-							let custUn = null;
 							
 							  const { data, error, status } = await supabase
 								.from('Customer')
@@ -453,110 +518,44 @@ const OrderBagScreen = ({ navigation }) => {
 							  }
 							    console.log('cust data:')
 								console.log(data)
-								if(data) {
-									custId = data.id;
-									custUn = data.username;
-								} else {
-									custInserted = true;
-									const {data: dataUser, error: errorUser } = await supabase
-										.rpc("insert_customer_with_username", {
-											p_cust_name: custDetails.custName,
-											p_phone_no: custDetails.phoneNo
-										})
-									if(errorUser) {
-										throw errorUser;
-									}
-									
-										console.log(dataUser[0])
-										custId = dataUser[0].id;
-										custUn = dataUser[0].username;
-										
-										/*const customers = storage.getString(currentUser.username+'_Customers');
-										let customersArray = customers ? JSON.parse(customers) : [];
-										customersArray.push({custName: custDetails.custName, phoneNo: custDetails.phoneNo});
-										storage.set(currentUser.username+'_Customers', JSON.stringify(customersArray, ['custName', 'phoneNo']));*/
-									
-								}
+								const custId = data.id;
 								
-								let workerId = null;
-								let formattedWorkerDate = null;
-								let formattedWorkerDateSub = null;
-								if(workerIndex === 0) {
-								  const isValid = workerPhNo ? isValidPhoneNumber(workerPhNo) : false;		
-								  if(!workerName) {
-										setWorkerNameError(true)
-										showErrorMessage('Enter Outsourcing ' + userTypeWorker + ' name!');
-										return;
-								  } else if (!isValid) {
-										setWorkerPhoneErrorValid(true)
-										showErrorMessage('Enter a valid phone number for outsourcing ' + userTypeWorker + '!');
-										return;
-								  } else {
-									let wPh = '+91' + workerPhNo.trim();
-									const { data: datawp, error: errorwp } = await supabase
-									  .from('profiles')
-									  .select(`username`)
-									  .eq('phoneNo', wPh)
-									if(errorwp) {
-										console.log(errorwp)
-										throw errorwp
-									}
-									console.log(datawp)
-									formattedWorkerDate = filterPickerState.date ? moment(filterPickerState.date).format('YYYY-MM-DD') : filterPickerState.date;
-									console.log(formattedWorkerDate)
-									const capWName = workerName.charAt(0).toUpperCase() + workerName.slice(1)
-									const { data: dataw, error: errorw } = await supabase
-										.from('Worker')
-										.upsert({ workerName: capWName.trim(), workerPhNo: wPh, username: datawp && datawp.length > 0 ? datawp[0].username : null },
-										{ onConflict: ['workerName', 'workerPhNo'] })
-										.eq('workerName', capWName.trim())
-										.eq('workerPhNo', wPh)
-										.select().single()
-									  if (errorw) {
-										console.log(errorw)
-										throw errorw;
-									  }
-									console.log(dataw);
-									workerId = dataw.id;
-								  }
-								}
-								if(subPhNo && !isValidPhoneNumber(subPhNo)) {
-									setSubPhoneErrorValid(true);
-									showErrorMessage('Enter a valid phone number for outsourcing ' + userTypeWorker + '!');
-								}
-								if(subName) {
-									formattedWorkerDateSub = filterPickerStateSub.date ? moment(filterPickerStateSub.date).format('YYYY-MM-DD') : filterPickerStateSub.date;
-									console.log(formattedWorkerDateSub)
-								}
-								let insertJson = {};
-									insertJson = { username: currentUser.username, orderDate: new Date(), orderStatus: 'Created', orderAmt: calculateTotalAmount(items), shopId: currentUser.ShopDetails.id, paymentStatus: payStatus, advance: parseInt(advancePaid ? advancePaid : 0), customerId: custId, workerId: workerId, workerDueDate: workerIndex === 0 ? formattedWorkerDate : null, workerType: userTypeWorker, subTailorName: subName, subTailorPhNo: subPhNo, subTailorDueDate: subName ? formattedWorkerDateSub : null, occasion: custDetails.occasion }
+								const itemsWithExpress = items.map(item => ({
+								  ...item,
+								  expressDuration: summarizeExpressDuration(item.slots)
+								}));
+								console.log('itemsWithExpress', itemsWithExpress);
+
+								// Then compute expressCharges as max expressDuration across items
+								const expressCharges = itemsWithExpress.reduce((max, item) => {
+								  const price = item.expressDuration?.price || 0;
+								  return price > max ? price : max;
+								}, 0);
+								
+								console.log('expressCharges', expressCharges)
+
+								let insertJson = { username: currentUser.username, orderDate: new Date(), orderStatus: 'New', orderAmt: calculateTotalAmount(items), paymentStatus: payStatus, advance: parseInt(advancePaid ? advancePaid : 0), customerId: custId, occasion: custDetails.occasion, paymentMode: paymentMode, expressCharges: expressCharges };
 								
 								console.log('insertJson:')
 								console.log(insertJson)
 								const { data: data1, error: error1 } = await supabase
 									  .from('OrderItems')
 									  .insert(insertJson)
-									  .select(`*, Worker!workerId(workerName, workerPhNo)`).maybeSingle();
+									  .select(`*`).maybeSingle();
 								if(error1) {
 									console.log(error1);
 									throw error1;
 								}
 									console.log(data1)
-									if (data1 && data1.Worker) {
-									  data1.workerName = data1.Worker.workerName;
-									  data1.workerPhNo = data1.Worker.workerPhNo;
-									  delete data1.Worker; // Remove the nested object
-									}
-
-									grRes = await addDressItemsToParse(data1.orderNo, custId, custDetails.custName, custDetails.phoneNo);
-									console.log("grRes: " + grRes[0] + grRes[1] + grRes[2])
+									grRes = await addDressItemsToParse(data1.orderNo, custId, custDetails.custName, custDetails.phoneNo, itemsWithExpress);
+									console.log("grRes: " + grRes[0] + grRes[1])
 							
 								console.log(items)
 								const combinedObject = items.reduce((accumulator, currentObj) => {
 								  for (const key in currentObj) {
 									let value = currentObj[key];
 
-									if ((key === 'dressPics' || key === 'patternPics') && typeof value === 'string') {
+									if (['dressPics', 'patternPics', 'measurementPics'].includes(key) && typeof value === 'string') {
 									  value = value.split(',');
 									}
 
@@ -566,12 +565,16 @@ const OrderBagScreen = ({ navigation }) => {
 									  accumulator[key] = [value];
 									}
 								  }
+								  if (accumulator['checkingDone']) {
+									accumulator['checkingDone'].push(false);
+								  } else {
+									accumulator['checkingDone'] = [false];
+								  }
 								  return accumulator;
 								}, {});
-
 								
 								console.log("combined dress items: ");
-								const selProps = ['associateCustName', 'dressType', 'dressSubType', 'alterDressType', 'frontNeckType', 'backNeckType', 'sleeveType', 'sleeveLength',  'frontNeckDesignFile', 'backNeckDesignFile', 'sleeveDesignFile', 'dressGiven', 'dueDate', 'stitchingAmt', 'notes', 'dressPics', 'patternPics', 'frontNeck', 'backNeck', 'shoulder', 'sleeve', 'chest', 'AHC', 'shoulderToWaist', 'waist', 'hip', 'leg', 'topLength', 'bottomLength', 'extraMeasurements'];
+								const selProps = ['associateCustName', 'dressType', 'dressSubType', 'alterDressType', 'frontNeckType', 'backNeckType', 'sleeveType', 'sleeveLength',  'frontNeckDesignFile', 'backNeckDesignFile', 'sleeveDesignFile', 'dressGiven', 'dueDate', 'stitchingAmt', 'notes', 'dressPics', 'patternPics', 'measurementPics', 'measurementData', 'extraOptions', 'slots', 'slotDates', 'expressDuration'];
 								const filteredObjectCombined = {};
 								selProps.forEach(prop => {
 								  filteredObjectCombined[prop] = combinedObject[prop];
@@ -582,22 +585,17 @@ const OrderBagScreen = ({ navigation }) => {
 								const selComObjJson = JSON.parse(selComObj)
 								console.log(selComObjJson)
 								console.log(data1);
-								const itemFinal = {...data1, ...selComObjJson, ...{ shopName: currentUser.ShopDetails.shopName, shopAddress: currentUser.ShopDetails.shopAddress, shopPhNo: currentUser.ShopDetails.shopPhNo, custName: custDetails.custName, phoneNo: custDetails.phoneNo, custUsername: custUn, dressItemId: grRes[2], dressDetails: grRes[0], dressDetailsAmt: grRes[1]}}
+								const itemFinal = {...data1, ...selComObjJson, ...{ custName: custDetails.custName, phoneNo: custDetails.phoneNo, dressItemId: grRes[1], dressDetails: grRes[0]}}
 								console.log('itemFinal:')
 								console.log(itemFinal)
-								
-								
-										/*let arrayA = JSON.parse(storage.getString(currentUser.username+'_Created') || '[]');
-										let arrayB = [itemFinal, ...arrayA];
-										let bStr = JSON.stringify(arrayB)
-										storage.set(currentUser.username+'_Created', bStr);*/
 										
-										updateCache('NEW_ORDER', itemFinal, currentUser.username, 'Created', null, custInserted);    
-										await notify(subscriptionActive || gracePeriodActive, currentUser.id, 'NEW_ORDER', currentUser.username, 'Created', itemFinal, null, custInserted);
+										updateCache('NEW_ORDER', itemFinal, 'Completed_false', null, custDetails.custInserted || false);    
+										await notify(currentUser.id, 'NEW_ORDER', 'Completed_false', itemFinal, null, custDetails.custInserted || false);
 										
 									showSuccessMessage('Order saved!');
 									eventEmitter.emit('storageUpdated');
 									eventEmitter.emit('newOrderAdded');
+									eventEmitter.emit('payStatusChanged');
 									if(!eventEmitted) {
 										eventEmitter.emit('transactionAdded');
 										setEventEmitted(true);
@@ -606,10 +604,8 @@ const OrderBagScreen = ({ navigation }) => {
 							  saveOrder([], {custName: '', phoneNo: '', occasion: ''});
 							  resetItemsForLabel();
 							  resetIdCounter();
-							  if(!subscriptionActive) {
-								  showAdAfterAction();
-							  }
-							  navigation.navigate('HomeMain', {screen: 'HomeNew', params: {firstOrder: data1.tailorOrderNo === 1} });
+							  clearAllBookings();
+							  navigation.navigate('HomeMain', {screen: 'HomeNew'});
 						
 			} catch(error) {
 						console.error("Error calling Cloud Code function:", error.message);
@@ -617,19 +613,9 @@ const OrderBagScreen = ({ navigation }) => {
 				setPayStatusIndex(0);
 				setPayStatus('Pending');
 				setAdvancePaid(0);
-				setWorkerIndex(1);
-				setUserTypeSelectedIndex(0);
-				setUserTypeWorker('');
-				setSubName('');
-				setSubPhNo('');
-				setSubPhoneErrorValid(false);
-				setWorkerName('');
-				setWorkerPhNo('');
-				setWorkerNameError(false);
-				setWorkerPhoneErrorValid(false);
-				filterPickerState.resetDate();
-				filterPickerStateSub.resetDate();
-				setLoading(false)
+				setPaymentMode('Cash');
+				setPayModeIndex(0);
+				setLoading(false);
 			}
 		  }
 		}
@@ -645,12 +631,14 @@ const OrderBagScreen = ({ navigation }) => {
 		navigation.navigate('HomeMain', {screen: 'Test', params: {itemName: orderScreenDets.get(newOrderItem.id).itemName, headerImgUri: orderScreenDets.get(newOrderItem.id).headerImgUri, step: 2, orderItem: [newOrderItem], editMode: true}});
 	}
 	
-	const handleDelete = (indexList, editMode) => {
+	const handleDelete = (indexList, itemId, slotDates) => {
 		if(indexList === null) {
 			saveOrder([], {custName: '', phoneNo: '', occasion: ''});
+			clearAllBookings();
 		} else {
 			const updatedOrder = [...items];
 			updatedOrder.splice(indexList, 1);
+			removeItemBooking(itemId, slotDates);
 			if(updatedOrder.length > 0) {
 				saveOrder(updatedOrder, custDetails, true);
 			} else {
@@ -659,29 +647,25 @@ const OrderBagScreen = ({ navigation }) => {
 		}
 	}
 	
-	const handleWorkerSelect = (index) => {
-		setWorkerIndex(index);
-		setUserTypeWorker('Tailor');
-	};
-	
-	const handleUserTypeSelect = (index) => {
-		console.log('in handleUserTypeSelect ' + index)
-		setUserTypeSelectedIndex(index);
-		setUserTypeWorker(data[index]);
-	};
-	
-	const DateIcon = (style: ImageStyle): IconElement => {
-	  const theme = useTheme();
+	const renderOrderItem1 = (item, index) => {
 	  return (
-		<Icon {...style} name='calendar-outline' fill={theme['color-primary-100']}/>
-	  )
+		<OrderItemComponent
+		  item={item}
+		  index={index}
+		  expandedItems={expandedItems}
+		  toggleItemExpansion={toggleItemExpansion}
+		  measurementFields={measurementFields}
+		  isBag={true}
+		  handleEdit={handleEdit}
+		  deleteAlert={deleteAlert}
+		/>
+	  );
 	};
 
   return (
-  <View style={styles.outerContainer}>
-  <ScrollView keyboardShouldPersistTaps="handled">
-	<View style={styles.container}>
-		{items.length === 0 ? (
+    <Layout style={styles.container} level='2'>
+      <ScrollView style={styles.scrollView} keyboardShouldPersistTaps="handled">
+	    {items.length === 0 ? (
 		  <View style={{alignItems: 'center', marginTop: 150, marginBottom: 200}}>
 			<Image
 				style={styles.imageBag}
@@ -694,124 +678,36 @@ const OrderBagScreen = ({ navigation }) => {
 			</Text>
 		  </View>
 		) : (
-		<Layout style={{marginTop: -25}}>
-		<BreadcrumbsOrderBag steps={breadcrumbRoutes} step={step} setStep={setStep} navigation={navigation}/>
-	{step === 1 ? (
-		<>
-		<View ref={viewRef} collapsable={false}>
-			<View style={styles.sectionHeader}>
-				<Icon style={styles.icon} fill={theme['color-primary-500']} name="person-outline" />
-				<Text category="s1" style={styles.headerText}>
-				  Customer Details
-				</Text>
-			  </View>
-			  <Card style={styles.cardFinal}>
-				<View style={styles.detailRow}>
-				  <Text category="label">
-					Name
-				  </Text>
-				  <Text category="s2">{custDetails.custName}</Text>
-				</View>
-				<View style={styles.detailRow}>
-				  <Text category="label">
-					Phone No
-				  </Text>
-				  <Text category="s2">{custDetails.phoneNo}</Text>
-				</View>
-				<View style={styles.detailRow}>
-				  <Text category="label">
-					Order Date
-				  </Text>
-				  <Text category="s2">{moment(new Date()).format('DD-MM-YYYY')}</Text>
-				</View>
-			  </Card>
-			
-		<Divider style={styles.divider} />
-		<View style={styles.sectionHeader}>
-				<Icon style={styles.icon} fill={theme['color-primary-500']} name="shopping-bag-outline" />
-				<Text category="s1" style={styles.headerText}>
-				  Order Details
-				</Text>
-		</View>
-	  
-	  {items.map((item, index) => {
-			let measurementsObj = {
-			  frontNeck: item.frontNeck,
-			  backNeck: item.backNeck,
-			  shoulder: item.shoulder,
-			  sleeve: item.sleeve,
-			  AHC: item.AHC,
-			  shoulderToWaist: item.shoulderToWaist,
-			  chest: item.chest,
-			  waist: item.waist,
-			  hip: item.hip,
-			  leg: item.leg,
-			  topLength: item.topLength,
-			  bottomLength: item.bottomLength,
-			};
+		<Layout>
+		<View style={styles.section}>
+          {renderCustomerDetails()}
+        </View>
 
-			return (
-			  <OrderDetailsItem
-				key={item.id}
-				indexList={index}
-				onDeleteItem={handleDelete}
-				onEditItem={handleEdit}
-				style={styles.item}
-				dressItemId={item.id}
-				custId={item.localId} // You may want to adjust the `custId` if needed
-				imageSource1={item.dressPics} // Assuming first image
-				imageSource2={item.patternPics} // Assuming first pattern image
-				dressType={item.dressType}
-				dressSubType={item.dressType === 'Alteration' ? item.alterDressType : item.dressSubType}
-				amt={item.stitchingAmt || 0}
-				dueDate={item.dueDate || new Date()}
-				dressGiven={item.dressGiven || false}
-				frontNeckType={item.frontNeckType || null}
-				backNeckType={item.backNeckType || null}
-				sleeveType={item.sleeveType || null}
-				sleeveLength={item.sleeveLength || null}
-				frontNeckDesignFile={item.frontNeckDesignFile || null}
-				backNeckDesignFile={item.backNeckDesignFile || null}
-				sleeveDesignFile={item.sleeveDesignFile || null}
-				notes={item.notes || ''}
-				measurementsObj={measurementsObj}
-				extraMeasurements={item.extraMeasurements}
-				isBag = {true}
-				defaultSource={require('../../../assets/empty_dress.png')} // Default image if no image is available
-				orderFor = {item.associateCustName || custDetails.custName}
-			  />
-			);
-		  })}
+        <View style={styles.section}>
+          <Text category='h6' style={styles.sectionTitle}>
+            👗 Order Items ({items.length})
+          </Text>
+          {items.map((item, index) => renderOrderItem1(item, index))}
+        </View>
+
+		<Text category='h6' style={styles.sectionTitle1}>🛍️ Add More to Your Order</Text>
+        <View style={styles.actionSection}>
+          <Button
+            style={styles.addButton}
+            appearance='outline'
+            accessoryLeft={PlusIcon}
+            onPress={() => navigation.navigate('HomeMain', {screen: 'HomeNew' })}
+          >
+            Add another dress
+          </Button>
+          <Text category='c1' appearance='hint' style={styles.infoText}>
+            Takes you to homepage to add another dress item to order
+          </Text>
 		</View>
-		<View style={styles.buttonContainerOuter}>
-			<View style={styles.buttonContainer}>
-				<Button appearance='outline' 
-					  onPress={() => navigation.navigate('HomeMain', {screen: 'HomeNew' })}
-					  style={styles.infoButton}
-				>
-							Add another dress item
-				</Button>
-				<Text category='s2' appearance='hint' style={styles.infoText}>Takes you to homepage to add another dress item to order</Text>
-			</View>
-			<View style={styles.dividerContainer}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>Or</Text>
-                <View style={styles.dividerLine} />
-              </View>
-			<View style={styles.buttonContainer}>
-				<Button onPress={() => setStep(2)} style={styles.infoButton}>Next</Button>
-				<Text category='s2' appearance='hint' style={styles.infoText}>Proceed to create order by adding payment and worker details</Text>
-			</View>
-		</View>
-		</>
-	) : (
-	<>
-      <View style={styles.sectionHeader}>
-        <Icon style={styles.icon} fill={theme['color-primary-500']} name="credit-card-outline" />
-        <Text category="s1" style={styles.headerText}>
-          Payment Details
+	<View style={styles.section}>
+        <Text category="h6" style={styles.headerText}>
+          💵 Payment Details
         </Text>
-      </View>
       <Card style={styles.cardFinal}>
         <View style={styles.detailRow}>
           <Text category="label">
@@ -829,16 +725,16 @@ const OrderBagScreen = ({ navigation }) => {
 					style={{ flexDirection: 'row' }}  
 				  >
 					{payStatuses.map((paySt, index) => (
-					  <Radio key={index} style={{ marginLeft: -5 }}>{paySt}</Radio>
+					  <Radio key={index} style={styles.radioButton}>{paySt}</Radio>
 					))}
 			</RadioGroup>
         </View>
-        {payStatuses[payStatusIndex] === "Partially paid" && (
+		{payStatuses[payStatusIndex] === "Partially paid" && (
 			<View style={styles.generalField}>
 			  <Text category="label">
 				Advance paid
 			  </Text>
-			  <View style={{flexDirection: 'row', alignItems: 'center', marginHorizontal: 100}}>
+			  <View style={{flexDirection: 'row', alignItems: 'center', marginLeft: 110}}>
 				<Text category='s2'>Rs. </Text>
 			    <Input
 				  style={{width: 80}}
@@ -850,128 +746,23 @@ const OrderBagScreen = ({ navigation }) => {
 			  </View>
 			</View>
 		)}
-		</Card>
-		
-		<Divider style={styles.divider} />
-		<View style={styles.sectionHeader}>
-			<Icon style={styles.icon} fill={theme['color-primary-500']} name="credit-card-outline" />
-			<Text category="s1" style={styles.headerText}>
-			  Assign order
-			</Text>
-		  </View>
-		<Card style={styles.cardFinal}>
-			
-					<Input
-							autoCapitalize='none'
-							label='Worker Name'
-							accessoryRight={<TouchableOpacity onPress={() => {setCustomerType('subTailor'); navigateToContacts()}}>
-								<Icon name='person-done-outline' fill={theme['color-primary-500']}/>
-							</TouchableOpacity>}
-							value={subName}
-							onChangeText={text => {
-								setSubName(text)
-							}}
-						  />
-						  
-						  <Input
-						    status={subPhoneErrorValid ? 'danger' : 'basic'}
-							label='Worker Phone'
-							style={styles.formInput}
-							accessoryRight={PhoneIcon}
-							keyboardType="phone-pad"
-							maxLength={10}
-							value={subPhNo}
-							onChangeText={(text) => {
-								setSubPhNo(text);
-								setSubPhoneErrorValid(false);
-							}}
-						  />
-						  
-						<Datepicker
-							style={styles.formInput}
-							label='Worker to complete order by'
-							accessoryRight={DateIcon}
-							status='basic'
-							min={new Date()}
-							{...filterPickerStateSub}
-						  />
-      </Card>
-	  
-	  <Divider style={styles.divider} />
-		<View style={styles.sectionHeader}>
-			<Icon style={styles.icon} fill={theme['color-primary-500']} name="credit-card-outline" />
-			<Text category="s1" style={styles.headerText}>
-			  External tailors/embroiderers
-			</Text>
-		  </View>
-		  <View>
-				  <Text category='label' style={styles.dateText}>						
-					Any tailor/embroiderer working on this order?
-				  </Text>
-				  <RadioGroup
-					selectedIndex={workerIndex}
-					onChange={handleWorkerSelect}
-					style={{ flexDirection: 'row' }}  
+		<View>
+          <Text category="label">
+            Payment Mode
+          </Text>
+            <RadioGroup
+					selectedIndex={payModeIndex}
+					onChange={handlePayModeSelect}
+					style={{ flexDirection: 'row', flexWrap: 'wrap' }}  
 				  >
-					{workerSelected.map((sel, index) => (
-					  <Radio key={index}>{sel}</Radio>
+					{payModes.map((payMode, index) => (
+					  <Radio key={index} style={styles.radioButton}>{payMode}</Radio>
 					))}
-				  </RadioGroup>
-			</View>
-			
-	{workerIndex === 0 && (
-		<Card style={styles.cardFinal}>
-					<Text category="label" style={{color: '#878683', fontSize: 12}}>
-						Select worker type *
-					  </Text>
-					<RadioGroup
-						selectedIndex={userTypeSelectedIndex}
-						onChange={handleUserTypeSelect}
-						style={{ flexDirection: 'row', marginLeft: 3, marginTop: 3, marginBottom: -5 }}  
-					  >
-						{data.map((op, index) => (
-						  <Radio key={index} style={{ marginLeft: -5 }}>{op}</Radio>
-						))}
-					</RadioGroup>
-					<Input
-							status={workerNameError ? 'danger' : 'basic'}
-							style={styles.formInput}
-							autoCapitalize='none'
-							label='Name *'
-							accessoryRight={<TouchableOpacity onPress={() => {setCustomerType('worker'); navigateToContacts()}}>
-								<Icon name='person-done-outline' fill={theme['color-primary-500']}/>
-							</TouchableOpacity>}
-							value={workerName}
-							onChangeText={text => {
-								setWorkerNameError(false)
-								setWorkerName(text)
-							}}
-						  />
-						  
-						  <Input
-							status={workerPhoneErrorValid ? 'danger' : 'basic'}
-							label='Phone *'
-							style={styles.formInput}
-							accessoryRight={PhoneIcon}
-							keyboardType="phone-pad"
-							maxLength={10}
-							value={workerPhNo}
-							onChangeText={(text) => {
-								setWorkerPhNo(text);
-								setWorkerPhoneErrorValid(false);
-							}}
-						  />
-						  
-						<Datepicker
-							style={styles.formInput}
-							label='Due date'
-							accessoryRight={DateIcon}
-							status='basic'
-							min={new Date()}
-							{...filterPickerState}
-						  />
-			  </Card>
-			)}
+			</RadioGroup>
+        </View>
+		</Card>
+		</View>
+		
 			<Button
 					  style={styles.nextButton}
 					  size='medium'
@@ -981,167 +772,339 @@ const OrderBagScreen = ({ navigation }) => {
 				>
 							Create Order
 				</Button>
-			</>
-		)}
 			<Modal
-					visible={loading}
-					backdropStyle={styles.backdrop}
-				  >
-						<Spinner size="large" status="primary" />
+						visible={loading}
+						backdropStyle={styles.backdrop}
+					  >
+							<Spinner size="large" status="primary" />
 			</Modal>
-		</Layout>
-		)}
-	</View>
+			</Layout>
+	)}
 	</ScrollView>
-	</View>
-  );
-};
+    </Layout>
+)};
 
 const styles = StyleSheet.create({
-	outerContainer: {
-		flex: 1,
-		backgroundColor: '#fff',
-	},
   container: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 24,
-	backgroundColor: '#fff',
   },
-  content: {
-    marginBottom: 24,
+  scrollView: {
+    flex: 1,
   },
-  fieldLabel: {
-    fontSize: 16,
+  section: {
+    padding: 16,
+	marginTop: -10
+  },
+  sectionTitle: {
+    marginBottom: 12,
+    fontWeight: 'bold',
+  },
+  sectionTitle1: {
+    marginBottom: 12,
+    fontWeight: 'bold',
+	marginLeft: 15
+  },
+  subsectionTitle: {
     marginBottom: 8,
-	fontWeight: 'bold',
+    fontWeight: '600',
   },
-  table: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#000',
-    alignItems: 'center',
-    padding: 5,
+  customerCard: {
+    marginBottom: 8,
   },
-  poweredBy: {
-    marginTop: 20,
-    textAlign: 'center',
-    fontSize: 12,
-  },
-  
-  card: {
-    borderRadius: 10,
-    backgroundColor: 'white',
-    padding: 10,
-    elevation: 5,
-	width: '100%',
-	height: 250,
-	marginTop: 10,
-  },
-  card1: {
-	  flexDirection: 'row',
-	  justifyContent: 'space-between',
-	  alignItems: 'center',
-		padding: 10
-  },
-  card2: {
-	  padding: 10
-  },
-  topHalf: {
-	height: 20,
+  detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
   },
-  text: {
-	  width: 120,
-	  textAlign: 'center',
-    borderWidth: 1, // Thickness of the border
-    borderColor: 'black', // Color of the border
-    padding: 5, // Optional: Add padding for space inside the border
-    borderRadius: 4, // Optional: Rounds the corners of the border
-    color: 'black', // Text color (optional, for better contrast)
+  divider: {
+    marginVertical: 4,
   },
-  bottomHalf: {
-	  height: 100,
+  itemCard: {
+    marginBottom: 12,
+  },
+  itemHeader: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
   },
-  column: {
-    flex: 1,
-    padding: 5,
-  },
-  imageContainer: {
-    flex: 1,
+  itemImageContainer: {
+    width: 60,
+    height: 60,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 12,
+	marginTop: 5
   },
-  image: {
-    width: '100%',
-    height: 100,
-    borderRadius: 5,
+  itemInfo: {
+    flex: 1,
+	marginLeft: 5
   },
-  carouselImage: {
-    width: 300,
-    height: 300,
-    marginTop: 50,
-  },
-separator: {
-    height: 1,
-    backgroundColor: '#ccc',
-    marginVertical: 8,
-  },
-  additionalTextContainer: {
-    marginBottom: 10,
-  },
-  textRow: {
+  itemTitleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 5,
+    alignItems: 'flex-start',
+    marginBottom: 4,
   },
-  additionalText: {
+  itemType: {
     flex: 1,
-    marginHorizontal: 5,
-    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  itemActions: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  actionBtn: {
+    width: 32,
+    height: 32,
+  },
+  boldText: {
+    fontWeight: 'bold',
+  },
+  extraTotal: {
+    color: '#28a745',
+    fontSize: 12,
+  },
+  itemTotal: {
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  expandButton: {
+    marginTop: 8,
+  },
+  itemDetails: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+  },
+  extraOptionsContainer: {
+    marginBottom: 16,
+  },
+  extraOptionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  extraOptionItem: {
+    backgroundColor: '#E3F2FD',
+    borderRadius: 6,
+    padding: 8,
+    minWidth: 80,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#BBDEFB',
+  },
+  extraOptionLabel: {
     textAlign: 'center',
-    backgroundColor: 'grey',
-    borderRadius: 5,
-    padding: 5,
-    color: 'white',
+    fontWeight: '500',
   },
-  innerMargin: {
-        height: 10
-    },
-	list: {
-    paddingVertical: 24,
+  extraOptionPrice: {
+    color: '#1976D2',
+    fontWeight: 'bold',
   },
-  item: {
+  designPicsContainer: {
+    marginBottom: 16,
+  },
+  scrollViewContent: {
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+  },
+  imageItemContainer: {
+    alignItems: 'center',
+    marginHorizontal: 4,
+  },
+  designImage: {
+    width: 100,
+    height: 100,
+    marginHorizontal: 8,
+  },
+  measurementImage: {
+    width: 100,
+    height: 100,
+    marginHorizontal: 8,
+  },
+  shareButton: {
+    width: 50,
+    marginTop: 10,
+  },
+  shareButtonOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 20,
+    padding: 2,
+  },
+  shareIconOverlay: {
+    width: 20,
+    height: 20,
+  },
+  noMeasurementImages: {
+    paddingVertical: 20,
+    paddingHorizontal: 10,
+  },
+  noContentPlaceholder: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#DEE2E6',
+    borderStyle: 'dashed',
+  },
+  addContentBtn: {
+    marginTop: 8,
+  },
+  neckSleeveContainer: {
+    marginBottom: 16,
+  },
+  neckSleeveSection: {
+    marginBottom: 12,
+    paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
-	marginBottom: 10
+    borderBottomColor: '#E9ECEF',
   },
-  
-  header: {
-	  flexDirection: 'row',
-	  justifyContent: 'space-between',
-	  fontWeight: 'bold',
-	  paddingLeft: 120,
-	  paddingRight: 10
+  neckLabel: {
+    marginBottom: 4,
   },
-  buttonTextContainer: {
-    flexDirection: "row", // Place button and text in a row
-    alignItems: "center", // Align items vertically in the center
-    marginLeft: -15, // Move it closer to the left (you can adjust this value)
+  neckValue: {
+    marginBottom: 2,
   },
-  buttonText: {
-    fontSize: 16,
-    marginLeft: -10, // Reduce the space between button and text
+  sleeveRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
-  backdrop: {
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  designFileContainer: {
+    marginTop: 8,
+    alignItems: 'flex-start',
   },
-  endButton: {marginHorizontal: 100, marginTop: 10, borderRadius: 8},
-    divider: {
-    marginVertical: 8,
-    backgroundColor: '#E4E9F2',
+  designFileImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 6,
+  },
+  neckSleeveGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  neckSleeveItem: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 6,
+    padding: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#28A745',
+    flex: 1,
+    minWidth: '45%',
+  },
+  neckSleeveValue: {
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  measurementsContainer: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    padding: 12,
+	marginTop: -15
+  },
+  measurementFieldContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingVertical: 4,
+  },
+  measurementLabel: {
+    flex: 1,
+  },
+  measurementValue: {
+    textAlign: 'right',
+    minWidth: 40,
+  },
+  measurementPicsLabel: {
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  notesCard: {
+    marginTop: 12,
+  },
+  notesLabel: {
+    fontWeight: 'bold',
+  },
+  measurementStatus: {
+    marginBottom: 12,
+	flexDirection: 'row',
+	justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  statusProvided: {
+    backgroundColor: '#D4EDDA',
+  },
+  statusPending: {
+    backgroundColor: '#FFF3CD',
+  },
+  statusText: {
+    fontWeight: '500',
+  },
+  measurementsTable: {
+    gap: 6,
+  },
+  measurementRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
+  },
+  actionSection: {
+    padding: 16,
+	marginTop: -15,
+    alignItems: 'center',
+  },
+  addButton: {
+    marginBottom: 16,
+	marginHorizontal: 80
+  },
+  orText: {
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  nextButton: {
+	marginHorizontal: 120,
+    marginBottom: 8,
+  },
+  proceedText: {
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  editIcon: {width: 22, height: 22},
+  deleteIcon: {width: 20, height: 20, marginLeft: 5},
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 15,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e2e8f0',
+  },
+  dividerText: {
+    marginHorizontal: 20,
+    color: '#94a3b8',
+    fontWeight: '500',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -1160,7 +1123,6 @@ separator: {
   },
   cardFinal: {
     borderRadius: 8,
-    backgroundColor: '#F7F9FC',
     elevation: 2,
 	marginLeft: 4, marginRight: 8, marginVertical: 5, marginBottom: 10
   },
@@ -1189,62 +1151,56 @@ separator: {
     textAlign: 'center',
 	width: 300
   },
-  button: {
-    width: '50%',
-    borderRadius: 25,
+  imageContainer: {
+    flex: 1,
+    width: 75,
+    height: 120,
+	marginLeft: -5
   },
-  modalContent: {
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 10,
-    width: 300,
-    alignItems: 'center',
-  },
-  modalText: {
-    fontSize: 16,
-    marginBottom: 20,
-  },
-  buttonContainer: {alignItems: 'center'},
-  dropdownContainer: {
-	flex: 1,
-	padding: 10,
-	marginBottom: 25,
-    borderWidth: 1,
-    borderColor: '#e0e0e0', // Adjust border color as needed
+  imageCard: {
+    width: '100%',
+    height: '135%',
     borderRadius: 5,
   },
-  formInput: {
-    marginTop: 16,
-  },
-  nextButton: {
-	marginTop: 15,
-	width: 150,
-	marginHorizontal: 100
-  },
-  buttonContainerFinal: {flexDirection: 'row', gap: 30, alignItems: 'center', marginLeft: 30, marginTop: 20},
-  navButton: {
-	  marginLeft: 20
-  },
-  dividerContainer: {
-    flexDirection: 'row',
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    width: '100%',
+    height: '135%',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 15,
+    borderRadius: 5,
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#e2e8f0',
+  overlayText: {
+    color: 'white',
+    fontSize: 14
   },
-  dividerText: {
-    marginHorizontal: 20,
-    color: '#94a3b8',
-    fontWeight: '500',
+  carouselImage: {
+    width: 320,
+    height: 300,
   },
-  buttonContainerOuter: {
-	marginTop: 15
+  shareButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    borderRadius: 20,
+    padding: 5,
   },
-  infoButton: {width: 300},
-  infoText: {width: 270, textAlign: 'center', lineHeight: 20, marginTop: 5}
-});
+  fullScreenModal: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
+  },
+  radioButton: 
+	{ marginLeft: -5, transform: [
+      { scaleX: 0.9 }, // shrink horizontally
+      { scaleY: 0.9 }  // shrink vertically (track + thumb)
+    ],
+ }
+ });
 
 export default OrderBagScreen;

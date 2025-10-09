@@ -70,3 +70,10 @@ export const MinusIcon = (style: ImageStyle): IconElement => (
 export const PlusIconNoTheme = (style: ImageStyle): IconElement => (
   <Icon {...style} name='plus'/>
 );
+
+export const SettingsIcon = (style: ImageStyle): IconElement => {
+  const theme = useTheme();
+  return (
+	<Icon {...style} name='settings-2-outline' fill={theme['color-primary-100']}/>
+  )
+};

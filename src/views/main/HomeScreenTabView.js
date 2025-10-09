@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { Tab, TabBar, Text, useTheme } from '@ui-kitten/components';
+import IncompleteOrders from "../main/IncompleteOrders";
+import OrdersByDressType from "../main/OrdersByDressType";
 import HomeScreen from "../main/HomeScreen";
 import { useUser } from '../main/UserContext';
 import { StyleSheet } from 'react-native';
@@ -53,7 +55,7 @@ export default ({ navigation, route }) => {
 		console.log('in handleRefreshPress')
 		// Call the child's refresh method using ref
 		if (homeScreenRef.current) {
-		  homeScreenRef.current.onRefresh(true);
+		  homeScreenRef.current.onRefresh();
 		}
 	  };
 	
@@ -63,34 +65,22 @@ export default ({ navigation, route }) => {
     animationEnabled: true,
     tabBarAnimationDuration: 200 }} tabBar={(props) => <HomeTabBar {...props} />}>
 		<TopTab.Screen
-		  name='New'
+		  name='Current'
 		  children={() => {
-			if (route.params?.custName) {
-			  return <HomeScreen orderType={'Created'} custName={route.params.custName} ref={homeScreenRef}/>;
-			} else {
-			  return <HomeScreen orderType={'Created'} ref={homeScreenRef}/>;
-			}
+			  return <IncompleteOrders statusCheckType={false} ref={homeScreenRef} />;
 		  }}
 		/>
 		<TopTab.Screen
-		  name='In Progress'
+		  name='Past' 
 		  children={() => {
-			if (route.params?.custName) {
-			  return <HomeScreen orderType={'InProgress'} custName={route.params.custName} ref={homeScreenRef}/>;
-			} else {
-			  return <HomeScreen orderType={'InProgress'} ref={homeScreenRef}/>;
-			}
+			  return <IncompleteOrders statusCheckType={true} ref={homeScreenRef} />;
 		  }}
 		/>
 		<TopTab.Screen
-		  name='Completed'
-		  children={() => {
-			if (route.params?.custName) {
-			  return <HomeScreen orderType={'Completed'} custName={route.params.custName} ref={homeScreenRef}/>;
-			} else {
-			  return <HomeScreen orderType={'Completed'} ref={homeScreenRef}/>;
-			}
-		  }}
+		  name='Model-wise'
+		  children={() => (
+				<OrdersByDressType/>
+		  )}
 		/>
 	  </TopTab.Navigator>
   );

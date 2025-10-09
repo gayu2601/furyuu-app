@@ -12,5 +12,3 @@
 -keep class com.facebook.react.turbomodule.** { *; }
 
 # Add any project specific keep options here:
--dontwarn android.media.LoudnessCodecController$OnLoudnessCodecUpdateListener
--dontwarn android.media.LoudnessCodecController

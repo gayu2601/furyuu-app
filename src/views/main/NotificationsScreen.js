@@ -88,7 +88,7 @@ const NotificationsScreen = ({ navigation }) => {
     if(notifItem.notificationTitle === 'New Order Alert!') {
       const jsonItem = notifItem.notificationData;
       const {objectId, custName, custUsername, shopName, orderDetails, orderNo, orderItem} = jsonItem || {};
-      const updatedItem = { ...orderItem, username: currentUser.username, shopId: currentUser.ShopDetails.id };
+      const updatedItem = { ...orderItem, username: currentUser.username };
       const dateFinal = orderItem.orderDate ? orderItem.orderDate : new Date();
       
       navigation.navigate('OrderDetailsMain', {
@@ -97,9 +97,6 @@ const NotificationsScreen = ({ navigation }) => {
           item: updatedItem, 
           userType: currentUser.userType, 
           orderDate: dateFinal, 
-          shopName: currentUser.ShopDetails.shopName, 
-          shopAddress: currentUser.ShopDetails.shopAddress, 
-          shopPhNo: currentUser.ShopDetails.shopPhNo, 
           isShareIntent: false, 
           custUsername: custUsername, 
           orderDetails: orderDetails 

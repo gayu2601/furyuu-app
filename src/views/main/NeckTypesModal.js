@@ -15,7 +15,7 @@ import KeyholeNeck from '../../components/necktypes/KeyholeNeckComponent.js';
 import PlusIcon from '../extra/icons';
 import { useNavigation } from "@react-navigation/native";
 
-const NeckTypesModal = ({ visible, onClose, fieldName, updateSelectedItemDesign, setShowDesign, editRouteParams = null, setInCustom = () => {} }) => {
+const NeckTypesModal = ({ visible, onClose, fieldName, updateSelectedItemDesign, setShowDesign, editRouteParams = null, setInCustom = () => {}, saveAllLocalStates = () => {} }) => {
   const neckTypes = [
     { id: '1', name: 'VNeck', Component: VNeck },
     { id: '2', name: 'Round', Component: RoundNeck },
@@ -41,6 +41,30 @@ const NeckTypesModal = ({ visible, onClose, fieldName, updateSelectedItemDesign,
 				return 'designFile';
 	  }
   }
+  
+  const checkSubscription = () => {
+		console.log('in checkSubscription')
+		setInCustom(true);
+		onClose();
+		if(setShowDesign) {
+			setShowDesign(false);
+		}
+		saveAllLocalStates();
+		navigation.navigate('CustomDesign', {
+			field: fieldName,
+			returnFile: (selectedFile) => {
+				console.log(fieldName)
+				console.log(selectedFile)
+				updateSelectedItemDesign(getDesignFileName(), selectedFile);
+				updateSelectedItemDesign(fieldName, 'Custom'); 
+				if(setShowDesign) {
+					setShowDesign(true);
+				}
+			},
+			prevScreen: editRouteParams ? 'Edit' : null,
+			editRouteParams: editRouteParams
+		});
+  };
 
   return (
     <Modal style={styles.fullScreenModal} backdropStyle={styles.backdrop} visible={visible} onBackdropPress={onClose}>
@@ -55,23 +79,8 @@ const NeckTypesModal = ({ visible, onClose, fieldName, updateSelectedItemDesign,
                   <Text style={styles.neckName}>{name}</Text>
                 </Card>
               ))}
-			  <Button style={styles.uploadButton} status='control' onPress={() => 
-												{
-													setInCustom(true);
-													onClose();
-													setShowDesign(false);
-													navigation.navigate('CustomDesign', {
-													  field: fieldName,
-													  returnFile: (selectedFile) => {
-														updateSelectedItemDesign(fieldName, 'Custom');
-														updateSelectedItemDesign(getDesignFileName(), selectedFile);
-														setShowDesign(true);
-													  },
-													  prevScreen: editRouteParams ? 'Edit' : null,
-													  editRouteParams: editRouteParams
-													}
-												)}}>
-					Draw design
+			  <Button style={styles.uploadButton} status='control' onPress={checkSubscription}>
+				  Draw design
 			  </Button>
             </View>
           
@@ -99,12 +108,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 20,
     padding: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    alignItems: 'center'
   },
   modalTitle: {
     fontSize: 22,

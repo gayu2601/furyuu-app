@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
-import { Alert, View, TouchableOpacity, StyleSheet, BackHandler, Linking, InteractionManager } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react';
+import { Image, ScrollView, Alert, View, TouchableOpacity, StyleSheet, BackHandler, Linking, InteractionManager } from 'react-native';
 import { Text, Layout, Button, Modal, Card, Icon, Divider, useTheme, Spinner, TopNavigationAction, List } from '@ui-kitten/components';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Print from 'expo-print';
@@ -7,7 +7,7 @@ import * as FileSystem from 'expo-file-system';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { useRoute } from '@react-navigation/native';
 import { useUser } from '../main/UserContext';
-import { useRevenueCat } from '../main/RevenueCatContext';
+import useDressConfig from '../main/useDressConfig';
 import { supabase } from '../../constants/supabase';
 import { useNetwork } from './NetworkContext';
 import { storage } from '../extra/storage';
@@ -15,15 +15,13 @@ import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import { schedulePushNotification } from './notificationUtils';
 import { ArrowIosBackIcon } from "../extra/icons";
-import OrderDetailsItem from '../main/OrderDetailsItem';
 import { showSuccessMessage, showErrorMessage } from './showAlerts';
-import UPIQRModal from './UPIQRModal';
+import OrderItemComponent from './OrderItemComponent';
+import DeliveryOptionsModal from './DeliveryOptionsModal';
 import eventEmitter from './eventEmitter';
 import { saveSupabaseDataToFile } from '../extra/supabaseUtils';
-import { logFirebaseEvent } from '../extra/firebaseUtils';
+import { usePubSub } from './SimplePubSub';
 
-// Memoized components for better performance
-const MemoizedOrderDetailsItem = memo(OrderDetailsItem);
 const MemoizedCard = memo(Card);
 
 const SectionHeader = memo(({ icon, title }) => {
@@ -53,6 +51,10 @@ const CustomerDetails = memo(({ item, currentUsername, phone }) => (
 			value={phone?.includes('+91') ? phone?.substring(3) : phone} 
 		/>)}
       <DetailRow 
+        label="Phone No" 
+        value={item.phoneNo} 
+      />
+	  <DetailRow 
         label="Order Date" 
         value={item.orderDate} 
       />
@@ -60,12 +62,25 @@ const CustomerDetails = memo(({ item, currentUsername, phone }) => (
   </View>
 ));
 
-const PaymentDetails = memo(({ item }) => (
+const PaymentDetails = memo(({ item, selectedAddons }) => {
+	const expressVal = item.expressCharges || Math.max(
+	  0,
+	  ...(item.expressDuration || [])
+		.filter(Boolean)
+		.map(obj => obj.price)
+	);
+	console.log('Payment ', expressVal)
+	let totalAmt = expressVal + item.orderAmt;
+
+	return (
   <>
     <SectionHeader icon="credit-card-outline" title="Payment Details" />
     <MemoizedCard>
-      <DetailRow label="Total Order Amount" value={`Rs. ${parseInt(item.orderAmt)}`} />
+      <DetailRow label="Order Amount" value={`Rs. ${parseInt(item.orderAmt)}`} />
+	  <DetailRow label="Express Charges" value={`Rs. ${expressVal}`} />
+	  <DetailRow label="Total Amount" value={`Rs. ${totalAmt}`} />
       <DetailRow label="Payment Status" value={item.paymentStatus} />
+	  <DetailRow label="Payment Mode" value={item.paymentMode} />
       {item.paymentStatus === 'Partially paid' && (
         <>
           <DetailRow label="Advance paid" value={`Rs. ${item.advance}`} />
@@ -75,46 +90,36 @@ const PaymentDetails = memo(({ item }) => (
           />
         </>
       )}
+	  {(selectedAddons.length > 0 || item.deliveryOptions) && 
+		  <View style={styles.deliveryOptions}>
+			<Text category='label'>Was this order delivered with Alteration work?</Text>
+			{(selectedAddons || item.deliveryOptions).map((option, index) => (
+			  <Text key={index} category='s2'>{option}</Text>
+			))}
+		  </View>
+	  }
     </MemoizedCard>
   </>
-));
-
-const SubTailorDetails = memo(({ item }) => (
-  <View style={{marginTop: 16}}>
-    <SectionHeader icon="person-outline" title="Order assigned to" />
-    <MemoizedCard>
-      <DetailRow label="Worker name" value={item.subTailorName} />
-      <DetailRow label="Worker Phone Number" value={item.subTailorPhNo?.includes('+91') ? item.subTailorPhNo?.substring(3) : item.subTailorPhNo} />
-      <DetailRow label="Worker Due Date" value={item.subTailorDueDate} />
-    </MemoizedCard>
-  </View>
-));
-
-const WorkerDetails = memo(({ item }) => (
-  <View style={{marginTop: 16}}>
-    <SectionHeader icon="person-outline" title="External tailors/embroiderers" />
-    <MemoizedCard>
-      <DetailRow label={`${item.workerType} Name`} value={item.workerName} />
-      <DetailRow label={`${item.workerType} Phone Number`} value={item.workerPhNo?.includes('+91') ? item.workerPhNo?.substring(3) : item.workerPhNo} />
-      <DetailRow label={`${item.workerType} Due Date`} value={item.workerDueDate} />
-    </MemoizedCard>
-  </View>
-));
+)});
 
 const OrderDetails = ({ navigation }) => {
   const route = useRoute();
   const { currentUser } = useUser();
-  const { subscriptionActive } = useRevenueCat();
   const { isConnected } = useNetwork();
   const theme = useTheme();
   const viewRef = useRef(null);
-  const { item, userType, orderDate, shopName, shopAddress, shopPhNo, isShareIntent, custUsername, orderDetails } = route.params;
+  const { item, orderDate, isShareIntent, custUsername, orderDetails } = route.params;
   console.log(item)
   const [phone, setPhone] = useState(item.phoneNo);
   const [loading, setLoading] = useState(false);
-  const [upiModal, setUpiModal] = useState(false);
   let pendingTailorAmount = item.orderAmt - item.advance;
-  
+  const [expandedItems, setExpandedItems] = useState(new Set());
+  const { measurementFields } = useDressConfig();
+  const [visible, setVisible] = useState(false);
+  const { notify, updateCache, eligible } = usePubSub();
+  const [selectedAddons, setSelectedAddons] = useState([]);
+  const orderDeliveryOptions = ['No Alteration', 'Loose or Tight', 'Shoulder mistake', 'Arm hole mistake', 'Measurement mistake (diff in taken vs stitched)', 'Design mismatch (diff in reference vs stitched)', 'Other'];
+
    useEffect(() => {
 		if (route.params?.triggerShare) {
 		  //setPhone('xxx');
@@ -129,6 +134,18 @@ const OrderDetails = ({ navigation }) => {
             showErrorMessage("No Internet Connection");
         }
     }, []);
+	
+	const toggleItemExpansion = useCallback((index) => {
+	  setExpandedItems(prev => {
+		const newSet = new Set(prev);
+		if (newSet.has(index)) {
+		  newSet.delete(index);
+		} else {
+		  newSet.add(index);
+		}
+		return newSet;
+	  });
+	}, []);
 	
 	const shareOrder = async () => {
 		try {
@@ -163,59 +180,79 @@ const OrderDetails = ({ navigation }) => {
 	  await Sharing.shareAsync(uri);
 	  setPhone(item.phoneNo);
 	}, [item.phoneNo]);
+	  
+	  const shareImage = useCallback(async (remoteImageUri) => {
+		try {
+		  const { data, error } = await supabase
+			.storage
+			.from('order-images/dressImages')
+			.createSignedUrl(remoteImageUri, 60);
 
+		  if (error) throw error;
+		  const imageUrl = data.signedUrl;
 
-  const renderOrderDetailsItem = useCallback(({ item: dress, index }) => {
-    const measurementsObj = {
-      frontNeck: item.frontNeck[index],
-      backNeck: item.backNeck[index],
-      shoulder: item.shoulder[index],
-      sleeve: item.sleeve[index],
-	  AHC: item.AHC?.[index],
-	  shoulderToWaist: item.shoulderToWaist?.[index],
-      chest: item.chest[index],
-      waist: item.waist[index],
-      hip: item.hip[index],
-      leg: item.leg[index],
-      topLength: item.topLength[index],
-      bottomLength: item.bottomLength[index]
-    };
+		  // Define the local file path
+		  const localUri = FileSystem.documentDirectory + 'shared-image.jpg';
 
-    return (
-      <MemoizedOrderDetailsItem
-        style={styles.item}
-        dressItemId={item.dressItemId?.[index]}
-        custId={item.customerId}
-        orderStatus={item.orderStatus}
-        imageSource1={item.dressPics?.[index]}
-        imageSource2={item.patternPics?.[index]}
-        dressType={dress}
-        dressSubType={dress === 'Alteration' ? 
+		  // Download the image from the remote URL
+		  const response = await FileSystem.downloadAsync(imageUrl, localUri);
+
+		  // Share the downloaded image
+		  await Sharing.shareAsync(response.uri);
+		} catch (error) {
+		  console.error('Error sharing image: ', error);
+		}
+	  }, []);
+	  
+	  const ShareIcon = useCallback(props => 
+		<Icon {...props} name="share-outline" style={{ width: 24, height: 24 }} />, 
+	  []);
+
+	// Replace the existing renderOrderDetailsItem callback with this:
+	const renderOrderDetailsItem = useCallback(({ item: dress, index }) => {
+		console.log('in renderOrderDetailsItem')
+		console.log(item)
+	  // Transform the data to match the structure expected by renderOrderItem
+	  const transformedItem = {
+		dressItemId: item.dressItemId?.[index],
+        custId: item.customerId,
+        orderStatus: item.orderStatus,
+        dressPics: item.dressPics?.[index],
+        patternPics: item.patternPics?.[index],
+		measurementPics: item.measurementPics?.[index],
+        dressType: dress,
+        dressSubType: dress === 'Alteration' ? 
           item.alterDressType[index] : 
-          (item.dressSubType?.[index] ? `${item.dressSubType[index]} ` : '')}
-        amt={item.stitchingAmt?.[index] || 0}
-        dueDate={item.dueDate?.[index] || new Date()}
-        dressGiven={item.dressGiven?.[index] || false}
-		frontNeckType={item.frontNeckType?.[index] || null}
-		backNeckType={item.backNeckType?.[index] || null}
-		sleeveType={item.sleeveType?.[index] || null}
-		sleeveLength={item.sleeveLength?.[index] || null}
-		frontNeckDesignFile={item.frontNeckDesignFile?.[index] || null}
-		backNeckDesignFile={item.backNeckDesignFile?.[index] || null}
-		sleeveDesignFile={item.sleeveDesignFile?.[index] || null}
-		notes={item.notes?.[index] || ''}
-        measurementsObj={measurementsObj}
-        extraMeasurements={item.extraMeasurements?.[index] || null}
-		defaultSource={require('../../../assets/empty_dress.png')}
-		orderFor={item.associateCustName?.[index] || item.custName}
-      />
-    );
-  }, [item]); // Dependencies
+          (item.dressSubType?.[index] ? `${item.dressSubType[index]} ` : ''),
+        stitchingAmt: item.stitchingAmt?.[index] || 0,
+        dueDate: item.dueDate?.[index] || new Date(),
+        dressGiven: item.dressGiven?.[index] || false,
+		frontNeckType: item.frontNeckType?.[index] || null,
+		backNeckType: item.backNeckType?.[index] || null,
+		sleeveType: item.sleeveType?.[index] || null,
+		sleeveLength: item.sleeveLength?.[index] || null,
+		frontNeckDesignFile: item.frontNeckDesignFile?.[index] || null,
+		backNeckDesignFile: item.backNeckDesignFile?.[index] || null,
+		sleeveDesignFile: item.sleeveDesignFile?.[index] || null,
+		notes: item.notes?.[index] || '',
+        measurementData: item.measurementData?.[index] || {},
+		defaultSource: require('../../../assets/empty_dress.png'),
+		orderFor: item.associateCustName?.[index] || item.custName,
+		oldData: item.oldData,
+		extraOptions: item.extraOptions?.[index] || {},
+		slots: item.slots?.[index] || {}
+	  };
 
-  // Use lazy loading for images and other heavy content
-  const loadImages = useCallback(async () => {
-    // Implement lazy loading logic
-  }, []);
+	  return (
+		<OrderItemComponent
+		  item={transformedItem}
+		  index={index}
+		  expandedItems={expandedItems}
+		  toggleItemExpansion={toggleItemExpansion}
+		  measurementFields={measurementFields}
+		/>
+	  );
+	}, [item, expandedItems, measurementFields]);
 
   // Effect cleanup
   useEffect(() => {
@@ -240,23 +277,80 @@ const OrderDetails = ({ navigation }) => {
 		});
 	}, [navigation]);
 
-  const generateBillHTML = (item, qrCode, shopName, shopAddress, shopPhNo, orderDate) => {
-	  // Generate table rows for dress details
+  const generateBillHTML = (item, qrCode, orderDate) => {
+	  console.log(item);
+	  console.log('item.slots', item.slots);
+	  let extraOptionsTotalAmt = item.orderAmt;
+	  
 	  const generateDressDetailsRows = () => {
 		let rows = '';
-		item.dressDetailsAmt && item.dressDetailsAmt.forEach((dress, index) => {
+		let serialNumber = 1;
+		
+		let groupedExtraOptions = [];
+		if (item.extraOptions) {
+		  const optionsMap = {};
+		  
+		  item.extraOptions.forEach(extraOptionObj => {
+			Object.entries(extraOptionObj).forEach(([key, value]) => {
+			  const numValue = Number(value) || 0;
+			  
+			  if (optionsMap[key]) {
+				optionsMap[key].count += 1;
+				optionsMap[key].groupedAmt += numValue;
+			  } else {
+				optionsMap[key] = {
+				  key: key,
+				  count: 1,
+				  groupedAmt: numValue
+				};
+			  }
+			});
+		  });
+		  groupedExtraOptions = Object.values(optionsMap);
+		  extraOptionsTotalAmt += groupedExtraOptions.reduce((total, option) => total + option.groupedAmt, 0);
+		}
+		item.dressType && item.dressType.forEach((dress, index) => {
+			console.log('item.expressDuration', item.expressDuration[index]);
+		  // Add the main dress row
 		  rows += `
 			<tr>
-			  <td>${index + 1}</td>
-			  <td>${dress.key}</td>
-			  <td>${dress.count}</td>
-			  <td>${dress.groupedAmt}</td>
+			  <td>${serialNumber}</td>
+			  <td>${item.dressSubType[index] ?? ''} ${dress}</td>
+			  <td>1</td>
+			  <td>${item.stitchingAmt[index]}</td>
+			  <td>${item.expressDuration[index] ? 'Express' : 'Regular'}</td>
+			  <td>${item.expressDuration[index]?.label || ''}</td>
 			</tr>
 		  `;
+		  serialNumber++;
 		});
+		groupedExtraOptions.forEach(option => {
+		  rows += `
+			<tr>
+			  <td>${serialNumber}</td>
+			  <td>${option.key}</td>
+			  <td>${option.count}</td>
+			  <td>${option.groupedAmt}</td>
+			  <td></td>
+			  <td></td>
+			</tr>
+		  `;
+		  serialNumber++;
+		});
+
 		return rows;
 	  };
-
+	  
+	  const expressVal = item.expressCharges || Math.max(
+		  0,
+		  ...(item.expressDuration || [])
+			.filter(Boolean)
+			.map(obj => obj.price)
+		);
+	  const totalAmt = expressVal + extraOptionsTotalAmt;
+	  console.log('expressVal', expressVal)
+	  console.log('totalAmt', totalAmt)
+	  
 	  // Generate the complete HTML template
 	  return `
 		<html>
@@ -353,17 +447,18 @@ const OrderDetails = ({ navigation }) => {
 		  </head>
 		  <body>
 			<div class="header">
-			  <h1>Bill - Order #${item.tailorOrderNo}</h1>
+			  <h1>Bill - Order #${item.orderNo}</h1>
 			</div>
 			
 			<div class="shop-details">
-			  <h2>${shopName}</h2>
-			  <p>${shopAddress}</p>
-			  <p>Ph No.: ${shopPhNo}</p>
+			  <h2>Furyuu Designers</h2>
+			  <p>Thaneer Pandhal, 31A, V. K Road, 1st St, Maheshwari Nagar, Coimbatore, Tamil Nadu 641004</p>
+			  <p>Ph No.: 7871477077</p>
 			</div>
 			
 			<div class="customer-details">
 			  <p>Customer Name: ${item.custName}</p>
+			  <p>Phone No: ${item.phoneNo}</p>
 			  <p>Order Date: ${orderDate}</p>
 			</div>
 			
@@ -374,6 +469,8 @@ const OrderDetails = ({ navigation }) => {
 				  <th>Dress Item</th>
 				  <th>No. of items</th>
 				  <th>Stitching Price (Rs.)</th>
+				  <th>Delivery Type</th>
+				  <th>Express Delivery Days</th>
 				</tr>
 			  </thead>
 			  <tbody>
@@ -384,9 +481,21 @@ const OrderDetails = ({ navigation }) => {
 			<div class="total-amount">
 			  <div class="total-amount-row">
 				<div class="total-amount-empty"></div>
-				<div class="total-amount-label">Total Amount:</div>
-				<div class="total-amount-value">Rs. ${item.orderAmt}</div>
+				<div class="total-amount-label">Total Stitching Charges:</div>
+				<div class="total-amount-value">Rs. ${extraOptionsTotalAmt}</div>
 			  </div>
+			  <div class="total-amount-row">
+				<div class="total-amount-empty"></div>
+				<div class="total-amount-label">Express Charges:</div>
+				<div class="total-amount-value">Rs. ${expressVal}</div>
+			  </div>
+			  <div class="total-amount-row">
+				<div class="total-amount-empty"></div>
+				<div class="total-amount-label"><b>Total Amount:</b></div>
+				<div class="total-amount-value"><b>Rs. ${totalAmt}</b></div>
+			  </div>
+			  <br/>
+			  <br/>
 			  <div class="total-amount-row">
 				<div class="total-amount-empty"></div>
 				<div class="total-amount-label">Payment status:</div>
@@ -404,6 +513,11 @@ const OrderDetails = ({ navigation }) => {
 				  <div class="total-amount-value">Rs. ${pendingTailorAmount}</div>
 				</div>
 			  ` : ''}
+			  <div class="total-amount-row">
+				  <div class="total-amount-empty"></div>
+				  <div class="total-amount-label">Payment Mode:</div>
+				  <div class="total-amount-value">${item.paymentMode || ''}</div>
+			  </div>
 			</div>
 			
 			${qrCode ? `
@@ -415,7 +529,6 @@ const OrderDetails = ({ navigation }) => {
 			
 			<div class="footer">
 			  <p>Thank you!</p>
-			  <p>Powered by Thaiyal Business</p>
 			</div>
 		  </body>
 		</html>
@@ -469,13 +582,12 @@ const OrderDetails = ({ navigation }) => {
     try {
       setLoading(true);
 	  console.log(currentUser.upiQRCode_url)
-	  logFirebaseEvent('bill_generation');
-      let qrCode = null;
+	  let qrCode = null;
 	  if(currentUser.upiQRCode_url) {
 		qrCode =  await downloadQrCode(currentUser.upiQRCode_url);
 	  }
 
-      const htmlContent = generateBillHTML(item, qrCode, shopName, shopAddress, shopPhNo, orderDate);
+      const htmlContent = generateBillHTML(item, qrCode, orderDate);
       const { uri } = await Print.printToFileAsync({ html: htmlContent });
       
       const pdfUri = FileSystem.cacheDirectory + 'bill.pdf';
@@ -493,157 +605,35 @@ const OrderDetails = ({ navigation }) => {
       setLoading(false);
     }
   }
-  
-	const rejectAlert = (navigation) => {
-		if(item.orderStatus === 'Created') {
-			showErrorMessage('Order already accepted!');
-		} else {
-			Alert.alert(
-				"Confirmation", "Do you want to reject this order?",
-				[
-					{
-						text: 'Cancel',
-						onPress: () => console.log("Cancel"),
-						style: "cancel",
-					},
-					{
-						text: 'OK',
-						onPress: () => handleDeleteOrder()
-					}
-				],
-				{cancelable: true}
-			)
-		}
-    }
-  
-  const handleDeleteOrder = async () => {
-    try {
-      setLoading(true);
-	  logFirebaseEvent('order_rejected');
-	  console.log('in handleDeleteOrder: ' + item.orderNo)
-		  
-	  const {data, error} = await supabase
-		  .from('OrderItems')
-		  .delete()
-		  .eq('orderNo', item.orderNo)
-		  .eq('orderStatus', 'Requested')
-		  .select()
-
-		if (error) {
-		  console.error('Deletion failed:', error);
-		  throw error;
-		} else if(data.length === 0) {
-			showErrorMessage('No matching order found!')
-			return;
-		}
-		const { dataRemove, errorRemove } = await supabase
-								  .storage
-								  .from('order-images')
-								  .remove(item.dressPics.flat().map(filename => `dressImages/${filename}`))
-								if(errorRemove) {
-									throw errorRemove;
-								}
-			const { dataRemove1, errorRemove1 } = await supabase
-								  .storage
-								  .from('order-images')
-								  .remove(item.patternPics.flat().map(filename => `patternImages/${filename}`))
-								if(errorRemove1) {
-									throw errorRemove1;
-								}
-			showSuccessMessage('Order Rejected!');
-			const title = 'Order Rejected!'
-			const body = 'Your order for ' + orderDetails + ' has been rejected by tailor shop ' + currentUser.ShopDetails.shopName + '.';
-			let a = await sendNotifToCust(title, body);
-			eventEmitter.emit('storageUpdated');
-			eventEmitter.emit('newOrderAdded');
-			navigation.goBack();
-		
-    } catch (error) {
-      showErrorMessage('Failed to delete the order: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  const handleAcceptOrder = async() => {
-	  try {
-		setLoading(true);
-		logFirebaseEvent('order_accepted');
-		const { data, error } = await supabase
-			  .from('OrderItems')
-			  .select('orderStatus')
-			  .eq('orderNo', item.orderNo);
-		if(error) {
-			throw error;
-		}
-		console.log('data in handleAcceptOrder:')
-		console.log(data)
-		if(data.length === 0) {
-			showErrorMessage('No matching order found!');
-		} else if(data[0].orderStatus === 'Created') {
-			showErrorMessage('Order already accepted!');
-		} else {
-			const { data: data1, error: error1 } = await supabase
-			  .from('OrderItems')
-			  .update({ shopId: currentUser.ShopDetails.id, username: currentUser.username, orderStatus: 'Created'})
-			  .eq('orderNo', item.orderNo)
-			  .select()
-			  .single();
-			if(error1) {
-				throw error1;
+	  const toggleAddon = (addon) => {
+		console.log('in toggleAddon ', selectedAddons, addon)
+		  setSelectedAddons((prev) => {
+			if (prev.includes(addon)) {
+			  return prev.filter((item) => item !== addon);
+			} else {
+			  return [...prev, addon];
 			}
-			console.log(data1)
-			let ud = item;
-			const updatedItem = { ...ud, username: currentUser.username, shopId: currentUser.ShopDetails.id, orderStatus: 'Created', tailorOrderNo: data1.tailorOrderNo };
+		  });
+	  };
 	  
-		  const title = 'Order Accepted!'
-		  const body = 'Your order for ' + orderDetails + ' has been accepted by tailor shop ' + currentUser.ShopDetails.shopName + '. Order no is #' + data1.tailorOrderNo;
-		  let a = await sendNotifToCust(title, body);
-		  let arrayA = JSON.parse(storage.getString(currentUser.username+'_Created') || '[]');
-			let arrayB = [updatedItem, ...arrayA];
-			let bStr = JSON.stringify(arrayB)						
-			showSuccessMessage('Order Accepted!');
-			storage.set(currentUser.username+'_Created', bStr);
-			
-			/*if(custUsername) {
-				let arrayC = JSON.parse(storage.getString(custUsername+'_Created') || '[]');
-				const orderIndex = arrayC?.findIndex(order => order.orderNo === item.orderNo);
-				  if (orderIndex && orderIndex !== -1) {
-					arrayC[orderIndex].orderStatus = 'Created';
-					storage.set(custUsername+'_Created', JSON.stringify(arrayC));
-					console.log("Updated cacheValue stored successfully.");
-				  }
-			}*/
-			//below lines are causing readorderitems context and hence OrderBagScreen to be called repeatedly
-			eventEmitter.emit('storageUpdated');
+	const saveDeliveryOptions = async() => {
+		const { error } = await supabase
+				  .from('OrderItems')
+				  .update({ deliveryOptions: selectedAddons })
+				  .eq('orderNo', item.orderNo)
+		if(error) {
+			console.error(error);
+			showErrorMessage('Error saving delivery options: ' + error);
+		} else {
+			setVisible(false);
+			let cacheKey = item.orderStatus === 'Completed' ? 'Completed_true' : 'Completed_false';
+			let updVal = {...item, deliveryOptions: selectedAddons};
+			updateCache('UPDATE_ORDER', updVal, cacheKey);
+			await notify(currentUser.id, 'UPDATE_ORDER', cacheKey, updVal);
 			eventEmitter.emit('newOrderAdded');
-			navigation.navigate('OrderDetailsMain', {screen: 'EditOrderDetails',
-						params: { item: updatedItem, userType: currentUser.userType, orderDate: updatedItem.orderDate || new Date(), shopName: currentUser.ShopDetails.shopName, shopAddress: currentUser.ShopDetails.shopAddress, shopPhNo: currentUser.ShopDetails.shopPhNo, isShareIntent: false }
-				});
+			generateBill();
 		}
-	  } catch(error) {
-		  console.log(error)
-	  } finally {
-		  setLoading(false);
-	  }
-  }
-
-  const sendNotifToCust = async (title, body) => {
-				const { data, error } = await supabase
-											  .from('profiles')
-											  .select(`username, pushToken`)
-											  .eq('username', custUsername)
-											  .maybeSingle();
-					if (error) {
-						console.log(error)
-						return false;
-					} else {
-						console.log(data);
-						if(data && data.pushToken) {
-							await schedulePushNotification(data.pushToken, data.username, title, body, {});
-						}
-					}
-  }
+	}
   
   return (
     <View style={styles.container} ref={viewRef} collapsable={false}>
@@ -659,52 +649,32 @@ const OrderDetails = ({ navigation }) => {
         ListHeaderComponent={<CustomerDetails item={item} currentUsername={currentUser.username} phone={phone}/>}
         ListFooterComponent={
           <View style={styles.footer}>
-            <PaymentDetails item={item} />
-			<SubTailorDetails item={item} />
-			{item.workerType && <WorkerDetails item={item} />}
-            
-            {custUsername ? (
-              <Layout style={styles.buttonContainer}>
-                <Button 
-                  status="success" 
-                  style={styles.actionButton} 
-                  onPress={handleAcceptOrder}
-                >
-                  Accept
-                </Button>
-                <Button 
-                  status="danger" 
-                  style={styles.actionButton} 
-                  onPress={() => rejectAlert(navigation)}
-                >
-                  Reject
-                </Button>
-              </Layout>
-            ) : (
-                <Button 
+            <PaymentDetails item={item} selectedAddons={selectedAddons}/>
+			<Button 
                   status='info' 
-                  onPress={() => currentUser.upiQRCode_url ? generateBill() : setUpiModal(true)} 
+                  onPress={() => setVisible(true)} 
                   style={styles.paymentButton}
                 >
                   Generate Bill
                 </Button>
-            )}
           </View>
         }
       />
 	  
-	  <UPIQRModal
-        visible={upiModal}
-        onCloseUpi={() => {setUpiModal(false); generateBill();}}
-		currentUser={currentUser}
-      />
-
       <Modal
         visible={loading}
         backdropStyle={styles.backdrop}
       >
         <Spinner size="large" status="primary" />
       </Modal>
+	      <DeliveryOptionsModal
+			visible={visible}
+			onClose={() => {setVisible(false); setSelectedAddons([]); generateBill();}}
+			selectedAddons={selectedAddons}
+			toggleAddon={toggleAddon}
+			orderDeliveryOptions={orderDeliveryOptions}
+			onSave={saveDeliveryOptions}
+		  />
     </View>
   );
 };
@@ -713,7 +683,7 @@ const styles = StyleSheet.create({
     container: {
     flex: 1,
     paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingVertical: 5,
     backgroundColor: '#fff'
   },
   sectionHeader: {
@@ -795,6 +765,318 @@ const styles = StyleSheet.create({
   navButton: {
 	  marginLeft: 20
   },
+  scrollView: {
+    flex: 1,
+  },
+  section: {
+    padding: 16,
+  },
+  sectionTitle: {
+    marginBottom: 12,
+    fontWeight: 'bold',
+  },
+  subsectionTitle: {
+    marginBottom: 8,
+    fontWeight: '600',
+  },
+  customerCard: {
+    marginBottom: 8,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  divider: {
+    marginVertical: 4,
+  },
+  itemCard: {
+    marginBottom: 12,
+  },
+  itemHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  itemImageContainer: {
+    width: 60,
+    height: 60,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  itemInfo: {
+    flex: 1,
+  },
+  itemTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  itemType: {
+    flex: 1,
+    fontWeight: 'bold',
+  },
+  itemActions: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  actionBtn: {
+    width: 32,
+    height: 32,
+  },
+  boldText: {
+    fontWeight: 'bold',
+  },
+  extraTotal: {
+    color: '#28a745',
+    fontSize: 12,
+  },
+  itemTotal: {
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  expandButton: {
+    marginTop: 8,
+  },
+  itemDetails: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+  },
+  extraOptionsContainer: {
+    marginBottom: 16,
+  },
+  extraOptionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  extraOptionItem: {
+    backgroundColor: '#E3F2FD',
+    borderRadius: 6,
+    padding: 8,
+    minWidth: 80,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#BBDEFB',
+  },
+  extraOptionLabel: {
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  extraOptionPrice: {
+    color: '#1976D2',
+    fontWeight: 'bold',
+  },
+  scrollViewContent: {
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+  },
+  imageItemContainer: {
+    alignItems: 'center',
+    marginHorizontal: 4,
+  },
+  designImage: {
+    width: 100,
+    height: 100,
+    marginHorizontal: 8,
+  },
+  measurementImage: {
+    width: 100,
+    height: 100,
+    marginHorizontal: 8,
+  },
+  shareButton: {
+    width: 50,
+    marginTop: 10,
+  },
+  shareButtonOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 20,
+    padding: 2,
+  },
+  shareIconOverlay: {
+    width: 20,
+    height: 20,
+  },
+  noMeasurementImages: {
+    paddingVertical: 20,
+    paddingHorizontal: 10,
+  },
+  noContentPlaceholder: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#DEE2E6',
+    borderStyle: 'dashed',
+  },
+  addContentBtn: {
+    marginTop: 8,
+  },
+  neckSleeveContainer: {
+    marginBottom: 16,
+  },
+  neckSleeveSection: {
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
+  },
+  neckLabel: {
+    marginBottom: 4,
+  },
+  neckValue: {
+    marginBottom: 2,
+  },
+  sleeveRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  designFileContainer: {
+    marginTop: 8,
+    alignItems: 'flex-start',
+  },
+  designFileImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 6,
+  },
+  neckSleeveGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  neckSleeveItem: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 6,
+    padding: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#28A745',
+    flex: 1,
+    minWidth: '45%',
+  },
+  neckSleeveValue: {
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  measurementsContainer: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    padding: 12,
+	marginTop: -15
+  },
+  measurementFieldContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingVertical: 4,
+  },
+  measurementLabel: {
+    flex: 1,
+  },
+  measurementValue: {
+    textAlign: 'right',
+    minWidth: 40,
+  },
+  notesCard: {
+    marginTop: 12,
+  },
+  notesLabel: {
+    fontWeight: 'bold',
+  },
+  measurementStatus: {
+    marginBottom: 12,
+	flexDirection: 'row',
+	justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  statusProvided: {
+    backgroundColor: '#D4EDDA',
+  },
+  statusPending: {
+    backgroundColor: '#FFF3CD',
+  },
+  statusText: {
+    fontWeight: '500',
+  },
+  measurementsTable: {
+    gap: 6,
+  },
+  measurementRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
+  },
+  imageContainer: {
+    flex: 1,
+    width: 75,
+    height: 120,
+	marginLeft: -5
+  },
+  imageCard: {
+    width: '100%',
+    height: '135%',
+    borderRadius: 5,
+  },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    width: '100%',
+    height: '135%',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 5,
+  },
+  overlayText: {
+    color: 'white',
+    fontSize: 14
+  },
+  carouselImage: {
+    width: 320,
+    height: 300,
+  },
+  shareButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    borderRadius: 20,
+    padding: 5,
+  },
+  fullScreenModal: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
+  },
+  deliveryOptions: {
+	 marginTop: 5
+  }
 });
 
 export default memo(OrderDetails);

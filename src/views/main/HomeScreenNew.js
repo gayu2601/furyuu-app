@@ -11,19 +11,14 @@ import { supabase } from '../../constants/supabase'
 import { showSuccessMessage, showErrorMessage } from './showAlerts';
 import NotificationsButton from "../extra/NotificationsButton";
 import OrderBagButton from "../extra/OrderBagButton";
-import { useProfileCompletionModal } from './useProfileCompletionModal';
-import ProfileCompletionModal from "./ProfileCompletionModal";
 import DashboardCard from "./DashboardCard";
 import Feather from "react-native-vector-icons/Feather";
 import { storage } from '../extra/storage';
-import { logFirebaseEvent } from '../extra/firebaseUtils';
 import * as Network from 'expo-network';
 import { Linking } from 'react-native';
 import { resetIdCounter } from '../main/generateUniqueId';
 import { NotificationWorker } from './NotificationWorker';
 import keys from "../../constants/Keys";
-import Tooltip from 'react-native-walkthrough-tooltip';
-import { useWalkthrough } from './WalkthroughContext';
 import { checkAndDeleteSession } from "../extra/sessionUtils";
 import { locationWorkerInstance } from '../extra/LocationWorker';
 import { createClient } from '@supabase/supabase-js'
@@ -39,20 +34,22 @@ const menDress = [
 const womenDress = [
   { title: 'Party Dresses', value: 'partywear', source: require('../../../assets/women/partywear.jpg'), width: 1080, height: 1920 },
   { title: 'Tops', value: 'tops', source: require('../../../assets/women/shirt.jpg'), width: 1080, height: 1920 },
-  { title: 'Chudithar', value: 'chudithar', source: require('../../../assets/women/chudithar.jpg'), width: 1080, height: 1920 },
+  { title: 'Salwar', value: 'salwar', source: require('../../../assets/women/chudithar.jpg'), width: 1080, height: 1920 },
   { title: 'Lehenga/Gagra', value: 'lehenga', source: require('../../../assets/women/lehenga.jpg'), width: 1080, height: 1920 },
   { title: 'Blouse', value: 'blouse', source: require('../../../assets/women/blouse.jpg'), width: 1080, height: 1920 },
   { title: 'Pants', value: 'pants', source: require('../../../assets/women/pants.jpg'), width: 1080, height: 1920 },
+  { title: 'Long Gown', value: 'longgown', source: require('../../../assets/women/longgown.jpg'), width: 1080, height: 1920 },
+  { title: 'Saree Pre-pleating', value: 'sareePrePleating', source: require('../../../assets/women/saree.jpg'), width: 1080, height: 1920 },
   { title: 'Half Saree', value: 'halfsaree', source: require('../../../assets/women/halfsaree.jpg'), width: 1080, height: 1920 },
-  { title: 'Nightie', value: 'nightie', source: require('../../../assets/women/nightie.jpg'), width: 1080, height: 1920 },
   { title: 'Alteration', value: 'Alteration', source: require('../../../assets/alteration.jpg'), width: 1080, height: 1920 },
 ];
 
 const kidsDress = [
-  { title: 'Tops', value: 'shirt', source: require('../../../assets/kids/tops.jpg'), width: 1080, height: 1920 },
+  { title: 'Tops', value: 'tops', source: require('../../../assets/kids/tops.jpg'), width: 1080, height: 1920 },
   { title: 'Lehenga/Gagra', value: 'lehenga', source: require('../../../assets/kids/gagra.jpg'), width: 1080, height: 1920 },
   { title: 'Pants', value: 'pants', source: require('../../../assets/kids/pants.jpg'), width: 1080, height: 1920 },
   { title: 'Frock', value: 'frock', source: require('../../../assets/kids/frock.jpg'), width: 1080, height: 1920 },
+  { title: 'Skirt', value: 'skirt', source: require('../../../assets/kids/skirt.jpg'), width: 1080, height: 1920 },
   { title: 'Uniform', value: 'uniform', source: require('../../../assets/kids/uniform.jpg'), width: 1080, height: 1920 },
   { title: 'Ethnic Wear', value: 'paavadai', source: require('../../../assets/kids/paavadai.jpg'), width: 1080, height: 1920 },
   { title: 'Alteration', value: 'Alteration', source: require('../../../assets/alteration.jpg'), width: 1080, height: 1920 },
@@ -60,93 +57,27 @@ const kidsDress = [
 
 // Extracted HeaderSection component to prevent rerenders
 const HeaderSection = React.memo(({ currentUser, navigation, theme, address }) => {
-    const { isStepActive, next, end, back } = useWalkthrough();
-	let locDenied = locationWorkerInstance.isLocationDenied();
+    let locDenied = locationWorkerInstance.isLocationDenied();
   return (
     <View style={styles.topHeader}>
       {/* Logo and Location */}
       <View style={styles.headerContent}>
-        <Image source={require('../../../assets/logo.jpeg')} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 8 }} />
+        <Image source={require('../../../assets/logo.png')} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 8 }} />
         <View style={{marginTop: 10}}>
-          <Text category="s1" >Hi, {currentUser.name}!</Text>
+          <Text category="s1" >Hello!</Text>
 		  {!locDenied && <Text category="c1" style={{width: 190}}>{address ? address : 'Loading location...'}</Text>}
         </View>
       </View>
-
-      {/* Notification and Bag Icons */}
-      <View style={styles.headerContent}>
-        <View style={{marginRight: -35, marginBottom: 5 }}>
-			<Tooltip
-			  isVisible={isStepActive('HomeNew', 'notifications')}
-			  content={
-				<View style={styles.tooltipContent}>
-				  <Text style={styles.tooltipText}>
-					This shows notifications received when customers place new orders to your tailor shop via Thaiyal Connect app
-				  </Text>
-				  <View style={styles.tooltipButtons}>
-					<TouchableOpacity onPress={end}>
-					  <Text style={styles.skipText}>Skip Tour</Text>
-					</TouchableOpacity>
-					<TouchableOpacity onPress={back}>
-					  <Text style={styles.skipText}>Back</Text>
-					</TouchableOpacity>
-					<TouchableOpacity style={styles.nextButton} onPress={end}>
-					  <Text style={styles.nextText}>End</Text>
-					</TouchableOpacity>
-				  </View>
-				</View>
-			  }
-			  placement="bottom"
-			  backgroundColor="rgba(0,0,0,0.5)"	
-			  topAdjustment={-30}
-			  horizontalAdjustment={10}
-			childrenWrapperStyle={{
-				width: 35,paddingLeft: 30, backgroundColor: 'white'
-			  }}
-			  onClose={end}
-			>
-				<NotificationsButton />
-			</Tooltip>
-        </View>
-		<Tooltip
-			  isVisible={isStepActive('HomeNew', 'orderBag')}
-			  content={
-				<View style={styles.tooltipContent}>
-				  <Text style={styles.tooltipText}>
-					This shows a summary of dress items added, payment info and worker assignments for an order yet to be created
-				  </Text>
-				  <View style={styles.tooltipButtons}>
-					<TouchableOpacity onPress={end}>
-					  <Text style={styles.skipText}>Skip Tour</Text>
-					</TouchableOpacity>
-					<TouchableOpacity onPress={back}>
-					  <Text style={styles.skipText}>Back</Text>
-					</TouchableOpacity>
-					<TouchableOpacity style={styles.nextButton} onPress={next}>
-					  <Text style={styles.nextText}>Next (5/6)</Text>
-					</TouchableOpacity>
-				  </View>
-				</View>
-			  }
-			  placement="bottom"
-			  backgroundColor="rgba(0,0,0,0.5)"
-			  topAdjustment={-30} 
-			  horizontalAdjustment={15}
-			childrenWrapperStyle={{
-				width: 35,paddingRight: 15, backgroundColor: 'white'
-			  }}
-			  onClose={end}
-		>
-			<OrderBagButton />
-		</Tooltip>
-        <Button
+	  <View style={{marginRight: -10}}>
+		<OrderBagButton />
+	  </View>
+	  <Button
           appearance="ghost"
           accessoryLeft={(props) => <Icon {...props} name="person-outline" style={{width: 25, height: 25}} fill={theme['color-primary-500']}/>}
           onPress={() => navigation.navigate('ProfileSettings')}
           size='small'
           style={{marginRight: 10 }}
         />
-      </View>
     </View>
   );
 });
@@ -207,7 +138,7 @@ const HomeScreenNew = ({ navigation }) => {
   const routeParams = route?.params ?? {};
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [selIndex, setSelIndex] = useState(0);
-  const { updateCurrentUser, currentUser, profileCompleted } = useUser();
+  const { currentUser } = useUser();
     const [showMultiSelectModal, setShowMultiSelectModal] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
     const [spIndex, setSpIndex] = useState([]);
@@ -218,29 +149,8 @@ const HomeScreenNew = ({ navigation }) => {
   
   const { notificationCount, updateNotificationCount, markNotificationAsRead } = useNotification();
   const workerInitialized = useRef(false);
-  const { isStepActive, start, next, end, back } = useWalkthrough();
 	const [address, setAddress] = useState(null);
 	
-	const { setShouldShowModal, shouldShowModal, hideModal, isLoading } = useProfileCompletionModal();
-
-  const startWalkthrough = () => {
-    start(navigation);
-  };
- 
-  useFocusEffect(
-	  useCallback(() => {
-		// Auto-start walkthrough for first-time users
-		let w = storage.getString(currentUser.username + '_walkthrough_done')
-		if(!w) {
-		  console.log('in autostart walkthrough')
-		  setTimeout(() => {
-			startWalkthrough();
-		  }, 5000); // 5 second delay
-		  storage.set(currentUser.username + '_walkthrough_done', 'true');
-		}
-	  }, [navigation])
-	);
-  
   useEffect(() => {
     const initLocation = async () => {
 		console.log('in initLocation')
@@ -345,191 +255,13 @@ const HomeScreenNew = ({ navigation }) => {
       }
     };
 	
-	const checkValues = async() => {
-		if(!currentUser.ShopDetails.topServices) {
-			setShowMultiSelectModal(true);
-		}
-		if(currentUser.ShopDetails.websiteConsent == null) {
-			setShowConsentModal(true);
-		}
-	}
-
     checkNetworkState();
-	checkValues();
-	if(routeParams?.isNewUser || routeParams?.firstOrder) {
-		setShouldShowModal(true);
-	}
   }, []);
-  
-  const handleMultiSelectConfirm = (index) => {
-    setSpIndex(index);
-	const selectedServices = index.map(i => spServices[i.row]);
-	const commaSeparatedSp = selectedServices.join(', ');
-	setSp(commaSeparatedSp);
-	setSpArr(selectedServices)
-  };
-  
-  const handleContinue = async(key, value) => {
-	if (key === 'topServices') {
-		setShowMultiSelectModal(false);
-	} else if (key === 'websiteConsent') {
-		setShowConsentModal(false);
-	}
-
-	const fieldObj = { [key]: value };
-
-	const { error: error1 } = await supabase
-			.from('ShopDetails')
-			.update(fieldObj)
-			.eq('id', currentUser.ShopDetails.id)
-			.select().maybeSingle();
-		if(error1) {
-			console.log('tailor specialization and consent updation error:');
-			console.log(error1);
-			return false; 
-		}
-		const updatedUser = {
-			...currentUser,
-			ShopDetails: {
-				...currentUser.ShopDetails,
-				...fieldObj
-			}
-		};
-		console.log(updatedUser);
-		updateCurrentUser(updatedUser);
-  };
   
   // Memoize the rendering of MasonryHeader to avoid recreating on each item
   const renderMasonryHeader = useCallback((data) => (
     <MasonryHeader data={data} onPress={navigateToTest} />
   ), [navigateToTest]);
-  
-  const renderMultiSelectModal = () => (
-    <Modal
-      visible={showMultiSelectModal}
-      backdropStyle={styles.backdrop}
-      onBackdropPress={() => {}} // Prevent closing by backdrop
-    >
-      <Card disabled={true} style={styles.card}>
-        <Text category="h6" style={styles.modalCard1}>
-          Select your tailoring services specialization
-        </Text>
-        
-        <Select
-		  style={styles.select}
-          value={sp}
-          selectedIndex={spIndex}
-          onSelect={handleMultiSelectConfirm}
-          multiSelect={true}
-        >
-          {spServices.map((category, index) => (
-            <SelectItem key={index} title={category} />
-          ))}
-        </Select>
-        
-        <View style={styles.modalButton}>
-          <Button
-			size='small'
-            style={styles.buttonModal}
-            onPress={() => handleContinue('topServices', spArr)}
-            disabled={spIndex.length === 0}
-          >
-            Continue
-          </Button>
-        </View>
-      </Card>
-    </Modal>
-  );
-
-  const renderConsentModal = () => (
-    <Modal
-      visible={showConsentModal}
-      backdropStyle={styles.backdrop}
-      onBackdropPress={() => {}} // Prevent closing by backdrop
-    >
-      <Card disabled={true} style={styles.modalCard}>
-        <Text category="h6" style={styles.modalTitle}>
-          Profile Visibility Consent
-        </Text>
-        <CheckBox
-          checked={consentChecked}
-          onChange={setConsentChecked}
-		  style={styles.checkBox}
-        >
-		  {evaProps => <Text {...evaProps} style={{fontSize: 14, textAlign: 'justify', marginLeft: 10}}>I consent to display my tailor profile and shop details on thaiyalapp.in website and Thaiyal Connect app</Text>}
-        </CheckBox>
-        
-        <View style={styles.modalButton}>
-          <Button
-			size='small'
-            style={styles.buttonModal}
-            onPress={() => handleContinue('websiteConsent', consentChecked)}
-          >
-            Continue
-          </Button>
-        </View>
-      </Card>
-    </Modal>
-  );
-  
-  const handleUpdate = async (formData) => {
-    // Implement your API call here
-    console.log('Updating profile with:')
-	console.log(formData);
-
-	let shopPicsArr = [];
-	if(formData.shopPics) {
-            let a = await Promise.all(
-              formData.shopPics.map(async(pic) => {
-                const arraybuffer = await fetch(pic).then((res) => res.arrayBuffer())
-                  const fileExt = pic?.split('.').pop()?.toLowerCase() ?? 'jpeg'
-                  const path = `${Date.now()}.${fileExt}`
-                  shopPicsArr.push(path);
-                const { data, error: uploadError } = await supabase.storage
-                  .from('shop-images/shopPics')
-                  .upload(path, arraybuffer, {
-                    contentType: 'image/jpeg',
-                  })
-
-                  if (uploadError) {
-                      console.log(pic);
-                      console.log(uploadError);
-                      throw uploadError;
-                  }
-              })
-            );
-		formData.shopPics = shopPicsArr.length > 0 ? shopPicsArr : null;
-	}
-	
-	const profileFields = ['upiQRCode_url', 'yearsOfExp'];
-
-	const updates = Object.entries(formData).reduce(
-	  (acc, [key, value]) => {
-		if (profileFields.includes(key)) {
-		  acc.profile[key] = value;
-		  acc.user[key] = value;
-		} else {
-		  acc.shop[key] = value;
-		  acc.user.ShopDetails[key] = value;
-		}
-		return acc;
-	  },
-	  { 
-		profile: {}, 
-		shop: {}, 
-		user: { ...currentUser, ShopDetails: { ...currentUser.ShopDetails } }
-	  }
-	);
-	console.log(updates)
-	
-	// Update DB and user object
-	await Promise.all([
-	  Object.keys(updates.profile).length && supabase.from('profiles').update(updates.profile).eq('id', currentUser.id),
-	  Object.keys(updates.shop).length && supabase.from('ShopDetails').update(updates.shop).eq('id', currentUser.shopId)
-	]);
-
-	updateCurrentUser(updates.user);
-  };
   
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -558,31 +290,8 @@ const HomeScreenNew = ({ navigation }) => {
 
 			
 			<View style={styles.dashboardCardWrapper}>
-			<Tooltip
-			  isVisible={isStepActive('HomeNew', 'welcome')}
-			  content={
-				<View style={styles.tooltipContent}>
-				  <Text style={styles.tooltipTitle}>Welcome to Thaiyal Business! 🎉</Text>
-				  <Text style={styles.tooltipText}>
-					This is your home dashboard showing status of orders created in the last 30 days
-				  </Text>
-				  <View style={styles.tooltipButtons}>
-					<TouchableOpacity onPress={end}>
-					  <Text style={styles.skipText}>Skip Tour</Text>
-					</TouchableOpacity>
-					<TouchableOpacity style={styles.nextButton} onPress={next}>
-					  <Text style={styles.nextText}>Next (1/6)</Text>
-					</TouchableOpacity>
-				  </View>
-				</View>
-			  }
-			  placement="bottom"
-			  backgroundColor="rgba(0,0,0,0.5)"
-			  onClose={end}
-			>
 				<DashboardCard />
-			</Tooltip>
-			  </View>
+			</View>
         </ImageBackground>
 		
 		<Text category='h6' style={styles.sectionTitleOrder}>Start New Order</Text>
@@ -590,33 +299,7 @@ const HomeScreenNew = ({ navigation }) => {
 		<View style={styles.contentView}>
         {/* Category Buttons - Now memoized */}
         <CategoryButtons selIndex={selIndex} setSelIndex={setSelIndex} />
-      <Tooltip
-			  isVisible={isStepActive('HomeNew', 'createOrder')}
-			  content={
-				<View style={styles.tooltipContent}>
-				  <Text style={styles.tooltipText}>
-					Start creating a new order by clicking any dress type below
-				  </Text>
-				  <View style={styles.tooltipButtons}>
-					<TouchableOpacity onPress={end}>
-					  <Text style={styles.skipText}>Skip Tour</Text>
-					</TouchableOpacity>
-					<TouchableOpacity onPress={back}>
-					  <Text style={styles.skipText}>Back</Text>
-					</TouchableOpacity>
-					<TouchableOpacity style={styles.nextButton} onPress={next}>
-					  <Text style={styles.nextText}>Next (2/6)</Text>
-					</TouchableOpacity>
-				  </View>
-				</View>
-			  }
-			  placement="top"
-			  backgroundColor="rgba(0,0,0,0.5)"
-			  topAdjustment={-10}
-			  showChildInTooltip={false}
-			  onClose={end}
-		>
-			  <MasonryList
+      		  <MasonryList
 				key={selIndex}
 				images={filteredDressItems}
 				columns={2}
@@ -626,16 +309,6 @@ const HomeScreenNew = ({ navigation }) => {
 				imageContainerStyle={styles.masonryImageContainer}
 				listContainerStyle={styles.masonryContainer}
 			  />
-		</Tooltip>
-		{renderMultiSelectModal()}
-		{renderConsentModal()}
-		<ProfileCompletionModal
-			visible={shouldShowModal && !profileCompleted}
-			onClose={hideModal}
-			currentUser={currentUser}
-			onUpdate={handleUpdate}
-			firstOrder={routeParams?.firstOrder}
-		  />
 		</View>
       </ScrollView>
     </SafeAreaView>

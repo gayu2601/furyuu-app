@@ -30,7 +30,6 @@ import { showErrorMessage } from './showAlerts';
 import moment from 'moment';
 import eventEmitter from './eventEmitter';
 import { storage } from '../extra/storage';
-import Tooltip from 'react-native-walkthrough-tooltip';
 
 const IncomeExpenseHistoryScreen = ({ navigation }) => {
   const [transactions, setTransactions] = useState([]);
@@ -85,15 +84,74 @@ const IncomeExpenseHistoryScreen = ({ navigation }) => {
       setRefreshing(false);
     }
   };
+  
+  const handleRealtimeUpdate = (payload) => {
+	console.log('in handleRealtimeUpdate');
+    const { eventType, new: newRecord, old: oldRecord } = payload;
+    
+    setTransactions(prev => {
+      let updated;
+      switch (eventType) {
+        case 'INSERT':
+          updated = [newRecord, ...prev];
+          break;
+        case 'UPDATE':
+          updated = prev.map(t => t.id === newRecord.id ? newRecord : t);
+          break;
+        case 'DELETE':
+          updated = prev.filter(t => t.id !== oldRecord.id);
+          break;
+        default:
+          return prev;
+      }
+      
+      // Recalculate total
+      const newTotal = updated.reduce((sum, transaction) => {
+        return transaction.entryType === 'Income' 
+          ? sum + transaction.amount 
+          : sum - transaction.amount;
+      }, 0);
+      setTotal(newTotal);
+      
+      return updated;
+    });
+  };
 
   useEffect(() => {
 	eventEmitter.on('transactionAdded', fetchTransactions);
     fetchTransactions();
+	const subscription = supabase
+	  .channel('income-expense-changes')
+	  .on(
+		'postgres_changes',
+		{
+		  event: '*',
+		  schema: 'public',
+		  table: 'IncomeExpense'
+		},
+		(payload) => {
+		  console.log('in realtime useEffect');
+		  const { eventType, new: newRecord, old: oldRecord } = payload;
+		  
+		  // For UPDATE events, check if amount actually changed
+		  if (eventType === 'UPDATE') {
+			if (newRecord.amount === oldRecord.amount) {
+			  return; // Skip if amount didn't change
+			}
+		  }
+		  
+		  // Call your handler for all other cases
+		  handleRealtimeUpdate(payload);
+		}
+	  )
+	  .subscribe();
+	
 	return () => {
         // Cleanup listener
         eventEmitter.off('transactionAdded', fetchTransactions);
+		subscription.unsubscribe();
     };
-  }, [dateFilterActive, range, currentUser.username]);
+  }, [dateFilterActive, range.startDate, range.endDate, currentUser.username]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -290,26 +348,6 @@ const IncomeExpenseHistoryScreen = ({ navigation }) => {
   return (
   <View style={styles.outerContainer}>
   <ScrollView>
-		<Tooltip
-			  isVisible={showTooltip}
-			  content={
-				<View style={styles.tooltipContent}>
-				  <Text style={styles.tooltipText}>
-					Use this screen for logging additional or personal income/expense. This will reflect in the total revenue and profit margin in the Reports tab.
-				  </Text>
-				  <View style={styles.tooltipButtons}>
-					<TouchableOpacity style={styles.nextButton1} onPress={closeTooltip}>
-					  <Text style={styles.nextText}>OK</Text>
-					</TouchableOpacity>
-				  </View>
-				</View>
-			  }
-			  placement="top"
-			  backgroundColor="rgba(0,0,0,0.5)"
-			  onClose={closeTooltip}
-		>
-		</Tooltip>
-		
     <Layout style={styles.container}>
       <TopNavigation
         title={() => (

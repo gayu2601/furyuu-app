@@ -7,14 +7,13 @@ import { useNavigation } from "@react-navigation/native";
 import PaymentModal from '../main/PaymentModal';
 import { supabase } from '../../constants/supabase'
 import { storage } from '../extra/storage';
-import { logFirebaseEvent } from '../extra/firebaseUtils';
 import * as FileSystem from 'expo-file-system';
 import * as Linking from 'expo-linking';
 import { useReadOrderItems } from './ReadOrderItemsContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { showSuccessMessage, showErrorMessage } from './showAlerts';
 import { usePubSub } from './SimplePubSub';
-import { useRevenueCat } from './RevenueCatContext';
+import eventEmitter from './eventEmitter';
 
 const MoreIcon = (props) => (
 	  <Icon {...props} name='more-vertical' />
@@ -160,8 +159,7 @@ const ListOrderItem = (props) => {
   const navigation = useNavigation()
   const [menuVisible, setMenuVisible] = useState(false);
 		const { notify, updateCache} = usePubSub();
-	const { subscriptionActive, gracePeriodActive } = useRevenueCat();
-  
+	
   const isOrderOverdue = (date) => {
 	  if (!date) return false;
 	  const orderDate = new Date(date);
@@ -255,7 +253,6 @@ const ListOrderItem = (props) => {
   };
   
   const handleCall = (phoneNumber) => {
-	logFirebaseEvent('call_customer')
 	const url = `tel:${phoneNumber}`;
 	console.log(url);
 	Linking.openURL(url).catch(() => alert("Unable to make the call."));
@@ -352,7 +349,8 @@ const ListOrderItem = (props) => {
 				advance: updatedPaymentData.advance
 		  }
 		  updateCache('UPDATE_ORDER', updItem, currentUser.username, item.orderStatus);    
-		  await notify(subscriptionActive || gracePeriodActive, currentUser.id, 'UPDATE_ORDER', currentUser.username, item.orderStatus, updItem);
+		  await notify(currentUser.id, 'UPDATE_ORDER', currentUser.username, item.orderStatus, updItem);
+		  eventEmitter.emit('payStatusChanged');
           setModalVisible(false);
 		  if(orderType === 'InProgress' && !clickPayment) {
 			await onCheckedChange(!workStarted, item, updatedPaymentData);
@@ -376,7 +374,7 @@ const ListOrderItem = (props) => {
                 {item.custName}
               </Text>
               <View style={styles.orderIdContainer}>
-                <Text category='s1'>#{item.tailorOrderNo}</Text>
+                <Text category='s1'>#{item.orderNo}</Text>
                 {!isShareIntent && (
 					<OrderMenu 
 					  orderType={orderType}

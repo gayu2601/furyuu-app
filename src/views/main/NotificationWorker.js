@@ -32,7 +32,7 @@ export class NotificationWorker {
 				
 				if(title && title === 'New Order Alert!') {
 				  const {custName, custUsername, shopName, orderDetails, orderNo, orderItem} = notifData || {};
-				  const updatedItem = { ...orderItem, username: currentUser.username, shopId: currentUser.ShopDetails.id };
+				  const updatedItem = { ...orderItem, username: currentUser.username };
 				  const dateFinal = orderItem.orderDate ? orderItem.orderDate : new Date();
 				  
 				  navigation.navigate('OrderDetailsMain', {
@@ -40,10 +40,7 @@ export class NotificationWorker {
 					params: { 
 					  item: updatedItem, 
 					  userType: currentUser.userType, 
-					  orderDate: dateFinal, 
-					  shopName: currentUser.ShopDetails.shopName, 
-					  shopAddress: currentUser.ShopDetails.shopAddress, 
-					  shopPhNo: currentUser.ShopDetails.shopPhNo, 
+					  orderDate: dateFinal,
 					  isShareIntent: false, 
 					  custUsername: custUsername, 
 					  orderDetails: orderDetails 

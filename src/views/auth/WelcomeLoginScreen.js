@@ -7,7 +7,7 @@ import { supabase } from '../../constants/supabase'
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { storage } from '../extra/storage';
-import { firebase } from '@react-native-firebase/analytics';
+import useDressConfig from '../main/useDressConfig';
 import {
   GoogleSignin,
   GoogleSigninButton,
@@ -20,7 +20,6 @@ import * as Device from 'expo-device';
 import { schedulePushNotification } from '../main/notificationUtils';
 import { checkAndDeleteSession } from "../extra/sessionUtils";
 import moment from 'moment';
-import PaywallScreen from '../main/PaywallScreen';
 
 const DeviceManager = {
   async getCurrentDeviceInfo() {
@@ -86,38 +85,6 @@ const DeviceManager = {
 			  }
 	},
 
-  async updateUserDevice(userId, deviceInfo, prevDevicesLen) {
-	try {
-		if(prevDevicesLen == 1) {
-			const { error } = await supabase
-			  .from('user_last_device_v2')
-			  .update({
-				device_id: deviceInfo.deviceId,
-				device_name: deviceInfo.deviceName,
-				last_login: new Date().toISOString(),
-				device_push_token: deviceInfo.pushToken
-			  })
-			  .eq('user_id', userId);
-			if(error) {
-				throw error;
-			}
-		} else {
-			const { error: error1 } = await supabase.rpc("replace_user_device",{ 
-				p_user_id: userId,
-				p_device_id: deviceInfo.deviceId,
-				p_device_name: deviceInfo.deviceName,
-				p_last_login: new Date().toISOString(),
-				p_device_push_token: deviceInfo.pushToken });
-			if(error1) {
-				throw error1;
-			}
-		}
-	} catch(error) {
-		console.error(error);
-		showErrorMessage('Error logging in user!'); 
-	}
-  },
-
   async insertUserDevice(userId, deviceInfo) {
     const { error } = await supabase
       .from('user_last_device_v2')
@@ -141,24 +108,15 @@ const DeviceManager = {
     
     if (error) throw error;
   },
-
-  async sendLogoutNotification(prevDeviceToken, username, newDeviceName) {
-    if (!prevDeviceToken) return;
-    
-    const notifTitle = 'New Device Login';
-    const notifBody = `Your Thaiyal Business App account has been logged out on this device due to a login on another device: ${newDeviceName}.`;
-    
-    await schedulePushNotification(prevDeviceToken, username, notifTitle, notifBody, {});
-  }
-};
+}
 
 const WelcomeLoginScreen = ({ navigation }) => {
 	const [loading, setLoading] = useState(false);
 	const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef(null);
   const { updateNewDeviceLogin, updateCurrentUser } = useUser();
-    const [paywallVisible, setPaywallVisible] = useState(false);
   const theme = useTheme();
+  const { loadDressConfig, isDressConfigLoading } = useDressConfig();
     
 	/*useFocusEffect(
 	  useCallback(() => {
@@ -210,60 +168,57 @@ const WelcomeLoginScreen = ({ navigation }) => {
 
 	  const getNames = async (currentUser) => {
 		  console.log("in getNames")
-		      const { data, error } = await supabase.rpc("get_customers_list",{ parameter1: currentUser.username })
+		      const { data, error } = await supabase.rpc("get_customers_list")
 
 				if (error) {
-				  console.error('Error fetching shop names:', error);
+				  console.error('Error fetching customer names:', error);
 				} else {
 				  console.log('Distinct customers list:', data);
-				  storage.set(currentUser.username+'_Customers', JSON.stringify(data))
+				  storage.set('Customers', JSON.stringify(data))
 				}
 	  }
 	  
-	const checkDeviceAndNotify = async (session, data1) => {
+	  const getWorkers = async () => {
+		  console.log("in getWorkers")
+		      const { data, error } = await supabase.rpc("get_distinct_employee_names");
+
+				if (error) {
+				  console.error('Error fetching worker names:', error);
+				} else {
+				  console.log('Distinct workers list:', data);
+				  storage.set('Employees', JSON.stringify(data))
+				}
+	  }
+	  
+	const checkDeviceAndNotify = async (session, data1, newUser) => {
 	  console.log('in checkDeviceAndNotify');
 	  
 	  try {
 		const currentDevice = await DeviceManager.getCurrentDeviceInfo();
-		const lastDevice = await DeviceManager.getUserLastDevice(session.user.id);
-		console.log(currentDevice)
-		
-		console.log('Last device data:', lastDevice);
-		
-		const isOldDevice = lastDevice.some(device => device.device_id === currentDevice.deviceId);
-		const now = moment().format('YYYY-MM-DD');
-		const isNewEndDateSameOrAfter = data1.gracePeriodEndDate >= now;
+		console.log(currentDevice);
+		const lastDevice = !newUser 
+		  ? await DeviceManager.getUserLastDevice(session.user.id) 
+		  : [];
 
-		if (lastDevice.length > 0 && !isOldDevice) {
-			console.log('in new device')
-		  if (data1.subscribed || isNewEndDateSameOrAfter) {
-			// Subscribed users can login from multiple devices
-			await handleSubscribedUserLogin(session, data1, currentDevice);
-		  } else {
-			// Non-subscribed users need confirmation
-			await showLogoutConfirmation(lastDevice[0].device_name, session, data1, currentDevice, lastDevice[0].device_push_token, lastDevice.length);
-		  }
-		} else if(lastDevice.length === 0) {
-			console.log('in else if new device')
-		  //first login
-		  await handleSubscribedUserLogin(session, data1, currentDevice);
-		} else {
-			console.log('in else same device')
-			//same device
-			await handleUserLogin(session, data1, currentDevice, null);
-		}
-		
+		const isOldDevice = !newUser && lastDevice.some(
+		  (device) => device.device_id === currentDevice.deviceId
+		);
+
+		const loginHandler = !newUser && !isOldDevice 
+		  ? handleSubscribedUserLogin 
+		  : handleUserLogin;
+
+		await loginHandler(session, data1, currentDevice);
 	  } catch (error) {
 		console.error('Error checking device:', error);
 		showErrorMessage('Error checking device authentication!');
 	  }
 	};
 
-	// Handle login for subscribed users (can use multiple devices)
 	const handleSubscribedUserLogin = async (session, data1, currentDevice) => {
 	  try {
 		await DeviceManager.insertUserDevice(session.user.id, currentDevice);
-		await handleUserLogin(session, data1, currentDevice, null);
+		await handleUserLogin(session, data1, currentDevice);
 	  } catch (error) {
 		console.error('Error in subscribed user login:', error);
 		showErrorMessage('Error logging into this device!');
@@ -271,27 +226,25 @@ const WelcomeLoginScreen = ({ navigation }) => {
 	};
 
 	// Consolidated user login handler
-	const handleUserLogin = async (session, data1, currentDevice, prevDeviceToken, prevDevicesLen) => {
-	  console.log('in handleUserLogin', prevDeviceToken);
+	const handleUserLogin = async (session, data1, currentDevice) => {
+	  console.log('in handleUserLogin');
 	  
 	  try {
 		setLoading(true);
 		
 		await updatePushTokenIfNeeded(session.user.id, data1, currentDevice.pushToken);
-		
-		if(prevDeviceToken) {
-			// Handle device switching and notifications
-			await handleDeviceSwitch(data1.username, session.user.id, currentDevice, prevDeviceToken, prevDevicesLen);
-		}
-		// Update app state
 		updateCurrentUser(data1);
 		updateNewDeviceLogin(true);
 		
 		// Load additional data and navigate
 		await getNames(data1);
+		await getWorkers();
 		queueMicrotask(() => sendQueuedNotifications(data1.username, currentDevice.pushToken));
-		
-		navigateToAppropriateScreen(data1, session);
+		await loadDressConfig(data1);
+		navigation.reset({
+		  index: 0,
+		  routes: [{ name: "MainScreen", params: { data1 } }]
+		});
 		
 	  } catch (error) {
 		console.error('Error in user login:', error);
@@ -309,77 +262,58 @@ const WelcomeLoginScreen = ({ navigation }) => {
 		data1.pushToken = currentPushToken;
 	  }
 	};
+	
+	const generateUniqueUsername = (email) => {
+		const baseName = email.split("@")[0];  
+		const sanitizedName = baseName.trim().replace(/\s+/g, "").toLowerCase();
+		const uniqueIdentifier = new Date().getTime().toString().slice(-4);
+		let a = `${sanitizedName}${uniqueIdentifier}`
+		console.log('unique username: ')
+		console.log(a)
+		return a;
+	}
+	
+	const generateAndCheckUniqueUsername = async(email) => {
+		if(email) {
+		  let isUnique = false;
+		  let usernameValue;
+		  let attempts = 0;
+		  const maxAttempts = 10; // Prevent infinite loop in edge cases
 
-	// Handle device switching logic
-	const handleDeviceSwitch = async (username, userId, currentDevice, prevDeviceToken, prevDevicesLen) => {
-	  // Send logout notification to previous device
-	  await DeviceManager.sendLogoutNotification(prevDeviceToken, username, currentDevice.deviceName);
-	  
-	  // Update current device in database
-	  await DeviceManager.updateUserDevice(userId, currentDevice, prevDevicesLen);
-	};
+		  while (!isUnique && attempts < maxAttempts) {
+			// Generate a new username
+			usernameValue = generateUniqueUsername(email);
+			console.log(usernameValue);
 
-	// Navigate based on user's signup completion status
-	const navigateToAppropriateScreen = (data1, session) => {
-	  console.log("navigating with data:", data1);
-	  
-	  if (data1.signupStep === 1) {
-		navigation.navigate('AddressInputScreen', {
-		  session: session,
-		  shopPhNo: data1.phoneNo
-		});
-	  } else {
-		navigation.reset({
-		  index: 0,
-		  routes: [{ name: "MainScreen", params: { data1 } }]
-		});
-	  }
-	};
+			// Check if the username already exists in the database
+			const { count, error: errorUsername } = await supabase
+			  .from('profiles')
+			  .select('*', { count: 'exact', head: true })
+			  .eq('username', usernameValue);
 
-	// Show logout confirmation alert
-	const showLogoutConfirmation = (previousDeviceName, session, data1, currentDevice, prevDeviceToken, prevDevicesLen) => {
-	  console.log('in showLogoutConfirmation');
-	  
-	  return new Promise((resolve) => {
-		Alert.alert(
-		  "New Device Login",
-		  `Your account was active on another device (${previousDeviceName}). Continue here and log out there, or subscribe to use multiple devices.`,
-		  [
-			{
-			  text: "Continue Here",
-			  onPress: () => {
-				handleUserLogin(session, data1, currentDevice, prevDeviceToken, prevDevicesLen);
-				resolve(true);
-			  },
-			  style: "destructive"
-			},
-			{
-			  text: "Subscribe now",
-			  onPress: () => {
-				setPaywallVisible(true);
-				resolve(true);
-			  },
-			  style: "destructive"
-			},
-			{
-			  text: "Cancel",
-			  onPress: () => {
-				checkAndDeleteSession();
-				resolve(false);
-			  },
-			  style: "cancel"
+			if (errorUsername) {
+			  throw errorUsername; // Handle error appropriately
 			}
-		  ],
-		  { cancelable: false }
-		);
-	  });
-	};
 
-	  
+			// If no matching usernames found, mark as unique
+			if (count === 0) {
+			  isUnique = true;
+			} else {
+			  attempts++; // Increment attempts counter
+			}
+		  }
+
+		  if (attempts >= maxAttempts) {
+			throw new Error("Failed to generate a unique username after multiple attempts.");
+		  }
+
+		  return usernameValue;
+		}
+	}
+
 	const signInUser = async() => {
 					try {
 					  setLoading(true)
-					  firebase.analytics().logLogin({method: 'email'});
 					  GoogleSignin.configure({
 						scopes: ['profile','email'],
 						webClientId: keys.google_webClientId,
@@ -406,7 +340,7 @@ const WelcomeLoginScreen = ({ navigation }) => {
 							console.log(session.user.id);
 							const { data: data1, error: error1, status } = await supabase
 								.from('profiles')
-								.select(`*, ShopDetails(id, shopName, shopPhNo, shopAddress, shopRating, shopPics, adPic, homeMeasurement, socialMediaAcct, noOfEmp, topServices, websiteConsent, maps_place_id, pincode, slug)`)
+								.select(`*`)
 								.eq('id', session.user.id)
 								.maybeSingle();
 							  if (error1 && status !== 406) {
@@ -415,14 +349,28 @@ const WelcomeLoginScreen = ({ navigation }) => {
 							  } else {
 									console.log(data1)
 									if(data1) {
-										if(data1.userType === 'customer') {
-											await checkAndDeleteSession();
-											showErrorMessage('This email is already registered as customer in Thaiyal Connect app! Please use another email to login as tailor.');
-											return;
-										}
 										await checkDeviceAndNotify(session, data1);
 									} else {
-										navigation.navigate('RegisterScreen', {session: session});
+										const usernameValue = await generateAndCheckUniqueUsername(session.user.email);
+										console.log('Unique username: ' + usernameValue);
+										const tok = await DeviceManager.getPushToken();
+										const { data: data2, error: error1 } = await supabase
+										  .from('profiles')
+										  .insert({ 
+											id: session.user.id,
+											username: usernameValue, 
+											email: session.user.email,
+											pushToken: tok
+										  })
+										  .select().single();
+									  if(error1) {
+										  showErrorMessage('An unexpected error occurred. Please try again.')
+										  console.log('insert error:');
+										  console.log(error1);
+										  return false;
+									  }
+									  console.log(data2)
+									  await checkDeviceAndNotify(session, data2, true);
 									}
 							  }
 					  } else {
@@ -485,22 +433,13 @@ const WelcomeLoginScreen = ({ navigation }) => {
 		</View>
 		
 		<View style={styles.contentSection}>
-
-		<View style={styles.logoView}>
-		  <Image
-                    style={styles.logo}
-                    source={require('../../../assets/logo-nobg.png')}
-                    defaultSource={require('../../../assets/logo-nobg.png')}
-            />
-		</View>
-
 		  {/* Popup */}
 		  	<View style={styles.popup}>
 			<Text category="h5" style={styles.welcomeText}>
-			  Welcome to Thaiyal Business!
+			  Welcome!
 			</Text>
 			<Text category="s2" style={styles.subText}>
-			  Tailoring, Simplified – Thaiyal at Your Fingertips
+			  Furyuu Designers – A Style for Every Outfit
 			</Text>
 			<GoogleSigninButton
 			  size={GoogleSigninButton.Size.Wide}
@@ -510,26 +449,6 @@ const WelcomeLoginScreen = ({ navigation }) => {
 			/>
 		  </View>
 		</View>
-
-		<ModalRN
-		  visible={paywallVisible}
-		  animationType="slide"
-		  transparent={true}
-		  onRequestClose={() => setPaywallVisible(false)} // Handle Android back press
-		>
-		  <View style={styles.modalContainer}>
-			<Layout style={styles.modalContent}>
-			  <TouchableOpacity
-				style={styles.closeButton}
-				onPress={() => setPaywallVisible(false)}
-			  >
-				<Icon name="close-outline" fill="#555" style={styles.closeIcon} />
-			  </TouchableOpacity>
-
-			  <PaywallScreen setPaywallVisible={setPaywallVisible} stay={true}/>
-			</Layout>
-		  </View>
-		</ModalRN>
 
 		<Modal
 					visible={loading}
@@ -635,16 +554,7 @@ const styles = StyleSheet.create({
 	top: 40,
 	right: 30
   },
-  logo: {
-        height: 150,
-        width: 150
-    },
-	logoView: {
-		alignItems: 'center',
-		marginTop: -75, // Negative margin to overlap with top section
-		marginBottom: 20,
-	},
-	topSection: {
+  topSection: {
 		height: Math.min(400, height * 0.55), // Cap at 350px or 45% of screen height, whichever is smaller
 		width: '100%',
 	  },

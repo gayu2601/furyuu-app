@@ -3,39 +3,33 @@ import React, { useEffect, useState, createRef, useRef, useMemo, useCallback } f
 import { useNavigation } from "@react-navigation/native";
 import { StatusBar, Alert, TouchableOpacity, View, StyleSheet, ImageStyle, AppState } from "react-native";
 import SplashScreen from './src/views/auth/SplashScreen';
-import RegisterScreen from './src/views/auth/RegisterScreen';
-import PersonalDetailsScreen from './src/views/auth/PersonalDetailsScreen';
-import ShopDetailsScreen from './src/views/auth/ShopDetailsScreen';
-import AddressInputScreen from './src/views/auth/AddressInputScreen';
-import PaymentSettingsScreen from './src/views/auth/PaymentSettingsScreen';
-import DigitalPortfolioScreen from './src/views/auth/DigitalPortfolioScreen';
 import AnalyticsScreen from './src/views/main/AnalyticsScreen';
 import IncomeExpenseHistoryScreen from './src/views/main/IncomeExpenseHistoryScreen';
 import AddExpenseScreen from './src/views/main/AddExpenseScreen';
-import LinkAccountScreen from './src/views/auth/LinkAccountScreen';
-import SubscriptionsScreen from './src/views/auth/SubscriptionsScreen';
-import PaywallScreen from './src/views/main/PaywallScreen';
-import CreateAdScreen from './src/views/main/CreateAdScreen';
-import AdPreviewScreen from './src/views/main/AdPreviewScreen';
-import SupportScreen from './src/views/auth/SupportScreen';
 import { NetworkProvider } from './src/views/main/NetworkContext';
 import { PubSubProvider } from './src/views/main/SimplePubSub';
 import * as Network from 'expo-network';
+import ProfileScreen from './src/views/auth/ProfileScreen';
 import OrderBagScreen from './src/views/main/OrderBagScreen';
 import HomeScreen from "./src/views/main/HomeScreen";
 import HomeScreenNew from "./src/views/main/HomeScreenNew";
 import ImportCustomerScreen from "./src/views/main/ImportCustomerScreen";
 import HomeScreenTabView from "./src/views/main/HomeScreenTabView";
+import ProductionDetailsScreen from "./src/views/main/ProductionDetailsScreen";
+import ProductionDetailsViewScreen from "./src/views/main/ProductionDetailsViewScreen";
 import OrderDetails from "./src/views/main/OrderDetails";
 import WelcomeLoginScreen from "./src/views/auth/WelcomeLoginScreen";
+import SlotBookingScreen from "./src/views/main/SlotBookingScreen";
 import EditOrderDetails from "./src/views/main/EditOrderDetails";
 import NotificationsScreen from "./src/views/main/NotificationsScreen";
-import ProfileScreen from "./src/views/auth/ProfileScreen";
 import ShareIntentScreenTailor from "./src/views/main/ShareIntentScreenTailor";
 import AttachImagesScreen from "./src/views/main/AttachImagesScreen";
 import CustomDesign from "./src/views/main/CustomDesign";
 import TestScreen from "./src/views/main/TestScreen";
-import { ArrowIosBackIcon, RefreshIcon } from "./src/views/extra/icons";
+import EmployeeOnboardingForm from "./src/views/auth/EmployeeOnboardingForm";
+import EmployeeList from "./src/views/auth/EmployeeList";
+import EmployeeDetail from "./src/views/auth/EmployeeDetail";
+import { ArrowIosBackIcon, RefreshIcon, SettingsIcon } from "./src/views/extra/icons";
 import { createStackNavigator } from "@react-navigation/stack";
 import { NavigationContainer, getStateFromPath, DefaultTheme } from '@react-navigation/native';
 import Colors from "./src/constants/Colors";
@@ -53,14 +47,12 @@ import {
 } from "expo-share-intent";
 import { useShareIntentContext } from "expo-share-intent";
 import { ShareIntentProvider } from "expo-share-intent";
-import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { UserProvider, useUser } from "./src/views/main/UserContext";
 import { PermissionsProvider, usePermissions } from "./src/views/main/PermissionsContext";
 import { OrderItemsProvider } from "./src/views/main/OrderItemsContext";
 import { NotificationProvider, useNotification } from './src/views/main/NotificationContext';
-import { WalkthroughProvider } from './src/views/main/WalkthroughContext';
+import { SlotBookingProvider } from './src/views/main/SlotBookingContext';
 import { ReadOrderItemsProvider } from "./src/views/main/ReadOrderItemsContext";
-import { RevenueCatProvider, useRevenueCat } from "./src/views/main/RevenueCatContext";
 import { storage } from './src/views/extra/storage';
 import * as Notifications from "expo-notifications";
 import * as eva from '@eva-design/eva';
@@ -74,11 +66,8 @@ import { Session } from '@supabase/supabase-js'
 import FlashMessage from 'react-native-flash-message';
 import { supabase } from './src/constants/supabase';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import Purchases from 'react-native-purchases';
-import firebase from '@react-native-firebase/app';
-import * as Application from 'expo-application';
-import mobileAds from 'react-native-google-mobile-ads';
 import { usePubSub } from './src/views/main/SimplePubSub';
+import useDressConfig from './src/views/main/useDressConfig';
 import AppStateManager from './src/components/AppStateManager'; // Adjust path as needed
 
 const Stack = createStackNavigator()
@@ -96,21 +85,6 @@ Notifications.setNotificationHandler({
     };
   },
 });
-
-const firebaseConfig = {
-  apiKey: 'AIzaSyBfpPgFkdxanQzcL-VQWecvsow7LOSzwV4',
-  authDomain: 'tailor-app-ed4b3.firebaseapp.com',
-  projectId: 'tailor-app-ed4b3',
-  appId: '1:368569675717:android:ab71d7b47f46f6bc6425ac'
-};
-if (!firebase.apps.length) {
-	console.log('initing firebase')
-	firebase.initializeApp(firebaseConfig);
-}
-if (__DEV__) {
-  firebase.analytics().setAnalyticsCollectionEnabled(true);
-  firebase.analytics().setSessionTimeoutDuration(1000); // Short timeout for testing
-}
 
 const PREFIX = Linking.createURL("/");
 const PACKAGE_NAME =
@@ -204,19 +178,9 @@ const AuthNavigator = ({ initialRoute = "WelcomeLoginScreen" }) => {
               component={WelcomeLoginScreen}
               options={{headerShown: false}}
           />
-		  <Stack.Screen 
-              name="RegisterScreen"
-              component={RegisterScreen}
-              options={{headerShown: false}}
-          />
           <Stack.Screen
               name="MainScreen"
 			  component={DrawerNavigator}
-              options={{headerShown: false}}
-          />
-		  <Stack.Screen
-              name="AddressInputScreen"
-              component={AddressInputScreen}
               options={{headerShown: false}}
           />
       </Stack.Navigator>
@@ -224,25 +188,79 @@ const AuthNavigator = ({ initialRoute = "WelcomeLoginScreen" }) => {
   )
 }
 
+function ProfileNavigator() {
+	const navigation = useNavigation();
+	  return (
+		  <Stack.Navigator>
+				<Stack.Screen
+					  name="ProfileScreen"
+					  component={ProfileScreen}
+					  options={({ navigation, route }) => ({
+						headerTitle: getHeaderTitle(route),
+						headerLeft: () => (
+										  <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
+											onPress={() => navigation.goBack()} />
+										),
+					  })}
+				/>		
+				<Stack.Screen
+					  name="EmployeeOnboardingForm"
+					  component={EmployeeOnboardingForm}
+					  options={({ navigation, route }) => ({
+						headerTitle: getHeaderTitle(route),
+						headerLeft: () => (
+										  <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
+											onPress={() => navigation.goBack()} />
+										),
+					  })}
+				/>
+				<Stack.Screen
+					  name="EmployeeList"
+					  component={EmployeeList}
+					  options={({ navigation, route }) => ({
+						headerTitle: getHeaderTitle(route),
+						headerLeft: () => (
+										  <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
+											onPress={() => navigation.goBack()} />
+										),
+					  })}
+				/>
+				<Stack.Screen
+					  name="EmployeeDetail"
+					  component={EmployeeDetail}
+					  options={({ navigation, route }) => ({
+						headerTitle: getHeaderTitle(route),
+						headerRight: () => (
+							<MaterialCommunityIcons
+							  name={"pencil"}
+							  size={25}
+							  style={{ marginRight: 20, marginLeft: -10 }}
+							/>
+						),
+						headerLeft: () => (
+										  <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
+											onPress={() => navigation.goBack()} />
+										),
+					  })}
+				/>
+		  </Stack.Navigator>
+	  )
+	}
+
 const DrawerNavigator = ({ route }) => {
 	
 	const instanceId = useRef(Math.random().toString(36).substr(2, 9));
   
   console.log(`🚪 NEW DrawerNavigator Instance: ${instanceId.current}`);
 
-	const { updateCurrentUser, currentUser, handleUILogout, updateProfileCompleted } = useUser();
-	const { getUserDetails } = useRevenueCat();
+	const { currentUser, updateCurrentUser } = useUser();
 	const { requestCameraPermission, requestMediaPermission } = usePermissions();
 	const { startListening } = usePubSub();
 	let currentUserLocal = currentUser;
-	//let fList = storage.getString(currentUser.username + '_Freelancers')
-	//let freelancers = fList ? JSON.parse(fList) : [];
-  const { fetchNotifications } = useNotification();
+	const { fetchNotifications } = useNotification();
   const [initialRoute, setInitialRoute] = useState(null);
       const appStateManager = useRef(AppStateManager.getInstance());
-  
-	const [deviceChecked, setDeviceChecked] = useState(false);
-	
+  	
   console.log("DrawerNavigator route.params: ", route?.params);
   
   // Handle current user setup once on mount
@@ -255,41 +273,10 @@ const DrawerNavigator = ({ route }) => {
     }
   }, [route?.params?.data1]);
   
-  const checkDeviceCallback = useCallback(async(isActive, gracePeriodActive) => {
-	  console.log('inside checkDevice1')
-		  const { data: dataD, error: errorD } = await supabase
-									.from('user_last_device_v2')
-									.select(`device_id`)
-									.eq('user_id', currentUserLocal.id);
-			if(errorD) {
-				console.error(errorD);
-			}
-			console.log(dataD)			
-			let dd = Application.getAndroidId();
-			console.log(dd)
-			console.log(isActive + ',' + gracePeriodActive)
-			if(dataD.length > 0 && dataD[0].device_id !== dd && !isActive && !gracePeriodActive) {
-				console.log('logging out in ui')
-				await handleUILogout();
-			}
-	  }, [currentUserLocal?.id]);
-	
 	const activatePubSubCallback = useCallback(async(isActive) => {
 				  console.log('Starting PubSub for user:', currentUserLocal.id);
 				  const subscription = startListening(currentUserLocal.id, isActive);
 	}, [currentUserLocal?.id]);
-	
-	const checkProfileCompletionCallback = useCallback(() => {
-		console.log('in checkProfileCompletionCallback')
-		console.log(currentUserLocal)
-		if(!currentUserLocal.yearsOfExp || !currentUserLocal.upiQRCode_url || !currentUserLocal.ShopDetails.shopPics || currentUserLocal.ShopDetails.shopPics.length === 0 || !currentUserLocal.ShopDetails.socialMediaAcct) {
-			console.log('setting profile completed to false')
-			updateProfileCompleted(false);
-		} else {
-			console.log('setting profile completed')
-			updateProfileCompleted(true);
-		}
-	}, [currentUserLocal])
 	
 	  useEffect(() => {
 		if (!currentUserLocal) return;
@@ -298,10 +285,7 @@ const DrawerNavigator = ({ route }) => {
 		
 		// Define callbacks for the AppState manager
 		const callbacks = {
-		  getUserDetails,
-		  checkDevice: checkDeviceCallback,
-		  activatePubSub: activatePubSubCallback,
-		  checkProfileCompletion: checkProfileCompletionCallback
+		  activatePubSub: activatePubSubCallback
 		};
 
 		appStateManager.current.updateUser(currentUserLocal, callbacks);
@@ -340,25 +324,6 @@ const DrawerNavigator = ({ route }) => {
       fallback={
         <SplashScreen />
       }
-	  onReady={() => {
-        routeNameRef.current = navigationRef.current.getCurrentRoute().name;
-      }}
-      onStateChange={async () => {
-        const previousRouteName = routeNameRef.current;
-        const currentRoute = navigationRef.current.getCurrentRoute();
-        const currentRouteName = currentRoute.name;
-
-        if (previousRouteName !== currentRouteName) {
-          // The line below is the most important - it sends the screen name to Firebase
-          firebase.analytics().logScreenView({
-            screen_name: currentRouteName,
-			screen_class: currentRouteName
-          });
-        }
-        
-        // Save the current route name for later comparison
-        routeNameRef.current = currentRouteName;
-      }}
     >
         <BottomTab.Navigator initialRouteName='HomeMain' screenOptions={({ route }) => ({
 			tabBarStyle: {
@@ -372,9 +337,6 @@ const DrawerNavigator = ({ route }) => {
         switch (route.name) {
           case 'HomeMain':
             iconName = 'home-outline';
-            break;
-          case 'CreateAdMain':
-            iconName = 'plus-square-outline';
             break;
 		  case 'Dashboard':
             iconName = 'activity-outline';
@@ -395,9 +357,6 @@ const DrawerNavigator = ({ route }) => {
         switch (route.name) {
           case 'HomeMain':
             name = 'Home';
-            break;
-		  case 'CreateAdMain':
-            name = 'Create Ad';
             break;
 		  case 'Dashboard':
             name = 'Reports';
@@ -434,6 +393,12 @@ const DrawerNavigator = ({ route }) => {
 						  headerShown: false
 						}}
 					/>
+					<Stack.Screen 
+						  name="SplashScreen"
+						  component={SplashScreen}
+						  options={{ headerShown: false }}
+					  />
+					  
 					<Stack.Screen name="Test" component={TestScreen}
 						options={({ route }) => ({
 						  headerTitle: getHeaderTitleDress(route),
@@ -466,6 +431,22 @@ const DrawerNavigator = ({ route }) => {
 						  ),
 						})}
 					/>
+			<Stack.Screen
+              name="ProductionDetails"
+              component={ProductionDetailsScreen}
+              options={({ navigation, route }) => ({
+                headerTitle: getHeaderTitle(route),
+                headerLeft: () => <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon} onPress={() => navigation.goBack()}/>,
+              })}
+            />
+			<Stack.Screen
+              name="ProductionDetailsView"
+              component={ProductionDetailsViewScreen}
+              options={({ navigation, route }) => ({
+                headerTitle: getHeaderTitle(route),
+                headerLeft: () => <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon} onPress={() => navigation.goBack()}/>
+              })}
+            />
             <Stack.Screen
               name="OrderDetails"
               component={OrderDetails}
@@ -474,8 +455,7 @@ const DrawerNavigator = ({ route }) => {
                 headerRight: () => (
 					<View style={{flexDirection: 'row'}}>
 					  <Icon name="share-outline" style={{ width: 25, height: 25, marginRight: 20 }} onPress={() => {navigation.setParams({ triggerShare: true });}}/>
-					  {(!['Requested'].includes(route.params.item.orderStatus)) && (
-						<MaterialCommunityIcons
+					  	<MaterialCommunityIcons
 						  name={"pencil"}
 						  size={25}
 						  style={{ marginRight: 20, marginLeft: -10 }}
@@ -483,7 +463,6 @@ const DrawerNavigator = ({ route }) => {
 							navigation.navigate('EditOrderDetails', { ...route.params });
 						  }}
 						/>
-					  )}
 					</View>
                 ),
                 headerLeft: () => <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon} />,
@@ -500,37 +479,6 @@ const DrawerNavigator = ({ route }) => {
       </BottomTab.Screen>
 
 	  <BottomTab.Screen
-        name="CreateAdMain"
-        options={{ headerShown: false, unmountOnBlur: true }}
-      >
-        {({ navigation }) => (
-          <Stack.Navigator>
-			<Stack.Screen
-              name="CreateAdScreen"
-              component={CreateAdScreen}
-              options={{
-                headerTitle: 'Create Ad',
-				headerLeft: () => (
-							<TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon} />
-						)
-              }}
-            />
-			<Stack.Screen
-              name="AdPreview"
-              component={AdPreviewScreen}
-              options={{
-                headerTitle: 'Preview Ad',
-				headerLeft: () => (
-							<TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon} />
-						)
-              }}
-            />
-          </Stack.Navigator>
-        )}
-      </BottomTab.Screen>
-
-
-	  <BottomTab.Screen
         name="Dashboard"
         options={{ headerShown: false, unmountOnBlur: true }}
       >
@@ -541,6 +489,8 @@ const DrawerNavigator = ({ route }) => {
 						  component={AnalyticsScreen}
 						  options={({ navigation, route }) => ({
 						headerTitle: 'Dashboard',
+						headerRight: () => ( <TopNavigationAction icon={RefreshIcon} onPress={() => {navigation.setParams({ triggerSync: true });}} style={{marginRight: 20}}/>
+						),
 						headerLeft: () => (
 										  <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
 											onPress={() => navigation.goBack()} />
@@ -608,16 +558,6 @@ const DrawerNavigator = ({ route }) => {
           </Stack.Navigator>
         )}
       </Stack.Screen>
-
-      	<Stack.Screen name="ProfileSettings" component={ProfileNavigator} options={{
-					headerShown: false,
-					headerLeft: () => (
-							<TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
-								onPress={() => navigation.goBack()} />
-						),
-					tabBarButton: () => null
-				}}
-			/>
 		
 			<Stack.Screen
               name="NotificationsScreen"
@@ -630,6 +570,21 @@ const DrawerNavigator = ({ route }) => {
 						),
 					tabBarButton: () => null
 			  })}
+			/>
+			
+			<Stack.Screen name="SlotBooking" component={SlotBookingScreen}
+						options={({ route }) => ({
+						  headerTitle: getHeaderTitle(route),
+						  headerLeft: () => (
+							<TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}/>
+						  ),
+						  headerRight: () => ( <TopNavigationAction style={{marginRight: 20}} icon={SettingsIcon}/>
+						  ),
+						  headerTitleStyle: {
+								textTransform: 'capitalize'
+							},
+						  tabBarButton: () => null
+						})}
 			/>
 			
 		<Stack.Screen name="OrderBagScreen" component={OrderBagScreen}
@@ -668,6 +623,17 @@ const DrawerNavigator = ({ route }) => {
 							tabBarButton: () => null
 						  })}
 					  />
+		
+      	<Stack.Screen name="ProfileSettings" component={ProfileNavigator} options={{
+					headerShown: false,
+					headerLeft: () => (
+							<TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
+								onPress={() => navigation.goBack()} />
+						),
+					tabBarButton: () => null
+				}}
+			/>
+		
 		<Stack.Screen 
 						  name="CustomDesign"
 						  component={CustomDesign}
@@ -679,19 +645,6 @@ const DrawerNavigator = ({ route }) => {
 							tabBarButton: () => null
 						  })}
 					  />
-				  
-		<Stack.Screen
-				  name="Paywall"
-				  component={PaywallScreen}
-				  options={({ navigation, route }) => ({
-						headerTitle: getHeaderTitle(route),
-						headerLeft: () => (
-						  <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
-							onPress={() => navigation.goBack()} />
-						),
-						tabBarButton: () => null
-					})}
-			  />
 
 		<Stack.Screen
               name="AuthScreen"
@@ -708,150 +661,38 @@ const DrawerNavigator = ({ route }) => {
   return navigationContainer;
 };
 
-function ProfileNavigator() {
-const navigation = useNavigation();
-  return (
-      <Stack.Navigator>
-			<Stack.Screen
-				  name="ProfileScreen"
-				  component={ProfileScreen}
-				  options={({ navigation, route }) => ({
-    headerTitle: getHeaderTitle(route),
-	headerLeft: () => (
-					  <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
-						onPress={() => navigation.goBack()} />
-					),
-  })}
-	/>
-			  
-			  <Stack.Screen
-				  name="PersonalDetailsScreen"
-				  component={PersonalDetailsScreen}
-				  options={({ navigation, route }) => ({
-    headerTitle: getHeaderTitle(route),
-	headerLeft: () => (
-					  <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
-						onPress={() => navigation.goBack()} />
-					),
-  })}
-			  />
-			  
-			  <Stack.Screen
-				  name="ShopDetailsScreen"
-				  component={ShopDetailsScreen}
-				  options={({ navigation, route }) => ({
-    headerTitle: getHeaderTitle(route),
-	headerLeft: () => (
-					  <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
-						onPress={() => navigation.goBack()} />
-					),
-  })}
-			  />
-			  
-			  
-		  <Stack.Screen
-              name="DigitalPortfolioScreen"
-              component={DigitalPortfolioScreen}
-              options={({ navigation, route }) => ({
-    headerTitle: getHeaderTitle(route),
-	headerLeft: () => (
-					  <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
-						onPress={() => navigation.goBack()} />
-					),
-  })}
-          />
-			  
-			  <Stack.Screen
-				  name="PaymentSettingsScreen"
-				  component={PaymentSettingsScreen}
-				  options={({ navigation, route }) => ({
-    headerTitle: getHeaderTitle(route),
-	headerLeft: () => (
-					  <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
-						onPress={() => navigation.goBack()} />
-					),
-  })}
-			  />
-			  
-			  <Stack.Screen
-				  name="LinkAccountScreen"
-				  component={LinkAccountScreen}
-				  options={({ navigation, route }) => ({
-    headerTitle: getHeaderTitle(route),
-	headerLeft: () => (
-					  <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
-						onPress={() => navigation.goBack()} />
-					),
-  })}
-			  />
-			  
-			  <Stack.Screen
-				  name="SubscriptionsScreen"
-				  component={SubscriptionsScreen}
-				  options={({ navigation, route }) => ({
-    headerTitle: getHeaderTitle(route),
-	headerLeft: () => (
-					  <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
-						onPress={() => navigation.goBack()} />
-					),
-  })}
-			  />
-			  <Stack.Screen
-				  name="SupportScreen"
-				  component={SupportScreen}
-				  options={({ navigation, route }) => ({
-    headerTitle: getHeaderTitle(route),
-	headerLeft: () => (
-					  <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
-						onPress={() => navigation.goBack()} />
-					),
-  })}
-			  />
-			
-			  </Stack.Navigator>
-  )
-}
-
 function getHeaderTitle(route) {
   const routeName = route ? route.name : 'Home';
   console.log("route:");
   console.log(route);
   switch (routeName) {
+	case 'ProfileSettings':
+	  return 'Profile Settings';
 	case 'CustomDesign':
       return 'Draw custom design';
-	case 'ProfileSettings':
-      return 'Profile Settings';
-	case 'ProfileScreen':
-      return 'Profile';  
-	case 'AddressInputScreen':
-      return 'Shop Details';
-	case 'DigitalPortfolioScreen':
-      return 'Digital Portfolio Webpage';
 	case 'ImportCustomerScreen':
       return 'Select customer';
-	case 'PersonalDetailsScreen':
-      return 'Personal Settings';
-	case 'ShopDetailsScreen':
-      return 'Shop Settings';
-	case 'LinkAccountScreen':
-      return 'Link bank account';
-	case 'SupportScreen':
-      return 'Help';
-	case 'SubscriptionsScreen':
-      return 'Subscriptions';
-	case 'PaywallScreen':
-      return 'Subscribe';
-	case 'PaymentSettingsScreen':
-      return 'Payment Settings';
+	case 'SlotBooking':
+	  return 'Select Slots';
+	case 'ProductionDetails':
+	  return 'Assign Production Details';
+	case 'ProductionDetailsView':
+	  return 'Production Details';
+	case 'EmployeeOnboardingForm':
+		return 'Employee Onboarding';
+	case 'EmployeeList':
+		return 'Employee List';
+	case 'EmployeeDetail':
+		return 'Employee Details';	
   }
 }
 
 function getOrderDetailsTitle(route) {
-	return route.params ? 'Order #' + route.params.item.tailorOrderNo: 'Order Summary';
+	return route.params ? 'Order #' + route.params.item.orderNo: 'Order Summary';
 }
 
 function getEditOrderDetailsTitle(route) {
-	return route.params ? 'Edit Order #' + route.params.item.tailorOrderNo: 'Edit Order';
+	return route.params ? 'Edit Order #' + route.params.item.orderNo: 'Edit Order';
 }
 
 function getHeaderTitleDress(route) {
@@ -863,38 +704,7 @@ export default function App() {
 	  const [sessionLocal, setSessionLocal] = useState(null)
 	const [currentUser, setCurrentUser] = useState(null)
     const [loading, setLoading] = useState(false)
-	
-	//const [fontsLoaded, setFontsLoaded] = useState(false);
-
-	  // Load fonts when component mounts
-	  /*useEffect(() => {
-		async function loadFonts() {
-			console.warn('in loadFonts')
-		  await Font.loadAsync({
-			'PlayfairDisplay-Regular': require('./assets/Playfair_Display/static/PlayfairDisplay-Regular.ttf')
-		  });
-		  setFontsLoaded(true);
-		}
-		
-		loadFonts();
-	  }, []);*/
-	  
-	useEffect(() => {
-		const initializeGoogleMobileAds = async () => {
-		  try {
-			await mobileAds()
-			  .initialize()
-			  .then(adapterStatuses => {
-				console.log('Initialization complete!');
-			  });
-		  } catch (error) {
-			console.error('Failed to initialize Google Mobile Ads:', error);
-		  }
-		};
-
-		initializeGoogleMobileAds();
-	}, []);
-
+	const { loadDressConfig, isDressConfigLoading } = useDressConfig();
 	  
     const fetchSession = useCallback(async () => {
 		console.log("in fetchSession");
@@ -911,7 +721,6 @@ export default function App() {
 					const parsedSession = JSON.parse(localSession);
 					setSessionLocal(parsedSession);
 					setCurrentUser(parsedSession.userData);
-					await Purchases.logIn(parsedSession.user.id);
 				} else {
 					console.log("No session exists locally");
 					setSessionLocal(null);
@@ -927,7 +736,7 @@ export default function App() {
 					console.log('session found in App.js')
 					const { data: data1, error: error1, status } = await supabase
 									.from('profiles')
-									.select(`*, ShopDetails(id, shopName, shopPhNo, shopAddress, shopRating, shopPics, adPic, homeMeasurement, socialMediaAcct, noOfEmp, topServices, websiteConsent, maps_place_id, pincode, slug)`)
+									.select(`*`)
 									.eq('id', session.user.id)
 									.maybeSingle()
 					if (error1 && status !== 406) {
@@ -943,9 +752,10 @@ export default function App() {
 									session,
 									userData: data1,
 								})
-							);
+							);							
+							console.warn('calling loadDressConfig from App.js');
+							await loadDressConfig(data1);
 						}
-											
 					}
 				} else {
 					console.log('no session exists')
@@ -966,57 +776,38 @@ export default function App() {
 		console.log(sessionLocal)
 		console.log(currentUser)
 	}, []);
-	
-	/*useEffect(() => {
-		const notificationSubscription = Notifications.addNotificationReceivedListener(notification => {
-		  console.log('Notification received in foreground:', notification);
-		  // Handle the notification data here, e.g., update state, show an alert
-		});
 
-		return () => {
-		  notificationSubscription.remove();
-		};
-	}, []);*/
-	
   const navigationComponent = useMemo(() => {
-    console.log('Creating navigation component for user:', currentUser?.id, 'signupStep:', currentUser?.signupStep);
-    
+    console.log('Creating navigation component for user:', currentUser?.id);
     if (!currentUser) {
-      return <AuthNavigator key="auth-register" initialRouteName="RegisterScreen" />;
+      return <AuthNavigator key="auth-register" />;
     }
-    
-    if (currentUser.signupStep === 1) {
-      return <AuthNavigator key="auth-address" initialRouteName="AddressInputScreen" />;
-    }
-    
-    return <DrawerNavigator key="drawer-main" route={{ params: { data1: currentUser } }} />;
-  }, [currentUser?.id, currentUser?.signupStep]); // Only depend on specific properties
+	return <DrawerNavigator key="drawer-main" route={{ params: { data1: currentUser } }} />;
+  }, [currentUser?.id]); // Only depend on specific properties
   
   const providerTree = useMemo(() => {
     return (
       <UserProvider currentUser={currentUser}>
         <PermissionsProvider>
           <NetworkProvider>
-            <WalkthroughProvider>
               <NotificationProvider>
-                <RevenueCatProvider>
                   <PubSubProvider>
                     <ReadOrderItemsProvider>
                       <OrderItemsProvider>
-                        {navigationComponent}
+					    <SlotBookingProvider>
+							{navigationComponent}
+						</SlotBookingProvider>
                       </OrderItemsProvider>
                     </ReadOrderItemsProvider>
                   </PubSubProvider>
-                </RevenueCatProvider>
               </NotificationProvider>
-            </WalkthroughProvider>
           </NetworkProvider>
         </PermissionsProvider>
       </UserProvider>
     );
   }, [currentUser, navigationComponent]);
   
-  if (loading) {
+  if (loading || isDressConfigLoading) {
     return <SplashScreen />;
   }
 

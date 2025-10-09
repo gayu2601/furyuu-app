@@ -19,11 +19,9 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { useUser } from '../main/UserContext';
 import { useNetwork } from '../main/NetworkContext';
 import { useReadOrderItems } from '../main/ReadOrderItemsContext';
-import { useRevenueCat } from '../main/RevenueCatContext';
 import { usePubSub } from './SimplePubSub';
 import { storage } from '../extra/storage';
 import ListOrderItem from './ListOrderItem';
-import PaywallScreen from './PaywallScreen';
 import { showSuccessMessage, showErrorMessage } from './showAlerts';
 import { DatePickerModal } from 'react-native-paper-dates';
 import { enGB, registerTranslation } from 'react-native-paper-dates';
@@ -35,8 +33,6 @@ import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import eventEmitter from './eventEmitter';
 import { StorageAccessFramework } from 'expo-file-system';
 import { schedulePushNotification } from './notificationUtils';
-import { logFirebaseEvent } from '../extra/firebaseUtils';
-import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
 
 const { width } = Dimensions.get('window');
 const PAGE_SIZE = 50;
@@ -86,8 +82,7 @@ const SearchBar = memo(({ value, onChangeText, onClear }) => {
 });
 
 const CalendarModal = memo(({ visible, onClose, value, onSelect, onDateChange, onReset }) => {
-	const { subscriptionActive } = useRevenueCat();
-  const renderCalendarFooter = () => (
+	const renderCalendarFooter = () => (
     <View style={styles.footerContainer}>
       <Button 
         size="small" 
@@ -119,7 +114,7 @@ const CalendarModal = memo(({ visible, onClose, value, onSelect, onDateChange, o
             range={value}
             onSelect={onDateChange}
             renderFooter={renderCalendarFooter}
-			min={subscriptionActive ? new Date(1900, 0, 0) : moment().subtract(2, 'months').toDate()}
+			min={new Date(1900, 0, 0)}
 			max={new Date(2050, 0, 0)}
           />
         </Card>
@@ -210,7 +205,6 @@ const HomeScreen = forwardRef(( props, ref ) => {
   const [isDateChanged, setIsDateChanged] = useState(false);
   const [openFilter, setOpenFilter] = useState(false);
   const [isDownload, setIsDownload] = useState(false);
-  const [paywallVisible, setPaywallVisible] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [offset, setOffset] = useState(0);
   const { readOrdersGlobal, getOrders, dispatch, getFilters, hasMoreOrders, fetchOrdersFromDB } = useReadOrderItems();
@@ -220,8 +214,7 @@ const HomeScreen = forwardRef(( props, ref ) => {
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [range, setRange] = useState({});
   const [range1, setRange1] = useState({});
-  const { subscriptionActive, gracePeriodActive } = useRevenueCat();
-const { notify, updateCache, eligible } = usePubSub();
+  const { notify, updateCache, eligible } = usePubSub();
 const isNewDeviceLogin = useMemo(() => getNewDeviceLogin(), [getNewDeviceLogin]);
 
   // Memoized values and callbacks
@@ -531,10 +524,10 @@ const isNewDeviceLogin = useMemo(() => getNewDeviceLogin(), [getNewDeviceLogin])
 	  ]);*/
 	  
 	  updateCache('DELETE_ORDER', null, currentUser.username, fromStatus, orderNo);    
-	  await notify(subscriptionActive || gracePeriodActive, currentUser.id, 'DELETE_ORDER', currentUser.username, fromStatus, null, orderNo);
+	  await notify(currentUser.id, 'DELETE_ORDER', currentUser.username, fromStatus, null, orderNo);
 	  
 	  updateCache('NEW_ORDER', updatedObject, currentUser.username, toStatus);    
-	  await notify(subscriptionActive || gracePeriodActive, currentUser.id, 'NEW_ORDER', currentUser.username, toStatus, updatedObject);
+	  await notify(currentUser.id, 'NEW_ORDER', currentUser.username, toStatus, updatedObject);
 	};
 	
 	const handleDeleteOrder = async (itemOrderNo, dressPicsAll, patternPicsAll) => {
@@ -572,7 +565,7 @@ const isNewDeviceLogin = useMemo(() => getNewDeviceLogin(), [getNewDeviceLogin])
 			storage.set(currentUser.username+'_'+orderType, JSON.stringify(newArray));*/
 			
 			updateCache('DELETE_ORDER', null, currentUser.username, orderType, itemOrderNo);    
-			await notify(subscriptionActive || gracePeriodActive, currentUser.id, 'DELETE_ORDER', currentUser.username, orderType, null, itemOrderNo);
+			await notify(currentUser.id, 'DELETE_ORDER', currentUser.username, orderType, null, itemOrderNo);
 			queueMicrotask(() => {
 				readOrdersGlobal(fils.searchQuery, orderType, fils.isDateChanged, fils.startDate, fils.endDate, 'tailor', 0, INITIAL_SIZE)
 				setOffset(INITIAL_SIZE);
@@ -580,6 +573,7 @@ const isNewDeviceLogin = useMemo(() => getNewDeviceLogin(), [getNewDeviceLogin])
 				showSuccessMessage('Order Deleted!');
 				eventEmitter.emit('storageUpdated');
 				eventEmitter.emit('transactionAdded');
+				eventEmitter.emit('payStatusChanged');
 		} catch (error) {
 		  showErrorMessage('Failed to delete the order: ' + error.message);
 		} finally {
@@ -603,39 +597,12 @@ const isNewDeviceLogin = useMemo(() => getNewDeviceLogin(), [getNewDeviceLogin])
 			updObj.paymentStatus = updatedPaymentData.paymentStatus;
 			updObj.advance = updatedPaymentData.advance
 		}
-		// Batch database operations
-		const updates = await Promise.all([
-		  // Update order status
-		  supabase
+		const [error] = await supabase
 			.from('OrderItems')
 			.update(updObj)
-			.eq('orderNo', item.orderNo),
-		  
-		  // If status is Completed, fetch user data in parallel
-		  newStatus === 'Completed' 
-			? supabase
-				.from('profiles')
-				.select('username, pushToken')
-				.eq('phoneNo', item.phoneNo)
-				.single()
-			: Promise.resolve({ data: null })
-		]);
+			.eq('orderNo', item.orderNo);
 		
-		const [{ error }, userData] = updates;
 		if (error) throw error;
-
-		// Handle notification if needed
-		if (newStatus === 'Completed' && userData.data?.pushToken) {
-		  const notifTitle = `Order #${item.tailorOrderNo} is completed`;
-		  const notifBody = `Order #${item.tailorOrderNo} for ${item.dressDetails} is ready to be collected`;
-		  await schedulePushNotification(
-			userData.data.pushToken,
-			userData.data.username,
-			notifTitle,
-			notifBody,
-			{ item }
-		  );
-		}
 
 		// Update local storage (both updates in parallel)
 		await moveOrderBetweenArrays(currentUser.username, item.orderNo, orderType, newStatus, updObj);
@@ -697,77 +664,7 @@ const isNewDeviceLogin = useMemo(() => getNewDeviceLogin(), [getNewDeviceLogin])
 	}
   }
   
-	const showAdAndExport = () => {
-	  // Use test ad unit IDs in development
-	  const adUnitID = __DEV__ 
-		? TestIds.INTERSTITIAL 
-		: Platform.select({
-			ios: 'ca-app-pub-3653760421436075/5181304752',
-			android: 'ca-app-pub-3653760421436075/5181304752',
-		  });
-
-	  // Create and load the interstitial ad
-	  const interstitialAd = InterstitialAd.createForAdRequest(adUnitID);
-	  
-	  // Track whether we've executed the exportToExcel function
-	  let hasExported = false;
-
-	  // Add event listeners
-	  const unsubscribeLoaded = interstitialAd.addAdEventListener(
-		AdEventType.LOADED,
-		() => {
-		  console.log('Interstitial ad loaded');
-		  interstitialAd.show();
-		}
-	  );
-
-	  const unsubscribeClosed = interstitialAd.addAdEventListener(
-		AdEventType.CLOSED,
-		() => {
-		  console.log('Ad closed - executing exportToExcel');
-		  if (!hasExported) {
-			setExcelDateModalVisible(true)
-			hasExported = true;
-		  }
-		  cleanup();
-		}
-	  );
-
-	  const unsubscribeError = interstitialAd.addAdEventListener(
-		AdEventType.ERROR,
-		(error) => {
-		  console.error('Interstitial ad error:', error);
-		  if (!hasExported) {
-			setExcelDateModalVisible(true)
-			hasExported = true;
-		  }
-		  cleanup();
-		}
-	  );
-
-	  // Function to clean up event listeners
-	  const cleanup = () => {
-		unsubscribeLoaded();
-		unsubscribeClosed();
-		unsubscribeError();
-	  };
-
-	  // Set a timeout in case ad takes too long to load
-	  const timeoutId = setTimeout(() => {
-		if (!hasExported) {
-		  console.log('Ad load timeout - executing exportToExcel');
-		  setExcelDateModalVisible(true)
-		  hasExported = true;
-		  cleanup();
-		}
-	  }, 10000); // 10 seconds timeout
-
-	  // Load the interstitial ad
-	  interstitialAd.load();
-	};
-
   const exportToExcel = useCallback(async (startDateLocal, endDateLocal) => {
-	logFirebaseEvent('export_excel', {startDate: startDateLocal, endDate: endDateLocal})
 	console.log('in exportToExcel')
     setIsDownload(false);
     try {
@@ -864,7 +761,6 @@ const isNewDeviceLogin = useMemo(() => getNewDeviceLogin(), [getNewDeviceLogin])
   );*/
   
 	const downloadAlert = () => {
-		if (subscriptionActive) {
 			Alert.alert(
 				"Confirmation", 
 				"Do you want to download order data for a custom date range or just for the past 1 month?",
@@ -887,39 +783,8 @@ const isNewDeviceLogin = useMemo(() => getNewDeviceLogin(), [getNewDeviceLogin])
 				],
 				{ cancelable: true }
 			);
-		} else {
-			Alert.alert(
-				"Limited Access", 
-				"Subscribe to access full order history, or watch an ad to download data from the last 2 months",
-				[
-				  { text: "Subscribe", onPress: () => setPaywallVisible(true), style: "destructive" },
-				  { text: "Watch Ad", onPress: () => showAdAndExport(), style: "destructive" },
-				  { text: "Cancel", onPress: () => console.log("Cancel"), style: "cancel" },
-				],
-				{ cancelable: true }
-			);
-		}
 	};
 	
-	const paywallAlert = () => {
-        Alert.alert(
-            "Confirmation", "Subscribe to download order details before 1 month",
-            [
-                {
-                    text: 'Subscribe now',
-                    onPress: () => {logFirebaseEvent('subscribe', {from_screen: 'excel_export'}); setPaywallVisible(true);},
-					style: "destructive"
-                },
-				{
-                    text: 'Cancel',
-                    onPress: () => console.log("Cancel"),
-                    style: "cancel",
-                }
-            ],
-            {cancelable: true}
-        )
-    }
-  
   return (
     <Layout style={styles.container}>
 	{loading ? (
@@ -1008,27 +873,6 @@ const isNewDeviceLogin = useMemo(() => getNewDeviceLogin(), [getNewDeviceLogin])
 		</Modal>
 		
 		    <LoadingOverlay visible={loadDates} />
-		
-		<ModalRN
-		  visible={paywallVisible}
-		  animationType="slide"
-		  transparent={true}
-		  onRequestClose={() => setPaywallVisible(false)} // Handle Android back press
-		>
-		  <View style={styles.modalContainer}>
-			<Layout style={styles.modalContent}>
-			  <TouchableOpacity
-				style={styles.closeButton}
-				onPress={() => setPaywallVisible(false)}
-			  >
-				<Icon name="close-outline" fill="#555" style={styles.closeIcon} />
-			  </TouchableOpacity>
-
-			  <PaywallScreen setPaywallVisible={setPaywallVisible}/>
-			</Layout>
-		  </View>
-		</ModalRN>
-
 	</>
 	)}
     </Layout>

@@ -11,16 +11,14 @@ import eventEmitter from './eventEmitter';
 const DashboardCard = () => {
   const [pendingCnt, setPendingCnt] = useState(0);
   const [pastDueCnt, setPastDueCnt] = useState(0);
-  const [inProgressCnt, setInProgressCnt] = useState(0);
   const [completedCnt, setCompletedCnt] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const { currentUser, newDeviceLogin } = useUser();
   
   useEffect(() => {
 	  const keysOfInterest = [
-		  currentUser.username + "_Created",
-		  currentUser.username + "_InProgress",
-		  currentUser.username + "_Completed",
+		  "Completed_false",
+		  "Completed_true"
 		];
 
 		const getCountOfValuesInKeys = async () => {
@@ -32,19 +30,20 @@ const DashboardCard = () => {
 
 		  // Process each key sequentially to avoid race conditions with async operations
 		  for (const key of keysOfInterest) {
-			const keyFin = key.split("_")[1];
 			let orders = [];
 			
 			// Get orders from storage or database
 			const value = storage.getString(key);
 			orders = value ? JSON.parse(value) : [];
+			console.log('in DashboardCard', orders);
 			
 			// If no orders in storage, fetch from database
 			if (orders.length === 0 || newDeviceLogin) {
-			  console.log("getting from db:", keyFin);
-			  const { data, error } = await supabase.rpc("get_tailor_orders", {
-				paramusername: currentUser.username,
-				paramstatus: keyFin,
+			  console.log("getting from db:", key);
+			  const [status, value] = key.split('_');
+			  const { data, error } = await supabase.rpc("get_tailor_orders_new", {
+				paramStatus: status,
+				paramStatusEquals: value
 			  });
 			  
 			  if (data && data.length > 0) {
@@ -53,7 +52,7 @@ const DashboardCard = () => {
 			}
 			
 			// Process orders based on their status
-			if (keyFin === "Created" || keyFin === "InProgress") {
+			if (key === "Completed_false") {
 			  // Count orders with future due dates
 			  const ordersWithFutureDueDates = orders.filter(order =>
 				order.orderDate >= oneMonthAgo && order.dueDate?.every(dueDate => dueDate === null || dueDate >= currentDate)
@@ -67,14 +66,9 @@ const DashboardCard = () => {
 			  // Update counters
 			  totalOverdueOrders += ordersWithPastDueDates;
 			  total += ordersWithFutureDueDates + ordersWithPastDueDates;
-			  // Update state based on status
-			  if (keyFin === "Created") {
-				setPendingCnt(ordersWithFutureDueDates);
-			  } else {
-				setInProgressCnt(ordersWithFutureDueDates);
-			  }
-			} else if (keyFin === "Completed") {
-			  // Count completed orders from last month
+			  setPendingCnt(ordersWithFutureDueDates);
+			  setPastDueCnt(totalOverdueOrders);
+			} else if (key === "Completed_true") {
 			  const recentlyCompletedOrders = orders.filter(order =>
 				order.orderDate >= oneMonthAgo
 			  ).length;
@@ -85,8 +79,6 @@ const DashboardCard = () => {
 			}
 		  }
 		  
-		  // Update final counts
-		  setPastDueCnt(totalOverdueOrders);
 		  setTotalCount(total);
 		};
 
@@ -105,7 +97,6 @@ const DashboardCard = () => {
   const chartData = [
     { count: pendingCnt, color: "#FFB74D", label: "Pending" }, // Pending
 	{ count: pastDueCnt, color: "red", label: "Overdue" }, // Past Due
-    { count: inProgressCnt, color: "#64B5F6", label: "In Progress" }, // In Progress
     { count: completedCnt, color: "#81C784", label: "Completed" }, // Completed
   ];
 

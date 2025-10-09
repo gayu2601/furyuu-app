@@ -1,43 +1,39 @@
-import React, {  } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Image } from "react-native";
-import Colors from "../../constants/Colors";
-import { useNavigation } from '@react-navigation/native';
+import React from "react";
+import { StyleSheet, Image, Dimensions } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 
-const SplashScreen = ({navigation}) => {
+const { width: WIDTH, height: HEIGHT } = Dimensions.get("window");
 
-    //const navigation = useNavigation()
-
-    return (
-        <View style={styles.container}>
-            <View style={{alignItems: 'center'}}>
-                <Image
-                    style={styles.logo}
-                    source={require('../../../assets/logo.jpeg')}
-                    defaultSource={require('../../../assets/logo.jpeg')}
-                />
-            </View>
-        </View>
-    )
+export default function SplashScreen() {
+  return (
+    <LinearGradient
+      colors={[
+        '#6CBEA8','#76C5AC','#78C2A8','#7CC3A8',
+        '#80C4A8','#89C4A8','#9CCAAA','#B1CFAE','#C0D2AE'
+      ]}
+      locations={[0.02,0.10,0.22,0.34,0.46,0.58,0.70,0.82,0.94]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      style={styles.container}
+    >
+      <Image
+        style={styles.logo}
+        source={require('../../../assets/splash_logo.png')}
+        resizeMode="contain"
+      />
+    </LinearGradient>
+  );
 }
 
-export default SplashScreen
-
-const WIDTH = Dimensions.get('window').width
-
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        padding: 14,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'white'
-    },
-    logo: {
-        height: 250,
-        width: 250
-    },
-    title: {
-        fontSize: 40,
-        fontWeight: '700'
-    }
-})
+  container: {
+    flex: 1,
+    // avoid horizontal padding here; use margins on the image if needed
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  logo: {
+    width: WIDTH,   // or WIDTH - 80 if you want visual “padding”
+    height: HEIGHT, // can reduce if you want more space around
+  },
+});
