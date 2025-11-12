@@ -17,7 +17,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import keys from "../../constants/Keys";
 import * as Application from 'expo-application';
 import * as Device from 'expo-device';
-import { schedulePushNotification } from '../main/notificationUtils';
 import { checkAndDeleteSession } from "../extra/sessionUtils";
 import moment from 'moment';
 
@@ -129,12 +128,11 @@ const WelcomeLoginScreen = ({ navigation }) => {
 	  }, [])
 	);*/		
 	
-	const sendQueuedNotifications = async (dbUsername, token) => {
-		console.log("in sendQueuedNotifications " + token + ',' + dbUsername)
+	const sendQueuedNotifications = async (token) => {
+		console.log("in sendQueuedNotifications " + token)
 		const { data, error } = await supabase
 		  .from('QueuedNotifications')
 		  .select(`*`)
-		  .eq('username', dbUsername)
 		  .eq('notificationRead', false);
 
 		if (error) {
@@ -239,7 +237,7 @@ const WelcomeLoginScreen = ({ navigation }) => {
 		// Load additional data and navigate
 		await getNames(data1);
 		await getWorkers();
-		queueMicrotask(() => sendQueuedNotifications(data1.username, currentDevice.pushToken));
+		queueMicrotask(() => sendQueuedNotifications(currentDevice.pushToken));
 		await loadDressConfig(data1);
 		navigation.reset({
 		  index: 0,

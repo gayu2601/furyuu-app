@@ -68,6 +68,9 @@ const HeaderSection = React.memo(({ currentUser, navigation, theme, address }) =
 		  {!locDenied && <Text category="c1" style={{width: 190}}>{address ? address : 'Loading location...'}</Text>}
         </View>
       </View>
+	  <View style={{marginRight: -35, marginBottom: 5 }}>
+			<NotificationsButton />
+      </View>
 	  <View style={{marginRight: -10}}>
 		<OrderBagButton />
 	  </View>

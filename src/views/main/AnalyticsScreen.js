@@ -18,6 +18,7 @@ import { BarChart } from 'react-native-gifted-charts';
 import CustomerPaymentPending from './CustomerPaymentPending';
 import SalesOverviewCard from './SalesOverviewCard';
 import EnhancedHeatmap from './EnhancedHeatmap';
+import CostPieChart from './CostPieChart';
 import ARPCCard from './ARPCCard';
 import XLSX from "xlsx";
 import * as Sharing from "expo-sharing";
@@ -72,6 +73,7 @@ const StatsScreen = forwardRef((props, ref) => {
 	  const [newCustCount, setNewCustCount] = useState(0);
 	  const [arpc, setArpc] = useState(0);
 	  const [analyticsState, setAnalyticsState] = useState({});
+	  const [chartData, setChartData] = useState([]);
 	  
 	  const getDateRange = (filterType, customStart = null, customEnd = null) => {
 		  const today = a;
@@ -117,17 +119,19 @@ const StatsScreen = forwardRef((props, ref) => {
 			{ data: customerCount, error: customerCountError },
 			{ data: revenueData, error: revenueDataError },
 			{ data: profitMarginData, error: profitMarginError },
-			{ data: newCustData, error: newCustError }
+			{ data: newCustData, error: newCustError },
+			{ data: pieData, error: pieError }
 		  ] = await Promise.all([
 			supabase.rpc("get_orders_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
 			supabase.rpc("get_customers_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
 			supabase.rpc("get_revenue", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: nextDay }).select().single(),
 			supabase.rpc("get_profit_margin", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: nextDay }).select().single(),
-			supabase.rpc("get_new_customers_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single()
+			supabase.rpc("get_new_customers_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
+			supabase.from('IncomeExpense').select('category, amount').eq('username', currentUser.username).eq('entryType', 'Expense')
 		  ]);
 
 		  // Handle errors
-		  if (orderCountError || customerCountError || revenueDataError || profitMarginError || newCustError) {
+		  if (orderCountError || customerCountError || revenueDataError || profitMarginError || newCustError || pieError) {
 			throw new Error(`Error fetching critical metrics for ${filterType}`);
 		  }
 
@@ -233,7 +237,8 @@ const StatsScreen = forwardRef((props, ref) => {
 				  { data: profitMarginData, error: profitMarginError },
 				  { data: newCustData, error: newCustError },
 				  { data: arpcData, error: arpcError },
-				  { data: empData, error: empError }
+				  { data: empData, error: empError },
+				  { data: pieData, error: pieError }
 				] = await Promise.all([
 				  supabase.rpc("get_orders_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
 				  supabase.rpc("get_customers_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
@@ -248,17 +253,18 @@ const StatsScreen = forwardRef((props, ref) => {
 				  supabase.rpc("get_profit_margin", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: nextDay }).select().single(),
 				  supabase.rpc("get_new_customers_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
 				  supabase.rpc("get_arpc", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
-				  supabase.rpc("get_employee_prod_efficiency", { parameter1: formattedDate, parameter2: today })
+				  supabase.rpc("get_employee_prod_efficiency", { parameter1: formattedDate, parameter2: today }),
+				  supabase.from('IncomeExpense').select('category, amount').eq('username', currentUser.username).eq('entryType', 'Expense')
 				]);
 
 				// Handle errors if any of the API calls fail
 				if (orderCountError || customerCountError || revenueDataError || 
 					topProductsError || topCustomersError || recurrentCustomersError || heatmapOrdersError || 
-					salesTrendError || oldNewOrdersError || oldNewRevenueError || profitMarginError || newCustError || arpcError || empError) {
+					salesTrendError || oldNewOrdersError || oldNewRevenueError || profitMarginError || newCustError || arpcError || empError || pieError) {
 				  console.error('Error fetching data from API');
 				  console.error(orderCountError || customerCountError || revenueDataError || 
 					topProductsError || topCustomersError || recurrentCustomersError || heatmapOrdersError || 
-					salesTrendError || oldNewOrdersError || oldNewRevenueError || profitMarginError || newCustError || arpcError || empError)
+					salesTrendError || oldNewOrdersError || oldNewRevenueError || profitMarginError || newCustError || arpcError || empError || pieError)
 				  return;
 				}
 
@@ -276,6 +282,7 @@ const StatsScreen = forwardRef((props, ref) => {
 				console.log('New customers count:', newCustData);
 				console.log('ARPC:', arpcData);
 				console.log('Emp prod data:', empData);
+				console.log('Pie data:', pieData);
 
 				const transformedData1 = oldNewOrdersData.map(item => ({
 				  stacks: [
@@ -294,6 +301,26 @@ const StatsScreen = forwardRef((props, ref) => {
 				  label: item.order_month_name
 				}));
 				console.log('transformedData2:', transformedData2);
+				
+				const grouped = data.reduce((acc, item) => {
+				  acc[item.category] = (acc[item.category] || 0) + Number(item.amount);
+				  return acc;
+				}, {});
+
+				// Convert to chart-friendly format
+				const colors = [
+				  '#FF6B6B', '#FFD93D', '#6BCB77', '#4D96FF', '#9D4EDD', '#FF9F1C',
+				  '#F06595', '#51CF66', '#339AF0', '#845EF7'
+				];
+
+				const formattedData = Object.entries(grouped).map(([category, value], i) => ({
+				  text: category,
+				  value,
+				  color: colors[i % colors.length],
+				}));
+
+				setChartData(formattedData);
+				
 					const transformedArray = topProductsData.map(({ dressType, avg, count, sum }) => [
 					  dressType, avg, count, sum
 					]);
@@ -674,6 +701,10 @@ const handleMenuSelect = (chartType) => {
 					  <ARPCCard title="Avg. Revenue Per Customer" value={`₹ ${arpc}`} targetValue={100} />
 					  <ARPCCard title="No. of new customers" value={newCustCount} targetValue={100} />
 					</Layout>
+			
+			<Card style={styles.productCard}>
+				<CostPieChart data={chartData}/>
+			</Card>
 			
 			<Card style={styles.productCard} disabled={true}>
 			  <Text category="s1" style={styles.title}>Employee Efficiency</Text>

@@ -27,7 +27,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { ArrowIosBackIcon } from '../extra/icons';
 import BreadcrumbsOrderBag from '../extra/BreadcrumbsOrderBag';
 import { useFocusEffect } from "@react-navigation/native";
-import { schedulePushNotification } from './notificationUtils';
 import {
   PersonIcon,
   PhoneIcon,
@@ -511,8 +510,8 @@ const OrderBagScreen = ({ navigation }) => {
 								.from('Customer')
 								.select(`*`)
 								.eq('phoneNo', custDetails.phoneNo)
-								.single()
-							  if (error && status !== 406) {
+								.maybeSingle();
+							  if (error) {
 								console.log(error)
 								throw error;
 							  }

@@ -1,6 +1,6 @@
 import { supabase } from '../../constants/supabase'
 
-export const schedulePushNotification = async(pushToken, username, notifTitle, notifBody, notifData) => {
+export const schedulePushNotification = async(pushToken, notifTitle, notifBody, notifData) => {
 		
 	  const message = {
 		to: pushToken,
@@ -15,7 +15,7 @@ export const schedulePushNotification = async(pushToken, username, notifTitle, n
 		  if(notifTitle !== 'New Device Login') {
 			const { error } = await supabase
 								.from('QueuedNotifications')
-								.insert({ username: username, notificationTitle: notifTitle, notificationMsg: notifBody, notificationData: notifData, notificationRead: false })
+								.insert({ notificationTitle: notifTitle, notificationMsg: notifBody, notificationData: notifData, notificationRead: false })
 			if(error) {
 				throw error;
 			}

@@ -503,7 +503,7 @@ const TestScreen = ({ route }) => {
 	const saveCustDetails = async() => {
 		console.log('in saveCustDetails')
 		const phNo = phoneNo.includes('+91') ? phoneNo : '+91' + phoneNo;
-				if(dob || anniversary || location || profession || awarenessSource) {
+				//if(dob || anniversary || location || profession || awarenessSource) {
 					const { data, error } = await supabase
 					  .from('Customer')
 					  .upsert({ custName: custName, phoneNo: phNo, dob: formatDate(dob), anniversary: formatDate(anniversary), location: location, profession: profession, awareness_source: awarenessSource }, { onConflict: 'phoneNo' }).select().single();
@@ -522,7 +522,7 @@ const TestScreen = ({ route }) => {
 					});
 					setCustomerData(data);
 					setCustomerDataFound(true);
-				}
+				//}
 	}
 	
 	const renderNewCustomerFields = () => {
@@ -1143,11 +1143,10 @@ const TestScreen = ({ route }) => {
 				setPhoneError(true);
 			} else if(occasion === ' ') {
 				setOccError(true);
-			} else if(!customerData?.dob && dob) {
-				saveCustDetails();
 			}
 			const isValid = isValidPhoneNumber(phoneNo)
 			if(isValid) {
+				saveCustDetails();
 				if(!checkedCustNew) {
 					await checkIfCustExists(true);
 					setCheckedCustNew(true);

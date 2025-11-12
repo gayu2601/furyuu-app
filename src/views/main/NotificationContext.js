@@ -32,7 +32,7 @@ const NotificationProvider = ({ children }) => {
     setNotificationCount(newCount);
   }, []);
 
-  const fetchNotifications = useCallback(async (currentUser1, isNewUser, page = 0) => {
+  const fetchNotifications = useCallback(async (currentUser1, page = 0) => {
     try {
       const startIndex = page * PAGE_SIZE;
       const endIndex = startIndex + PAGE_SIZE;
@@ -63,15 +63,6 @@ const NotificationProvider = ({ children }) => {
         .from('QueuedNotifications')
         .select('*', { count: 'exact', head: true })
         .eq('notificationRead', false);
-
-      // Add user-specific filter
-      if (isNewUser) {
-        queryBuilder.eq('phoneNo', currentUser1.phoneNo);
-        queryBuilderCount.eq('phoneNo', currentUser1.phoneNo);
-      } else {
-        queryBuilder.eq('username', currentUser1.username);
-        queryBuilderCount.eq('username', currentUser1.username);
-      }
 
       // Add pagination
       queryBuilder.range(startIndex, endIndex - 1);
@@ -124,14 +115,6 @@ const NotificationProvider = ({ children }) => {
         notifications: mergedNotifications,
         count
       }));
-
-      // Update username if new user
-      if (isNewUser) {
-        await supabase
-          .from('QueuedNotifications')
-          .update({ username: currentUser1.username })
-          .eq('phoneNo', currentUser1.phoneNo);
-      }
     } catch (error) {
       console.error('Error in fetchNotifications:', error);
     }

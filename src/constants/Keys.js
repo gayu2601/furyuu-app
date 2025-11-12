@@ -1,8 +1,8 @@
 module.exports = {
-    supabase_url: 'https://uhmfdktzgdirgbxlpjus.supabase.co',
-    supabase_anon_key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVobWZka3R6Z2RpcmdieGxwanVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjg4OTk5OTIsImV4cCI6MjA0NDQ3NTk5Mn0.EyOH89zuzFhzLQgtR_58VpOZrZc5sir_hMFX3yRmFGc',
-	//supabase_url: 'https://ubmbgsjljldqqsaixiik.supabase.co',
-    //supabase_anon_key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVibWJnc2psamxkcXFzYWl4aWlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0ODA4MjIsImV4cCI6MjA3MzA1NjgyMn0.NiMIkBTgqGVNKLhC26cH-10vNGTb4GBGX75ylJScVjA',
+    //supabase_url: 'https://uhmfdktzgdirgbxlpjus.supabase.co',
+    //supabase_anon_key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVobWZka3R6Z2RpcmdieGxwanVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjg4OTk5OTIsImV4cCI6MjA0NDQ3NTk5Mn0.EyOH89zuzFhzLQgtR_58VpOZrZc5sir_hMFX3yRmFGc',
+	supabase_url: 'https://ubmbgsjljldqqsaixiik.supabase.co',
+    supabase_anon_key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVibWJnc2psamxkcXFzYWl4aWlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0ODA4MjIsImV4cCI6MjA3MzA1NjgyMn0.NiMIkBTgqGVNKLhC26cH-10vNGTb4GBGX75ylJScVjA',
 	ola_maps_api_key: '0tHplupDAorsTgwAvRu9tiM2VI8u93PtaJ02wBf9',
 	revenuecat_google_api_key: 'goog_thCoyonPfTnjThRSoqSxEOktTiu',
 	whatsapp_api_url: 'https://graph.facebook.com/v22.0/553308287873283/messages',

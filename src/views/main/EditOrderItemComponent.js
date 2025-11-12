@@ -1198,7 +1198,7 @@ const EditOrderItemComponent = (props, ref) => {
                   <Text category='s1' style={styles.garmentTitle}>
                     {item.dressType === 'salwar' 
 						? `${item.dressSubType.split('_')[0]} ${item.dressType}${item.dressSubType.split('_')[1] ? ` (${item.dressSubType.split('_')[1]} Pants)` : ''}`
-						: `${item.dressSubType} ${item.dressType}`
+						: `${item.dressSubType || ''} ${item.dressType}`.trim()
 					}
                   </Text>
                   <Text category='c1' style={styles.itemDue}>

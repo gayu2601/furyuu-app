@@ -693,7 +693,7 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
 				  <Text category='s1' style={styles.garmentTitle}>
 					  {item.dressType === 'salwar' 
 						? `${item.dressSubType.split('_')[0]} ${item.dressType}${item.dressSubType.split('_')[1] ? ` (${item.dressSubType.split('_')[1]} Pants)` : ''}`
-						: `${item.dressSubType} ${item.dressType}`
+						: `${item.dressSubType || ''} ${item.dressType}`.trim()
 					  }
 				  </Text>
 				  <Text category='c1' style={styles.itemDue}>
@@ -745,7 +745,7 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
         {/* Expandable Details */}
         {isExpanded && (
           <View style={styles.expandedDetails}>
-            {Object.keys(item.extraOptions).length > 0 && renderExtraOptions(item.extraOptions)}
+            {renderExtraOptions(item.extraOptions)}
             {renderSlotSummary(item.slots)}
             {renderDesignPictures(patternImages)}
             {renderNeckSleeveDetails(item)}

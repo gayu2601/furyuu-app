@@ -13,7 +13,6 @@ import { useNetwork } from './NetworkContext';
 import { storage } from '../extra/storage';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
-import { schedulePushNotification } from './notificationUtils';
 import { ArrowIosBackIcon } from "../extra/icons";
 import { showSuccessMessage, showErrorMessage } from './showAlerts';
 import OrderItemComponent from './OrderItemComponent';

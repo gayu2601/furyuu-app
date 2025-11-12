@@ -32,7 +32,6 @@ import moment from 'moment';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import eventEmitter from './eventEmitter';
 import { StorageAccessFramework } from 'expo-file-system';
-import { schedulePushNotification } from './notificationUtils';
 
 const { width } = Dimensions.get('window');
 const PAGE_SIZE = 50;
