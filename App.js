@@ -6,12 +6,12 @@ import SplashScreen from './src/views/auth/SplashScreen';
 import AnalyticsScreen from './src/views/main/AnalyticsScreen';
 import IncomeExpenseHistoryScreen from './src/views/main/IncomeExpenseHistoryScreen';
 import AddExpenseScreen from './src/views/main/AddExpenseScreen';
+import CustomerPaymentPending from './src/views/main/CustomerPaymentPending';
 import { NetworkProvider } from './src/views/main/NetworkContext';
 import { PubSubProvider } from './src/views/main/SimplePubSub';
 import * as Network from 'expo-network';
 import ProfileScreen from './src/views/auth/ProfileScreen';
 import OrderBagScreen from './src/views/main/OrderBagScreen';
-import HomeScreen from "./src/views/main/HomeScreen";
 import HomeScreenNew from "./src/views/main/HomeScreenNew";
 import ImportCustomerScreen from "./src/views/main/ImportCustomerScreen";
 import HomeScreenTabView from "./src/views/main/HomeScreenTabView";
@@ -54,6 +54,7 @@ import { NotificationProvider, useNotification } from './src/views/main/Notifica
 import { SlotBookingProvider } from './src/views/main/SlotBookingContext';
 import { ReadOrderItemsProvider } from "./src/views/main/ReadOrderItemsContext";
 import { storage } from './src/views/extra/storage';
+import { checkBillingReminders } from './src/views/extra/billingUtils';
 import * as Notifications from "expo-notifications";
 import * as eva from '@eva-design/eva';
 import { ApplicationProvider, IconRegistry, TopNavigationAction, Icon, Text, Button} from '@ui-kitten/components';
@@ -285,7 +286,8 @@ const DrawerNavigator = ({ route }) => {
 		
 		// Define callbacks for the AppState manager
 		const callbacks = {
-		  activatePubSub: activatePubSubCallback
+		  activatePubSub: activatePubSubCallback,
+		  checkBillingReminders: checkBillingReminders
 		};
 
 		appStateManager.current.updateUser(currentUserLocal, callbacks);
@@ -341,6 +343,9 @@ const DrawerNavigator = ({ route }) => {
 		  case 'Dashboard':
             iconName = 'activity-outline';
             break;
+          case 'Payments':
+            iconName = 'credit-card-outline';
+            break;
           case 'OrderDetailsMain':
             iconName = 'file-text-outline';
             break;
@@ -360,6 +365,9 @@ const DrawerNavigator = ({ route }) => {
             break;
 		  case 'Dashboard':
             name = 'Reports';
+            break;
+		  case 'Payments':
+            name = 'Payments';
             break;
           case 'OrderDetailsMain':
             name = 'My Orders';
@@ -478,7 +486,7 @@ const DrawerNavigator = ({ route }) => {
         )}
       </BottomTab.Screen>
 
-	  <BottomTab.Screen
+	  {currentUser.userType === 'owner' && (<BottomTab.Screen
         name="Dashboard"
         options={{ headerShown: false, unmountOnBlur: true }}
       >
@@ -499,8 +507,30 @@ const DrawerNavigator = ({ route }) => {
 			  />
 		</Stack.Navigator>
         )}
-      </BottomTab.Screen>
+      </BottomTab.Screen>)}
 	  
+	  <BottomTab.Screen
+        name="Payments"
+        options={{ headerShown: false, unmountOnBlur: true }}
+      >
+        {({ navigation }) => (
+          <Stack.Navigator>
+			<Stack.Screen
+						  name="CustomerPaymentPending"
+						  component={CustomerPaymentPending}
+						  options={({ navigation, route }) => ({
+						headerTitle: 'Customer Payments',
+						headerRight: () => ( <TopNavigationAction icon={RefreshIcon} onPress={() => {navigation.setParams({ triggerSync: true });}} style={{marginRight: 20}}/>
+						),
+						headerLeft: () => (
+										  <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
+											onPress={() => navigation.goBack()} />
+										),
+						})}
+			  />
+		</Stack.Navigator>
+        )}
+      </BottomTab.Screen>
 	  
 	  <BottomTab.Screen
         name="Add Income/Expense"

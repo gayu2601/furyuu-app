@@ -69,7 +69,8 @@ const OrderBagScreen = ({ navigation }) => {
     { name: 'Order Details', screen: 'OrderBagItems' },
     { name: 'Create Order', screen: 'OrderBagCreate' },
   ];
-  const payModes = ['Cash', 'Credit/Debit Card', 'UPI', 'Net-banking'];
+  const payModes = ['Cash', 'Credit/Debit Card', 'UPI', 'Net-banking', 'Other'];
+  const [payNotes, setPayNotes] = useState(null);
   
 	console.log('new order item:')
 	console.log(items)
@@ -396,7 +397,6 @@ const OrderBagScreen = ({ navigation }) => {
 							
 							if(item.nameValues) {
 									const rowsToInsert = item.nameValues.map(fieldKey => ({
-										username: currentUser.username,
 										dress_type: fieldKey.dressType,
 										field_key: fieldKey.value
 									  }));
@@ -533,7 +533,7 @@ const OrderBagScreen = ({ navigation }) => {
 								
 								console.log('expressCharges', expressCharges)
 
-								let insertJson = { username: currentUser.username, orderDate: new Date(), orderStatus: 'New', orderAmt: calculateTotalAmount(items), paymentStatus: payStatus, advance: parseInt(advancePaid ? advancePaid : 0), customerId: custId, occasion: custDetails.occasion, paymentMode: paymentMode, expressCharges: expressCharges };
+								let insertJson = { username: currentUser.username, orderDate: new Date(), orderStatus: 'New', orderAmt: calculateTotalAmount(items), paymentStatus: payStatus, advance: parseInt(advancePaid ? advancePaid : 0), customerId: custId, occasion: custDetails.occasion, paymentMode: paymentMode, expressCharges: expressCharges, paymentNotes: payNotes };
 								
 								console.log('insertJson:')
 								console.log(insertJson)
@@ -758,6 +758,13 @@ const OrderBagScreen = ({ navigation }) => {
 					  <Radio key={index} style={styles.radioButton}>{payMode}</Radio>
 					))}
 			</RadioGroup>
+			{paymentMode === 'Other' && (
+				<Input
+				  style={{width: 80}}
+				  value={payNotes}
+				  onChangeText={(text) => setPayNotes(text)}
+				/>
+			)}
         </View>
 		</Card>
 		</View>

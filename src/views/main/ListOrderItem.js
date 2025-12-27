@@ -24,7 +24,7 @@ const MoreIcon = (props) => (
   );
 
 
-const OrderMenu = memo(({ orderType, menuVisible, toggleMenu, onMenuItemSelect, username, currentUsername }) => {
+const OrderMenu = memo(({ orderType, menuVisible, toggleMenu, onMenuItemSelect }) => {
   return (
     <OverflowMenu
       anchor={() => (
@@ -43,7 +43,7 @@ const OrderMenu = memo(({ orderType, menuVisible, toggleMenu, onMenuItemSelect, 
       <MenuItem title='Update payment' />
 	  <MenuItem title='Edit' />
       <MenuItem title='Delete' />
-      {username === currentUsername && <MenuItem title='Call customer' />}
+      <MenuItem title='Call customer' />
       {orderType !== "Created" && (
         <MenuItem
           title={
@@ -346,10 +346,15 @@ const ListOrderItem = (props) => {
 		  const updItem = {
 				...item,
 				paymentStatus: updatedPaymentData.paymentStatus,
-				advance: updatedPaymentData.advance
+				advance: updatedPaymentData.advance,
+				paymentMode: updatedPaymentData.paymentMode,
+				paymentNotes: updatedPaymentData.paymentNotes
 		  }
-		  updateCache('UPDATE_ORDER', updItem, currentUser.username, item.orderStatus);    
-		  await notify(currentUser.id, 'UPDATE_ORDER', currentUser.username, item.orderStatus, updItem);
+		  const cacheKey = item.orderStatus === 'Completed' ? 'Completed_true' : 'Completed_false';
+		  //updateCache('UPDATE_ORDER', updItem, currentUser.username, item.orderStatus);    
+		  //await notify(currentUser.id, 'UPDATE_ORDER', currentUser.username, item.orderStatus, updItem);
+		  updateCache('UPDATE_ORDER', updItem, cacheKey);    
+		  await notify(currentUser.id, 'UPDATE_ORDER', cacheKey, updItem);
 		  eventEmitter.emit('payStatusChanged');
           setModalVisible(false);
 		  if(orderType === 'InProgress' && !clickPayment) {
@@ -381,8 +386,6 @@ const ListOrderItem = (props) => {
 					  menuVisible={menuVisible}
 					  toggleMenu={toggleMenu}
 					  onMenuItemSelect={onMenuItemSelect}
-					  username={item.username}
-					  currentUsername={currentUser.username}
 					/>
 				  )}
               </View>
@@ -414,6 +417,8 @@ const ListOrderItem = (props) => {
 		orderAmt={item.orderAmt}
 		paymentStatus={item.paymentStatus}
 		advance={item.advance}
+		paymentMode={item.paymentMode}
+		paymentNotes={item.paymentNotes}
 		onSave={(updatedPaymentData) => savePaymentData(updatedPaymentData)}
 		noCache={orderType === 'InProgress' ? true : false}
       />

@@ -6,7 +6,6 @@ import { supabase } from '../../constants/supabase';
 import NeckTypesModal from './NeckTypesModal';
 import { usePermissions } from './PermissionsContext';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from "@react-navigation/native";

@@ -13,6 +13,16 @@ class AppStateManager {
     this.lastTransitionTime = Date.now();
     this.isProcessingCallbacks = false;
     this.currentUserId = null; // Track current user ID
+	this.imagePickerActive = false;
+	this.backgroundCallbacks = [];
+  }
+  
+  setImagePickerActive(isActive) {
+	  this.imagePickerActive = isActive;
+  }
+	 
+  isImagePickerActive() {
+	  return this.imagePickerActive;
   }
 
   static getInstance() {
@@ -20,6 +30,36 @@ class AppStateManager {
       AppStateManager.instance = new AppStateManager();
     }
     return AppStateManager.instance;
+  }
+  
+  registerBackgroundCallback(callback) {
+	  if (typeof callback === 'function' && !this.backgroundCallbacks.includes(callback)) {
+	   this.backgroundCallbacks.push(callback);
+	   console.log('Background callback registered. Total callbacks:', this.backgroundCallbacks.length);
+	  }
+	 }
+	 // Unregister a background callback
+	 unregisterBackgroundCallback(callback) {
+	  const index = this.backgroundCallbacks.indexOf(callback);
+	  if (index > -1) {
+	   this.backgroundCallbacks.splice(index, 1);
+	   console.log('Background callback unregistered. Remaining callbacks:', this.backgroundCallbacks.length);
+	  }
+	 }
+	 // Execute all registered background callbacks
+	 async executeBackgroundCallbacks() {
+	  if (this.backgroundCallbacks.length === 0) {
+	   return;
+	  }
+	  console.log(`Executing ${this.backgroundCallbacks.length} background callbacks`);
+	  
+	  for (const callback of this.backgroundCallbacks) {
+	   try {
+		await callback();
+	   } catch (error) {
+		console.error('Error executing background callback:', error);
+	   }
+	  }
   }
 
   startListening(currentUser, callbacks) {
@@ -36,7 +76,6 @@ class AppStateManager {
     
     const handleAppStateChange = async (nextAppState) => {
       console.log('AppState changed:', this.appState, '->', nextAppState);
-      console.log(currentUser.id + ',' + this.currentUserId);
       // Track rapid transitions (possible flicker)
       const now = Date.now();
       if (now - this.lastTransitionTime < 1000) {
@@ -61,6 +100,10 @@ class AppStateManager {
       // Handle background state
       if (nextAppState.match(/inactive|background/)) {
         this.lastActiveTime = Date.now();
+		if (this.appState === 'active' && !this.imagePickerActive) {
+		 console.log('App going to background, executing background callbacks');
+		 await this.executeBackgroundCallbacks();
+		}
       }
       
       // Handle foreground state with multiple safeguards
@@ -73,7 +116,7 @@ class AppStateManager {
         const userChanged = !this.currentUserId || this.currentUserId !== currentUser?.id;
         
         // Skip minimum background time check if user changed
-        if (!userChanged && backgroundDuration < this.minimumBackgroundTime) {
+        if ((!userChanged && backgroundDuration < this.minimumBackgroundTime) || this.imagePickerActive) {
           console.log(`App was in background for only ${backgroundDuration}ms, skipping callbacks`);
           this.appState = nextAppState;
           return;
@@ -160,6 +203,7 @@ class AppStateManager {
     
     try {
       await callbacks.activatePubSub();
+	  await callbacks.checkBillingReminders();
       console.log('Callbacks completed successfully');
     } catch (error) {
       console.error('Error handling callbacks:', error);

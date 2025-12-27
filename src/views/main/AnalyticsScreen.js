@@ -6,7 +6,8 @@ import { Table, TableWrapper, Row, Rows } from 'react-native-table-component';
 import { DatePickerModal } from 'react-native-paper-dates';
 import moment from 'moment';
 import { supabase } from '../../constants/supabase';
-import DateFilterModal from '../main/DateFilterModal';
+import DateFilterModal from './DateFilterModal';
+import ProfitLossStatement from './ProfitLossStatement';
 import { showSuccessMessage, showErrorMessage } from './showAlerts';
 import { useUser } from '../main/UserContext';
 import { useNetwork } from '../main/NetworkContext';
@@ -15,7 +16,6 @@ import {
 } from 'react-native-chart-kit'
 import { useNavigation } from '@react-navigation/native';
 import { BarChart } from 'react-native-gifted-charts';
-import CustomerPaymentPending from './CustomerPaymentPending';
 import SalesOverviewCard from './SalesOverviewCard';
 import EnhancedHeatmap from './EnhancedHeatmap';
 import CostPieChart from './CostPieChart';
@@ -26,10 +26,13 @@ import * as FileSystem from 'expo-file-system';
 import analyticsCache from './analyticsCache';
 import eventEmitter from './eventEmitter';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
-import { RefreshIcon } from "../extra/icons";
 
 const width = Dimensions.get('window').width
 const height = 220
+const currentDate = new Date();
+const currentYear = currentDate.getFullYear();
+const a = moment(currentDate).format('YYYY-MM-DD');
+const b = moment(`${currentYear}-01-01`).utcOffset(5.5).format("YYYY-MM-DD");
 
 const StatsScreen = forwardRef((props, ref) => {
 	const theme = useTheme();
@@ -43,8 +46,6 @@ const StatsScreen = forwardRef((props, ref) => {
     const [sortDirection, setSortDirection] = useState('asc');
     const [widthArrEmp, setWidthArrEmp] = useState([70, 100, 65, 60, 70]);
 	const [widthArr, setWidthArr] = useState([80, 65, 80, 85]);
-	const currentDate = new Date();
-	const currentYear = currentDate.getFullYear();
 	const { currentUser } = useUser();
 	  const [showDatePicker, setShowDatePicker] = useState(false);
 	    const [modalVisible, setModalVisible] = useState(false);
@@ -64,8 +65,6 @@ const StatsScreen = forwardRef((props, ref) => {
 	  const [oldNewRev, setOldNewRev] = useState([]);
 	  const [empProd, setEmpProd] = useState([]);
 	  const [heatmapNumDays, setHeatmapNumDays] = useState(90);
-	  const a = moment(new Date()).format('YYYY-MM-DD');
-	  const b = moment(`${currentYear}-01-01`).utcOffset(5.5).format("YYYY-MM-DD");
 	  const [dateRange, setDateRange] = useState(null);
 	  const [dateRangeStart, setDateRangeStart] = useState(b);
 	  const [dateRangeEnd, setDateRangeEnd] = useState(a);
@@ -122,11 +121,11 @@ const StatsScreen = forwardRef((props, ref) => {
 			{ data: newCustData, error: newCustError },
 			{ data: pieData, error: pieError }
 		  ] = await Promise.all([
-			supabase.rpc("get_orders_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
-			supabase.rpc("get_customers_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
-			supabase.rpc("get_revenue", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: nextDay }).select().single(),
-			supabase.rpc("get_profit_margin", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: nextDay }).select().single(),
-			supabase.rpc("get_new_customers_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
+			supabase.rpc("get_orders_count", { parameter2: formattedDate, parameter3: today }).select().single(),
+			supabase.rpc("get_customers_count", { parameter2: formattedDate, parameter3: today }).select().single(),
+			supabase.rpc("get_revenue", { parameter2: formattedDate, parameter3: nextDay }).select().single(),
+			supabase.rpc("get_profit_margin", { parameter2: formattedDate, parameter3: nextDay }).select().single(),
+			supabase.rpc("get_new_customers_count", { parameter2: formattedDate, parameter3: today }).select().single(),
 			supabase.from('IncomeExpense').select('category, amount').eq('username', currentUser.username).eq('entryType', 'Expense')
 		  ]);
 
@@ -240,19 +239,19 @@ const StatsScreen = forwardRef((props, ref) => {
 				  { data: empData, error: empError },
 				  { data: pieData, error: pieError }
 				] = await Promise.all([
-				  supabase.rpc("get_orders_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
-				  supabase.rpc("get_customers_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
-				  supabase.rpc("get_revenue", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: nextDay }).select().single(),
-				  supabase.rpc("get_top_products", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }),
-				  supabase.rpc("get_top_customers", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }),
-				  supabase.rpc("get_recurrent_customers", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }),
-				  supabase.rpc("get_heatmap_orders", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }),
-				  supabase.rpc("get_sales_trend", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }),
-				  supabase.rpc("get_old_new_orders", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select(),
-				  supabase.rpc("get_old_new_revenue", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select(),
-				  supabase.rpc("get_profit_margin", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: nextDay }).select().single(),
-				  supabase.rpc("get_new_customers_count", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
-				  supabase.rpc("get_arpc", { parameter1: currentUser.username, parameter2: formattedDate, parameter3: today }).select().single(),
+				  supabase.rpc("get_orders_count", { parameter2: formattedDate, parameter3: today }).select().single(),
+				  supabase.rpc("get_customers_count", { parameter2: formattedDate, parameter3: today }).select().single(),
+				  supabase.rpc("get_revenue", { parameter2: formattedDate, parameter3: nextDay }).select().single(),
+				  supabase.rpc("get_top_products", { parameter2: formattedDate, parameter3: today }),
+				  supabase.rpc("get_top_customers", { parameter2: formattedDate, parameter3: today }),
+				  supabase.rpc("get_recurrent_customers", { parameter2: formattedDate, parameter3: today }),
+				  supabase.rpc("get_heatmap_orders", { parameter2: formattedDate, parameter3: today }),
+				  supabase.rpc("get_sales_trend", { parameter2: formattedDate, parameter3: today }),
+				  supabase.rpc("get_old_new_orders", { parameter2: formattedDate, parameter3: today }).select(),
+				  supabase.rpc("get_old_new_revenue", { parameter2: formattedDate, parameter3: today }).select(),
+				  supabase.rpc("get_profit_margin", { parameter2: formattedDate, parameter3: nextDay }).select().single(),
+				  supabase.rpc("get_new_customers_count", { parameter2: formattedDate, parameter3: today }).select().single(),
+				  supabase.rpc("get_arpc", { parameter2: formattedDate, parameter3: today }).select().single(),
 				  supabase.rpc("get_employee_prod_efficiency", { parameter1: formattedDate, parameter2: today }),
 				  supabase.from('IncomeExpense').select('category, amount').eq('username', currentUser.username).eq('entryType', 'Expense')
 				]);
@@ -302,7 +301,7 @@ const StatsScreen = forwardRef((props, ref) => {
 				}));
 				console.log('transformedData2:', transformedData2);
 				
-				const grouped = data.reduce((acc, item) => {
+				const grouped = pieData.reduce((acc, item) => {
 				  acc[item.category] = (acc[item.category] || 0) + Number(item.amount);
 				  return acc;
 				}, {});
@@ -633,10 +632,6 @@ const handleMenuSelect = (chartType) => {
 		}
 	};
 	
-	const showPaymentPending = () => {
-		navigation.navigate('CustomerPaymentPending');
-	}
-  
   return (
       <SafeAreaView style={styles.container}>
 		{loading ? (
@@ -1312,14 +1307,14 @@ const themedStyles = StyleService.create({
     color: '#c2410c',
     fontSize: 14,
     lineHeight: 20,
-  },
-  navButton: {marginRight: 20}
+  }
 });
 
 const Tab = createMaterialTopTabNavigator();
 
 const AnalyticsScreen = ({ navigation, route }) => {
 	const analyticsRef = useRef(null);
+	const plRef = useRef(null);
 
 	useEffect(() => {
 		console.log('in useEffect route.params')
@@ -1335,13 +1330,18 @@ const AnalyticsScreen = ({ navigation, route }) => {
 		if (analyticsRef.current) {
 		  analyticsRef.current.getAllData();
 		}
+		if (plRef.current) {
+		  plRef.current.getFinancialSummary(b, a);
+		}
 	  };
   return (
     <Tab.Navigator screenOptions={{ swipeEnabled: false }}>
       <Tab.Screen name="Analytics" children={() => {
 			  return <StatsScreen ref={analyticsRef} />;
 	  }} />
-	  <Tab.Screen name="Customer Payments Overview" component={CustomerPaymentPending} />
+	  <Tab.Screen name="P&L Statement" children={() => {
+			  return <ProfitLossStatement ref={plRef} />;
+	  }}/>
     </Tab.Navigator>
   );
 };

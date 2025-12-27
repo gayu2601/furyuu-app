@@ -2,15 +2,11 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { Alert, StyleSheet, TouchableOpacity, View, Image, ScrollView, RefreshControl, ActivityIndicator, Dimensions, Animated } from "react-native";
 import Feather from "react-native-vector-icons/Feather";
 import { useNavigation } from "@react-navigation/native";
-import { Provider as PaperProvider } from 'react-native-paper';
-import { useUser } from '../main/UserContext';
 import { useReadOrderItems } from '../main/ReadOrderItemsContext';
 import ListOrderItem from './ListOrderItem';
 import ClothingModal from './ClothingModal';
-import { DatePickerModal } from 'react-native-paper-dates';
 import { Input, List, ListItem, Card, Text, Layout, Autocomplete, AutocompleteItem, Button, Icon, Modal, Spinner, StyleService, useStyleSheet, Divider, TopNavigationAction, RangeCalendar } from '@ui-kitten/components';
 import IconMaterial from 'react-native-vector-icons/MaterialIcons';
-import { enGB, registerTranslation } from 'react-native-paper-dates'
 import { supabase } from '../../constants/supabase'
 import { useShareIntentContext } from "expo-share-intent";
 import { useNetwork } from './NetworkContext';
@@ -22,33 +18,12 @@ const PAGE_SIZE = 50;
 const INITIAL_SIZE = 50;
 
 // Memoized icons
-const SearchIcon = React.memo((props) => <Icon {...props} name='search'/>);
 const CalendarIcon = React.memo((props) => <Icon {...props} name='calendar-outline'/>);
 const CloseIcon = React.memo((props) => <Icon {...props} name='close-outline'/>);
 const MemoizedListOrderItem = React.memo(ListOrderItem);
 // Memoized components
 const CustomDivider = React.memo(() => {
   return <Divider style={styles.divider}/>;
-});
-
-const SearchBar = React.memo(({ value, onChangeText, onClear }) => {
-  const renderCloseIcon = useCallback((props) => (
-    <TouchableOpacity onPress={onClear}>
-      <CloseIcon {...props}/>
-    </TouchableOpacity>
-  ), [onClear]);
-
-  return (
-    <Input
-      placeholder="Search by customer name"
-      value={value}
-      onChangeText={onChangeText}
-      accessoryLeft={SearchIcon}
-      accessoryRight={value ? renderCloseIcon : null}
-      size="large"
-	  style={styles.searchBar}
-    />
-  );
 });
 
 const LoadingSpinner = React.memo(() => (
@@ -112,38 +87,24 @@ const LoadingOverlay = ({ visible }) => {
 export default function ShareIntentScreenTailor() {
     const { hasShareIntent, shareIntent, resetShareIntent, error } =
     useShareIntentContext();
-	registerTranslation('en', enGB)
 	const navigation = useNavigation();
-	const { currentUser } = useUser();
 	const { isConnected } = useNetwork();
 	const [loading, setLoading] = useState(true)
 	const [refresh, setRefresh] = useState(false)
 	const [loadDates, setLoadDates] = useState(false);
-    const [username, setUsername] = useState("")
-	const [searchQuery, setSearchQuery] = useState('');
-	const [datePickerVisible, setDatePickerVisible] = useState(false);
+    const [datePickerVisible, setDatePickerVisible] = useState(false);
 	const [range, setRange] = useState({});
 	const [isDateChanged, setIsDateChanged] = useState(false);
 	const [offset, setOffset] = useState(0);
 	const { readOrdersGlobal, getOrders, dispatch, getFilters, hasMoreOrders } = useReadOrderItems();
 	const [imageURIs, setImageURIs] = useState({});
-	const orderType = 'Created';
-	const orders = getOrders(orderType);
+	let orderType='Completed';
+	const orders = getOrders('Completed_false');
 	const fils = getFilters();
 	
 	const [modalVisible, setModalVisible] = useState(false);
 	const [selectedIndex, setSelectedIndex] = useState(0);
 	
-	// Memoized values and callbacks
-  const filterParams = useMemo(() => ({
-    searchQuery: fils.searchQuery || '',
-    orderType,
-    isDateChanged: fils.isDateChanged,
-    startDate: fils.startDate,
-    endDate: fils.endDate,
-    userType: 'tailor',
-  }), [fils.searchQuery, orderType, fils.isDateChanged, fils.startDate, fils.endDate]);
-
   const resetRange = () => {
 	if(isDateChanged) {
 		setLoadDates(true);
@@ -153,7 +114,7 @@ export default function ShareIntentScreenTailor() {
 		let today = moment().format('YYYY-MM-DD');
 		console.log(today)
 		queueMicrotask(() => {
-			readOrdersGlobal('', orderType, false, today, today, 'tailor', 0, INITIAL_SIZE, null, true)
+			readOrdersGlobal(null, orderType, false, false, null, null, INITIAL_SIZE)
 			  .then(() => {
 				dispatch({
 					type: 'UPDATE_DATE_FILTERS',
@@ -188,7 +149,7 @@ export default function ShareIntentScreenTailor() {
 		console.log(formattedStartDate)
 		console.log(formattedEndDate)
 		queueMicrotask(() => {
-			readOrdersGlobal(searchQuery, orderType, true, formattedStartDate, formattedEndDate, 'tailor', 0, INITIAL_SIZE)
+			readOrdersGlobal(null, orderType, false, true, formattedStartDate, formattedEndDate, INITIAL_SIZE)
 			  .then(() => {
 				dispatch({
 					type: 'UPDATE_DATE_FILTERS',
@@ -208,37 +169,9 @@ export default function ShareIntentScreenTailor() {
 	}
   };
 
-  const onSearchChange = useCallback((query) => {
-    setSearchQuery(query);
-    dispatch({
-        type: 'UPDATE_SEARCH_FILTER',
-        query: query
-    });
-    // Use microtask for data fetching
-    queueMicrotask(() => {
-        readOrdersGlobal(query, orderType, fils.isDateChanged, fils.startDate, fils.endDate, 'tailor', 0, INITIAL_SIZE);
-		setOffset(INITIAL_SIZE);
-    });
-  }, [orderType, fils.isDateChanged, fils.startDate, fils.endDate]);
-
-  const onClearSearch = useCallback(() => {
-	  console.log('in onClearSearch')
-    setSearchQuery('');
-	dispatch({
-        type: 'UPDATE_SEARCH_FILTER',
-        query: ''
-    });
-    // Use microtask for data fetching
-    queueMicrotask(() => {
-        readOrdersGlobal('', orderType, fils.isDateChanged, fils.startDate, fils.endDate, 'tailor', 0, INITIAL_SIZE);
-		setOffset(INITIAL_SIZE);
-    });
-  }, [orderType, fils.isDateChanged, fils.startDate, fils.endDate]);
-
   const onRefresh = useCallback(async () => {
     setRefresh(true);
     setIsDateChanged(false);
-	setSearchQuery('')
 	setRange({ startDate: undefined, endDate: undefined })
 	setSelectedIndex(0)
 	dispatch({
@@ -246,7 +179,7 @@ export default function ShareIntentScreenTailor() {
     });
     // Use microtask for data fetching
     queueMicrotask(() => {        
-		readOrdersGlobal('', orderType, false, new Date(), new Date(), 'tailor', 0, INITIAL_SIZE, null)
+		readOrdersGlobal(null, orderType, false, false, null, null, INITIAL_SIZE)
 		setOffset(INITIAL_SIZE);
     });
     setRefresh(false);
@@ -304,7 +237,7 @@ export default function ShareIntentScreenTailor() {
 		});
 		// Use microtask for data fetching
 		queueMicrotask(() => {        
-			readOrdersGlobal('', orderType, false, new Date(), new Date(), 'tailor', 0, INITIAL_SIZE)
+			readOrdersGlobal(null, orderType, false, false, null, null, INITIAL_SIZE)
 			setOffset(INITIAL_SIZE);
 		});
       setLoading(false);
@@ -318,19 +251,19 @@ export default function ShareIntentScreenTailor() {
 		setLoading(true);
 		queueMicrotask(() => {        
 			readOrdersGlobal(
-			  fils.searchQuery,
+			  null,
 			  orderType,
-			  fils.isDateChanged,
-			  fils.startDate,
-			  fils.endDate,
-			  'tailor',
+			  false,
+			  false,
+			  null,
+			  null,
 			  offset,
 			  PAGE_SIZE
 			);
 			setOffset(prev => prev + PAGE_SIZE);
 		});
 		setLoading(false);
-	  }, [hasMoreOrders, fils, orderType, offset]);
+	  }, [hasMoreOrders, orderType, offset]);
 
 	const handleItemPress = (index) => {
 		console.log('in handleItemPress: ' + index)
@@ -349,12 +282,7 @@ export default function ShareIntentScreenTailor() {
   return (
     <Layout style={styles.container} level="1">
       <Layout style={styles.headerButtons} level="1">
-        <SearchBar
-          value={searchQuery}
-          onChangeText={onSearchChange}
-          onClear={onClearSearch}
-        />
-		<View style={styles.actionButtons}>
+        <View style={styles.actionButtons}>
           {renderCalendarAction()}
 		</View>
       </Layout>
@@ -451,12 +379,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  searchBar: {
-    width: 290,
-	marginTop: 5,
-	marginRight: 30,
-	marginLeft: -10
   },
   actionButtons: {
 	flexDirection: 'row',

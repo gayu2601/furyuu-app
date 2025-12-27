@@ -121,7 +121,7 @@ const UPIQRModal = ({ visible, onCloseUpi, currentUser, handleInputChange }) => 
 		});
 		
 		console.log('QR code saved locally at:', fileUri);
-		storage.set(currentUser.username + '_upiQrCode', fileUri);
+		storage.set('upiQrCode', fileUri);
 		
 		console.log('upiPath:', upiPath);
 		
@@ -132,8 +132,7 @@ const UPIQRModal = ({ visible, onCloseUpi, currentUser, handleInputChange }) => 
 			.from('profiles')
 			.update({ 
 			  upiQRCode_url: upiPath ? upiPath : ''
-			})
-			.eq('id', currentUser.id);
+			});
 			
 		  if (error1) {
 			console.log('insert error:', error1);

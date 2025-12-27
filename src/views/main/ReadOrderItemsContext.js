@@ -90,16 +90,36 @@ export const ReadOrderItemsProvider = ({ children }) => {
         order.orderNo === orderNo 
           ? { ...order, 
               paymentStatus: updatedPaymentData.paymentStatus, 
-              advance: updatedPaymentData.advance 
+              advance: updatedPaymentData.advance,
+			  paymentMode: updatedPaymentData.paymentMode,
+			  paymentNotes: updatedPaymentData.paymentNotes
             }
           : order
       )
     }));
   };
 
-  const getOrders = useCallback((orderType, statusCheckType) => {
+  /*const getOrders = useCallback((orderType, statusCheckType) => {
 	const key = `${orderType}_${statusCheckType}`;
     return readOrderItems[key] || [];
+  }, [readOrderItems]);*/
+  
+  const getOrders = useCallback((orderType, startDateLocal) => {
+    if (orderType === 'all') {
+      let orders = Object.values(readOrderItems).flat();
+	  if (startDateLocal) {
+		  const start = new Date(startDateLocal);
+		  const now = new Date();
+
+		  orders = orders.filter(order => {
+			const oDate = new Date(order.orderDate);
+			return oDate >= start && oDate <= now;
+		  });
+	  }
+	  orders.sort((a, b) => new Date(a.date) - new Date(b.date));
+	  return orders;
+    }
+    return readOrderItems[orderType] || [];
   }, [readOrderItems]);
 
   const getFilters = useCallback(() => state, [state]);

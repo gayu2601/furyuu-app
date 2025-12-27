@@ -44,7 +44,7 @@ const EditOrderDetails = ({ navigation }) => {
 	console.log(item)
     const [loading, setLoading] = useState(false)
   const payStatuses = ['Pending', 'Fully paid', 'Partially paid'];
-  const payModes = ['Cash', 'Credit/Debit Card', 'UPI', 'Net-banking'];
+  const payModes = ['Cash', 'Credit/Debit Card', 'UPI', 'Net-banking', 'Other'];
 	const [payStatusIndex, setPayStatusIndex] = useState(item.paymentStatus ? payStatuses.indexOf(item.paymentStatus) : 0); 
   const [payStatus, setPayStatus] = useState(item.paymentStatus || 'Pending'); 
   const [advancePaid, setAdvancePaid] = useState(item.advance || 0)
@@ -52,6 +52,7 @@ const EditOrderDetails = ({ navigation }) => {
 	const [inCustom, setInCustom] = useState(false);
 	const [orderAmtChanged, setOrderAmtChanged] = useState(false);
 	const [paymentMode, setPaymentMode] = useState(item.paymentMode || 'Cash');
+	const [paymentNotes, setPaymentNotes] = useState(item.paymentNotes);
   const [payModeIndex, setPayModeIndex] = useState(item.paymentMode ? payModes.indexOf(item.paymentMode) : 0);
   const [editCust, setEditCust] = useState(false);
   const [phChanged, setPhChanged] = useState(false);
@@ -139,6 +140,9 @@ const EditOrderDetails = ({ navigation }) => {
 		setPayModeIndex(index);
 		setPaymentMode(payModes[index]);
 		handleInputChange('componentA', 'paymentMode', payModes[index]);
+		if(index < 4) {
+			setPaymentNotes(null);
+		}
 	};
 	
 	const DateIcon = (style: ImageStyle): IconElement => {
@@ -469,7 +473,7 @@ const EditOrderDetails = ({ navigation }) => {
 			  	let payStatusLocal = payStatus;
 			  const { error } = await supabase
 				  .from('OrderItems')
-				  .update({ orderAmt: totalAmt, paymentStatus: payStatusLocal, advance: adv, paymentMode: paymentMode })
+				  .update({ orderAmt: totalAmt, paymentStatus: payStatusLocal, advance: adv, paymentMode: paymentMode , paymentNotes: paymentNotes})
 				  .eq('orderNo', item.orderNo)
 				
 				if(orderAmtChanged) {
@@ -494,6 +498,7 @@ const EditOrderDetails = ({ navigation }) => {
 						updVal['paymentStatus'] = payStatusLocal;
 						updVal['advance'] = parseInt(adv);
 						updVal['paymentMode'] = paymentMode;
+						updVal['paymentNotes'] = paymentNotes;
 				
 				  const dressItemsLocal = updatedFormData.dressItems;
 				  let dueDateChanged = false;
@@ -593,7 +598,6 @@ const EditOrderDetails = ({ navigation }) => {
 						  updVal['measurementData'][ind] = {...updVal['measurementData'][ind], ...ditem.measurementsObj, ...ditem.extraMeasurements};
 						  	if(ditem.newExtraMeas) {
 								const rowsToInsert = ditem.newExtraMeas.map(fieldKey => ({
-										username: currentUser.username,
 										dress_type: fieldKey.dressType,
 										field_key: fieldKey.value
 									  }));
@@ -881,6 +885,13 @@ const EditOrderDetails = ({ navigation }) => {
 					  <Radio key={index} style={styles.radioButton}>{payMode}</Radio>
 					))}
 			</RadioGroup>
+			{paymentMode === 'Other' && (
+				<Input
+				  style={{width: 80}}
+				  value={paymentNotes}
+				  onChangeText={(text) => {setPaymentNotes(text); handleInputChange('componentA', 'paymentNotes', paymentNotes);}}
+				/>
+			)}
         </View>
       </Card>  
 		

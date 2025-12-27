@@ -71,7 +71,7 @@ const HeaderSection = React.memo(({ currentUser, navigation, theme, address }) =
 	  <View style={{marginRight: -35, marginBottom: 5 }}>
 			<NotificationsButton />
       </View>
-	  <View style={{marginRight: -10}}>
+	  <View>
 		<OrderBagButton />
 	  </View>
 	  <Button
@@ -80,7 +80,7 @@ const HeaderSection = React.memo(({ currentUser, navigation, theme, address }) =
           onPress={() => navigation.navigate('ProfileSettings')}
           size='small'
           style={{marginRight: 10 }}
-        />
+	  />
     </View>
   );
 });

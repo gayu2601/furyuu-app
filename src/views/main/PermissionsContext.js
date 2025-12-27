@@ -13,9 +13,13 @@ export const PermissionsProvider = ({ children }) => {
 
   const requestCameraPermission = async () => {
 	console.log('in requestCameraPermission')
-    const res = await ImagePicker.requestCameraPermissionsAsync();
-	console.log(res)
-    setCameraPermission(res.status);
+    try {
+		const res = await ImagePicker.requestCameraPermissionsAsync();
+		console.log(res)
+		setCameraPermission(res.status);
+	} catch(error) {
+		console.error(error)
+	}
   };
   
   const requestMediaPermission = async () => {

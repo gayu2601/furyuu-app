@@ -40,15 +40,15 @@ const DetailRow = memo(({ label, value, labelStyle }) => (
   </View>
 ));
 
-const CustomerDetails = memo(({ item, currentUsername, phone }) => (
+const CustomerDetails = memo(({ item, phone }) => (
   <View style={styles.header}>
     <SectionHeader icon="person-outline" title="Customer Details" />
     <MemoizedCard>
       <DetailRow label="Name" value={item.custName} />
-		{item.username === currentUsername && (<DetailRow 
+		<DetailRow 
 			label="Phone No" 
 			value={phone?.includes('+91') ? phone?.substring(3) : phone} 
-		/>)}
+		/>
       <DetailRow 
         label="Phone No" 
         value={item.phoneNo} 
@@ -79,7 +79,7 @@ const PaymentDetails = memo(({ item, selectedAddons }) => {
 	  <DetailRow label="Express Charges" value={`Rs. ${expressVal}`} />
 	  <DetailRow label="Total Amount" value={`Rs. ${totalAmt}`} />
       <DetailRow label="Payment Status" value={item.paymentStatus} />
-	  <DetailRow label="Payment Mode" value={item.paymentMode} />
+	  <DetailRow label="Payment Mode" value={item.paymentMode === 'Other' ? item.paymentNotes : item.paymentMode} />
       {item.paymentStatus === 'Partially paid' && (
         <>
           <DetailRow label="Advance paid" value={`Rs. ${item.advance}`} />
@@ -107,7 +107,7 @@ const OrderDetails = ({ navigation }) => {
   const { isConnected } = useNetwork();
   const theme = useTheme();
   const viewRef = useRef(null);
-  const { item, orderDate, isShareIntent, custUsername, orderDetails } = route.params;
+  const { item, orderDate, isShareIntent } = route.params;
   console.log(item)
   const [phone, setPhone] = useState(item.phoneNo);
   const [loading, setLoading] = useState(false);
@@ -180,33 +180,6 @@ const OrderDetails = ({ navigation }) => {
 	  setPhone(item.phoneNo);
 	}, [item.phoneNo]);
 	  
-	  const shareImage = useCallback(async (remoteImageUri) => {
-		try {
-		  const { data, error } = await supabase
-			.storage
-			.from('order-images/dressImages')
-			.createSignedUrl(remoteImageUri, 60);
-
-		  if (error) throw error;
-		  const imageUrl = data.signedUrl;
-
-		  // Define the local file path
-		  const localUri = FileSystem.documentDirectory + 'shared-image.jpg';
-
-		  // Download the image from the remote URL
-		  const response = await FileSystem.downloadAsync(imageUrl, localUri);
-
-		  // Share the downloaded image
-		  await Sharing.shareAsync(response.uri);
-		} catch (error) {
-		  console.error('Error sharing image: ', error);
-		}
-	  }, []);
-	  
-	  const ShareIcon = useCallback(props => 
-		<Icon {...props} name="share-outline" style={{ width: 24, height: 24 }} />, 
-	  []);
-
 	// Replace the existing renderOrderDetailsItem callback with this:
 	const renderOrderDetailsItem = useCallback(({ item: dress, index }) => {
 		console.log('in renderOrderDetailsItem')
@@ -279,7 +252,6 @@ const OrderDetails = ({ navigation }) => {
   const generateBillHTML = (item, qrCode, orderDate) => {
 	  console.log(item);
 	  console.log('item.slots', item.slots);
-	  let extraOptionsTotalAmt = item.orderAmt;
 	  
 	  const generateDressDetailsRows = () => {
 		let rows = '';
@@ -306,7 +278,6 @@ const OrderDetails = ({ navigation }) => {
 			});
 		  });
 		  groupedExtraOptions = Object.values(optionsMap);
-		  extraOptionsTotalAmt += groupedExtraOptions.reduce((total, option) => total + option.groupedAmt, 0);
 		}
 		item.dressType && item.dressType.forEach((dress, index) => {
 			console.log('item.expressDuration', item.expressDuration[index]);
@@ -346,7 +317,7 @@ const OrderDetails = ({ navigation }) => {
 			.filter(Boolean)
 			.map(obj => obj.price)
 		);
-	  const totalAmt = expressVal + extraOptionsTotalAmt;
+	  const totalAmt = expressVal + item.orderAmt;
 	  console.log('expressVal', expressVal)
 	  console.log('totalAmt', totalAmt)
 	  
@@ -481,7 +452,7 @@ const OrderDetails = ({ navigation }) => {
 			  <div class="total-amount-row">
 				<div class="total-amount-empty"></div>
 				<div class="total-amount-label">Total Stitching Charges:</div>
-				<div class="total-amount-value">Rs. ${extraOptionsTotalAmt}</div>
+				<div class="total-amount-value">Rs. ${item.orderAmt}</div>
 			  </div>
 			  <div class="total-amount-row">
 				<div class="total-amount-empty"></div>
@@ -515,7 +486,7 @@ const OrderDetails = ({ navigation }) => {
 			  <div class="total-amount-row">
 				  <div class="total-amount-empty"></div>
 				  <div class="total-amount-label">Payment Mode:</div>
-				  <div class="total-amount-value">${item.paymentMode || ''}</div>
+				  <div class="total-amount-value">${item.paymentMode === 'Other' ? item.paymentNotes : item.paymentMode}</div>
 			  </div>
 			</div>
 			
@@ -538,7 +509,7 @@ const OrderDetails = ({ navigation }) => {
    const downloadQrCode = async (fileName) => {
 		  let result = null;
 		  try {
-			const cachedPath = storage.getString(currentUser.username + '_upiQrCode');
+			const cachedPath = storage.getString('upiQrCode');
 			if (cachedPath && (await FileSystem.getInfoAsync(cachedPath)).exists) {
 				const base64 = await FileSystem.readAsStringAsync(cachedPath, {
 				  encoding: FileSystem.EncodingType.Base64,
@@ -567,7 +538,7 @@ const OrderDetails = ({ navigation }) => {
 				let localFileUri = await saveSupabaseDataToFile(data, fileName);
 				console.log('localfile uri:')
 				console.log(localFileUri)
-				storage.set(currentUser.username + '_upiQrCode', localFileUri);
+				storage.set('upiQrCode', localFileUri);
 				return result;
 			}
 		  } catch (error) {
@@ -645,7 +616,7 @@ const OrderDetails = ({ navigation }) => {
         initialNumToRender={5}
         maxToRenderPerBatch={5}
         windowSize={5}
-        ListHeaderComponent={<CustomerDetails item={item} currentUsername={currentUser.username} phone={phone}/>}
+        ListHeaderComponent={<CustomerDetails item={item} phone={phone}/>}
         ListFooterComponent={
           <View style={styles.footer}>
             <PaymentDetails item={item} selectedAddons={selectedAddons}/>
@@ -891,22 +862,6 @@ const styles = StyleSheet.create({
     height: 100,
     marginHorizontal: 8,
   },
-  shareButton: {
-    width: 50,
-    marginTop: 10,
-  },
-  shareButtonOverlay: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    borderRadius: 20,
-    padding: 2,
-  },
-  shareIconOverlay: {
-    width: 20,
-    height: 20,
-  },
   noMeasurementImages: {
     paddingVertical: 20,
     paddingHorizontal: 10,
@@ -1059,13 +1014,6 @@ const styles = StyleSheet.create({
   carouselImage: {
     width: 320,
     height: 300,
-  },
-  shareButton: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    borderRadius: 20,
-    padding: 5,
   },
   fullScreenModal: {
     justifyContent: 'center',

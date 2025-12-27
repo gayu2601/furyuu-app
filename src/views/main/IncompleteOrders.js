@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useImperativeHandle, forwardRef, memo } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -27,8 +27,11 @@ import {
   MenuItem,
   List,
   Spinner,
-  Input
+  Input,
+  useTheme,
+  RangeCalendar
 } from '@ui-kitten/components';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useUser } from "./UserContext";
 import { useNetwork } from "./NetworkContext";
 import { useReadOrderItems } from "./ReadOrderItemsContext";
@@ -40,6 +43,9 @@ import { supabase } from '../../constants/supabase';
 import { storage } from '../extra/storage';
 import { usePubSub } from './SimplePubSub';
 import PaymentModal from './PaymentModal';
+import XLSX from "xlsx";
+import * as FileSystem from 'expo-file-system';
+import { StorageAccessFramework } from 'expo-file-system';
 
 const ProgressBar = ({ progress, color = '#4CAF50', style }) => (
   <View style={[{ height: 8, backgroundColor: '#E0E0E0', borderRadius: 4, overflow: 'hidden' }, style]}>
@@ -78,10 +84,13 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
   const { currentUser, getNewDeviceLogin, updateNewDeviceLogin, newDeviceLogin } = useUser();
   const isNewDeviceLogin = useMemo(() => getNewDeviceLogin(), [getNewDeviceLogin]);
   const { notify, updateCache, eligible } = usePubSub();
-  
+  const [isDownload, setIsDownload] = useState(false);
   const [activeFilter, setActiveFilter] = useState(null);
   const [searchValue, setSearchValue] = useState('');
+  const [range1, setRange1] = useState({});
+  const [excelDateModalVisible, setExcelDateModalVisible] = useState(false)
   
+  const theme = useTheme();
   const searchFilters = [
     { id: 'orderid', label: 'Order ID', iconName: 'hash-outline' },
     { id: 'name', label: 'Name', iconName: 'person-outline' },
@@ -165,7 +174,7 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
 
 	// Separate useEffect for orders updates (when data changes)
 	useEffect(() => {
-	  const newOrders = getOrders(orderType, statusCheckType);
+	  const newOrders = getOrders(orderType+'_'+statusCheckType);
 	  setOrders(newOrders || []);
 	}, [getOrders, orderType, refreshTrigger]);
   
@@ -249,7 +258,9 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
 		let updObj = {orderStatus: newSt};
 		if(updatedPaymentData) {
 			updObj.paymentStatus = updatedPaymentData.paymentStatus;
-			updObj.advance = updatedPaymentData.advance
+			updObj.advance = updatedPaymentData.advance;
+			updObj.paymentMode = updatedPaymentData.paymentMode;
+			updObj.paymentNotes = updatedPaymentData.paymentNotes
 		}
 		const {error} = await supabase
 			.from('OrderItems')
@@ -528,7 +539,9 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
 		  const updItem = {
 				...order,
 				paymentStatus: updatedPaymentData.paymentStatus,
-				advance: updatedPaymentData.advance
+				advance: updatedPaymentData.advance,
+				paymentMode: updatedPaymentData.paymentMode,
+				paymentNotes: updatedPaymentData.paymentNotes
 		  }
 		  updateCache('UPDATE_ORDER', updItem, key);    
 		  await notify(currentUser.id, 'UPDATE_ORDER', key, updItem);
@@ -797,6 +810,8 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
         orderAmt={order.orderAmt + expressVal}
         paymentStatus={order.paymentStatus}
         advance={order.advance}
+		paymentMode={order.paymentMode}
+		paymentNotes={order.paymentNotes}
         onSave={(updatedPaymentData) => savePaymentData(updatedPaymentData)}
         noCache={order.orderStatus === 'Billing' && !clickPayment ? true : false}
       />
@@ -932,6 +947,160 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
     setActionLoading(false);
   }, [hasMoreOrders, orderType, offset]);
   
+  const resetRange1 = () => {
+		setExcelDateModalVisible(false);
+		setRange1({});
+  };
+  
+  const onDateChange1 = (nextRange) => {
+	console.log(nextRange);
+    setRange1(nextRange);
+  }
+  
+  const onConfirmDatePicker1 = (selRange) => {
+	setExcelDateModalVisible(false);
+	const formattedStartDate = moment(selRange.startDate).format('YYYY-MM-DD')
+	const formattedEndDate = moment(selRange.endDate).format('YYYY-MM-DD')
+	console.log(formattedStartDate, formattedEndDate);
+	exportToExcel(formattedStartDate, formattedEndDate)
+  };
+  
+  const CalendarModal = memo(({ visible, onClose, value, onSelect, onDateChange, onReset, isFilter }) => {
+   const [tempRange, setTempRange] = useState(value);
+   
+   useEffect(() => {
+    if (visible) {
+      console.log('in useEffect', value);
+      setTempRange(value);
+    }
+   }, [visible, value]);
+   
+   const handleReset = () => {
+    setTempRange({});
+    onReset();
+   };
+   
+   const handleSelect = () => {
+    onDateChange(tempRange);
+    onSelect(tempRange);
+   };
+    const renderCalendarFooter = () => (
+      <View style={styles.footerContainer}>
+       <Button
+         size="small"
+         appearance="outline"
+         style={styles.footerButton}
+         onPress={handleReset}>
+         Reset
+       </Button>
+       <Button
+         size="small"
+         style={styles.footerButton}
+         onPress={handleSelect}>
+         Select Range
+       </Button>
+      </View>
+    );
+    return (
+      <Modal
+         visible={visible}
+         backdropStyle={styles.backdrop}
+         onBackdropPress={onClose}>
+         <Card disabled={true}>
+            <TouchableOpacity style={styles.modalCloseButton} onPress={onClose}>
+               <Icon name="close-outline" style={styles.modalCloseIcon} />
+            </TouchableOpacity>
+          <Text category="h6" style={styles.title}>Select Date Range</Text>
+          <RangeCalendar
+            range={tempRange}
+            onSelect={setTempRange}
+            renderFooter={renderCalendarFooter}
+            min={new Date(1900, 0, 0)}
+            max={new Date(2050, 0, 0)}
+          />
+         </Card>
+       </Modal>
+      );
+   });
+  
+  const exportToExcel = useCallback(async (startDateLocal, endDateLocal) => {
+	console.log('in exportToExcel', startDateLocal, endDateLocal)
+    setIsDownload(false);
+    try {
+      setActionLoading(true);
+      const ordersAll = getOrders('all', startDateLocal);
+	  console.log('ordersAll', ordersAll);
+      const formattedData = ordersAll.map((item, index) => ({
+        "S.No.": index + 1,
+        "Order No.": item.orderNo,
+        "Customer Name": item.custName,
+        "Order Date": item.orderDate,
+        "Order Details": item.dressDetails,
+        "Order Amount": item.orderAmt,
+        "Order Status": item.orderStatus
+      }));
+
+      const totalEarnings = ordersAll.reduce((total, item) => total + item.orderAmt, 0);
+
+		let endF = endDateLocal ? endDateLocal : moment(new Date()).format('YYYY-MM-DD');
+		console.log(startDateLocal + ',' + endF)
+      const queryParams = { parameter2: startDateLocal, parameter3: endF };
+
+      const { data, error } = await supabase.rpc('get_income_expense', queryParams);
+      if (error) throw error;
+
+      const { inc = 0, exp = 0 } = data.reduce((acc, item) => {
+        if (item.entryType === 'Income') acc.inc = item.sum;
+        if (item.entryType === 'Expense') acc.exp = item.sum;
+        return acc;
+      }, { inc: 0, exp: 0 });
+
+      formattedData.push(
+        {
+          "S.No.": "",
+          "Order No.": "Total Earnings",
+          "Order Amount": totalEarnings,
+        },
+        {
+          "S.No.": "",
+          "Order No.": "Other Income",
+          "Order Amount": inc,
+        },
+        {
+          "S.No.": "",
+          "Order No.": "Expenses",
+          "Order Amount": exp,
+        }
+      );
+
+      // Create and save Excel file
+      const worksheet = XLSX.utils.json_to_sheet(formattedData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "List Data");
+      
+      const excelFile = XLSX.write(workbook, { type: "base64", bookType: "xlsx" });
+
+      const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+      if (!permissions.granted) return;
+
+      await StorageAccessFramework.createFileAsync(
+        permissions.directoryUri,
+        `furyuu_orders_${moment().format('DD_MM_YYYY')}`,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ).then(async (fileUri) => {
+        await FileSystem.writeAsStringAsync(fileUri, excelFile, { 
+          encoding: FileSystem.EncodingType.Base64 
+        });
+      });
+
+      showSuccessMessage("File saved to Downloads folder!");
+    } catch (error) {
+      showErrorMessage(error.message);
+    } finally {
+      setActionLoading(false);
+    }
+  }, [getOrders]);
+  
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#3366FF" />
@@ -1004,6 +1173,25 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
 		  />
       </Layout>
 	)}
+	
+	<Button
+			appearance='ghost'
+			size='large'
+			accessoryLeft={<MaterialCommunityIcons name="microsoft-excel" color='white' size={25}/>}
+			onPress={() => setExcelDateModalVisible(true)}
+			style={[styles.fab, {backgroundColor: theme['color-primary-500']}]}
+			status='control'
+	/>
+	
+	
+	  <CalendarModal
+        visible={excelDateModalVisible}
+        onClose={() => setExcelDateModalVisible(false)}
+        value={range1}
+        onSelect={onConfirmDatePicker1}
+		onDateChange={onDateChange1}
+		onReset={resetRange1}
+      />
 
       {renderBulkUpdateModal()}
 	  
@@ -1279,7 +1467,49 @@ const styles = StyleSheet.create({
   },
   progressBar: {
 	marginVertical: 5
-  }
+  },
+  fab: {
+        alignItems: 'center',
+        justifyContent: 'center',
+		flexDirection: 'row',
+        height: 50,
+		width: 50,
+        position: 'absolute',
+		borderRadius: 10,
+        bottom: 45,
+        right: 35,
+        shadowColor: '#000',
+        shadowOffset: {width: 0, height: 4},
+        shadowOpacity: 1,
+        shadowRadius: 4,
+        elevation: 4,
+    },
+	footerContainer: {
+		flexDirection: 'row',
+		justifyContent: 'center',
+		alignItems: 'center',
+		marginTop: 16,
+		gap: 30
+	  },
+	  footerButton: {
+		marginLeft: 8,
+	  },
+	  title: {
+		marginBottom: 12,
+		textAlign: 'center',
+	  },
+	  modalCloseButton: {
+		position: 'absolute', // Absolute positioning for the button
+		top: -30, // Adjust vertical position
+		right: -30, // Adjust horizontal position
+		backgroundColor: 'rgba(255, 255, 255, 0.8)', // Optional: Add a background for better visibility
+		borderRadius: 15, // Make the button circular
+		padding: 5, // Add padding to increase touch area
+	  },
+	  modalCloseIcon: {
+		width: 30, // Size of the icon
+		height: 30,
+	  },
 });
 
 export default IncompleteOrders;

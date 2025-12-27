@@ -4,12 +4,12 @@ import { PieChart } from 'react-native-gifted-charts';
 
 const CostPieChart = ({ data1 }) => {
   const data = [
-    { value: 30, color: '#FF6B6B', text: 'Employee' },
-    { value: 25, color: '#FFD93D', text: 'Material' },
-    { value: 15, color: '#6BCB77', text: 'Rental' },
-    { value: 10, color: '#4D96FF', text: 'Electricity' },
-    { value: 12, color: '#9D4EDD', text: 'Marketing' },
-    { value: 8,  color: '#FF9F1C', text: 'Others' },
+    { value: 30, color: '#FF6B6B', text: 'Salary' },
+    { value: 25, color: '#FFD93D', text: 'Rent' },
+    { value: 15, color: '#6BCB77', text: 'EB' },
+    { value: 10, color: '#4D96FF', text: 'Marketing' },
+    { value: 12, color: '#9D4EDD', text: 'Purchase' },
+    { value: 8,  color: '#FF9F1C', text: 'Miscellaneous' },
   ];
 
   // Calculate total to compute percentage

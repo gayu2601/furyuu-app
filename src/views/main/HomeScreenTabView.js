@@ -3,7 +3,6 @@ import { createMaterialTopTabNavigator } from '@react-navigation/material-top-ta
 import { Tab, TabBar, Text, useTheme } from '@ui-kitten/components';
 import IncompleteOrders from "../main/IncompleteOrders";
 import OrdersByDressType from "../main/OrdersByDressType";
-import HomeScreen from "../main/HomeScreen";
 import { useUser } from '../main/UserContext';
 import { StyleSheet } from 'react-native';
 

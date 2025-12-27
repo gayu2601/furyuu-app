@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { supabase } from '../../constants/supabase';
 import {
   StyleSheet,
@@ -6,6 +6,7 @@ import {
   View,
   StatusBar,
   Dimensions,
+  TouchableOpacity
 } from 'react-native';
 import {
   Layout,
@@ -14,6 +15,7 @@ import {
   Input,
   Button,
   Divider,
+  RangeCalendar,
   List,
   ListItem,
   TopNavigation,
@@ -25,9 +27,11 @@ import {
   SelectItem,
   IndexPath,
   Spinner,
+  Modal
 } from '@ui-kitten/components';
 import { LinearGradient } from 'expo-linear-gradient';
 import eventEmitter from './eventEmitter';
+import moment from 'moment';
 
 const { width, height } = Dimensions.get('window');
 
@@ -65,8 +69,14 @@ const CustomerPaymentPending = () => {
   const [loading, setLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [customerFilter, setCustomerFilter] = useState('');
-  const [fromDate, setFromDate] = useState(new Date('2025-01-01'));
-  const [toDate, setToDate] = useState(new Date('2025-12-31'));
+  let a = moment('2025-01-01').format('YYYY-MM-DD');
+  let b = moment('2025-12-31').format('YYYY-MM-DD');
+  const [fromDate, setFromDate] = useState(a);
+  const [toDate, setToDate] = useState(b);
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  let rangeJson = {startDate: new Date(a), endDate: new Date(b)};
+  const [range, setRange] = useState(rangeJson);
+  const [isDateChanged, setIsDateChanged] = useState(false);
 	
 	useEffect(() => {
 		const getPaymentStatus = async() => {
@@ -127,23 +137,23 @@ const CustomerPaymentPending = () => {
       const orderDate = new Date(order.orderDate);
       const matchesCustomer = customerFilter === '' || 
         order.custName?.toLowerCase().includes(customerFilter?.toLowerCase());
-      const matchesFromDate = orderDate >= fromDate;
-      const matchesToDate = orderDate <= toDate;
+      const matchesFromDate = orderDate >= range.startDate;
+      const matchesToDate = orderDate <= range.endDate;
       
       return matchesCustomer && matchesFromDate && matchesToDate;
     });
 	
-	console.log(filtered)
-    
     setFilteredOrders(filtered);
     setSummary(calculateSummary(filtered));
   };
 
   const clearFilters = () => {
+	setIsDateChanged(false);
     setCustomerFilter('');
-    setFromDate(new Date('2024-01-01'));
-    setToDate(new Date('2024-12-31'));
-    setFilteredOrders(orders || []);
+    setFromDate(a);
+    setToDate(b);
+    setRange(rangeJson);
+	setFilteredOrders(orders || []);
     setSummary(calculateSummary(orders || []));
   };
 
@@ -151,7 +161,7 @@ const CustomerPaymentPending = () => {
     if (orders) {
       applyFilters();
     }
-  }, [customerFilter, fromDate, toDate, orders]);
+  }, [customerFilter, range, orders]);
 
   const formatCurrency = (amount) => {
     return `₹${amount?.toLocaleString()}`;
@@ -165,6 +175,64 @@ const CustomerPaymentPending = () => {
       day: 'numeric' 
     });
   };
+  
+  const CalendarModal = memo(({ visible, onClose, value, onSelect, onDateChange, onReset, isFilter }) => {
+   const [tempRange, setTempRange] = useState(value);
+   
+   useEffect(() => {
+    if (visible) {
+      console.log('in useEffect', value);
+      setTempRange(value);
+    }
+   }, [visible, value]);
+   
+   const handleReset = () => {
+    setTempRange(rangeJson);
+    onReset();
+   };
+   
+   const handleSelect = () => {
+    onDateChange(tempRange);
+    onSelect(tempRange);
+   };
+    const renderCalendarFooter = () => (
+      <View style={styles.footerContainer}>
+       <Button
+         size="small"
+         appearance="outline"
+         style={styles.footerButton}
+         onPress={handleReset}>
+         Reset
+       </Button>
+       <Button
+         size="small"
+         style={styles.footerButton}
+         onPress={handleSelect}>
+         Select Range
+       </Button>
+      </View>
+    );
+    return (
+      <Modal
+         visible={visible}
+         backdropStyle={styles.backdrop}
+         onBackdropPress={onClose}>
+         <Card disabled={true}>
+            <TouchableOpacity style={styles.modalCloseButton} onPress={onClose}>
+               <Icon name="close-outline" style={styles.modalCloseIcon} />
+            </TouchableOpacity>
+          <Text category="h6" style={styles.title}>Select Date Range</Text>
+          <RangeCalendar
+            range={tempRange}
+            onSelect={setTempRange}
+            renderFooter={renderCalendarFooter}
+            min={new Date(1900, 0, 0)}
+            max={new Date(2050, 0, 0)}
+          />
+         </Card>
+       </Modal>
+      );
+   });
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -276,26 +344,20 @@ const CustomerPaymentPending = () => {
       {showFilters && (
         <View style={styles.filterContent}>
           <View style={styles.dateRow}>
-            <View style={styles.dateItem}>
-              <Text style={styles.filterLabel}>FROM DATE</Text>
-              <Datepicker
-                date={fromDate}
-                onSelect={setFromDate}
-                accessoryRight={CalendarIcon}
-                style={styles.datePicker}
-                size='small'
-              />
-            </View>
-            <View style={styles.dateItem}>
-              <Text style={styles.filterLabel}>TO DATE</Text>
-              <Datepicker
-                date={toDate}
-                onSelect={setToDate}
-                accessoryRight={CalendarIcon}
-                style={styles.datePicker}
-                size='small'
-              />
-            </View>
+            <Text style={styles.filterLabel}>DATE RANGE</Text>
+			  <TouchableOpacity
+				style={styles.dateRangeButton}
+				onPress={() => setDatePickerVisible(true)}
+			  >
+				<Text style={styles.dateRangeText}>
+				 {fromDate} - {toDate}
+				</Text>
+				<Icon
+				 name='chevron-down-outline'
+				 style={styles.chevronIcon}
+				 fill='#718096'
+				/>
+			  </TouchableOpacity>
           </View>
           
           <View style={styles.customerFilterContainer}>
@@ -413,9 +475,40 @@ const CustomerPaymentPending = () => {
     );
   };
 
+	const resetRange = () => {
+      setDatePickerVisible(false);
+      setRange(rangeJson);
+      setIsDateChanged(false);
+	 };
+	 
+	 const onDateChange = (nextRange) => {
+	   console.log(nextRange);
+	  setRange(nextRange);
+	 }
+	 
+	 const onConfirmDatePicker = (selRange) => {
+	   setDatePickerVisible(false);
+	   const formattedStartDate = moment(selRange.startDate).format('YYYY-MM-DD');
+	   const formattedEndDate = moment(selRange.endDate).format('YYYY-MM-DD');
+	   console.log('formattedStartDate', formattedStartDate + formattedEndDate);
+	   setFromDate(formattedStartDate);
+	   setToDate(formattedEndDate);
+	   setIsDateChanged(true);
+	 };
+
   return (
     <Layout style={styles.container}>
       {renderContent()}
+	  
+	  <CalendarModal
+		visible={datePickerVisible}
+		onClose={() => setDatePickerVisible(false)}
+		value={range}
+		onSelect={onConfirmDatePicker}
+		  onDateChange={onDateChange}
+		  onReset={resetRange}
+		  isFilter={true}
+	   />
     </Layout>
   );
 };
@@ -473,8 +566,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   dateRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     marginBottom: 16,
   },
   dateItem: {
@@ -488,6 +579,25 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 8,
   },
+  dateRangeButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+   },
+   dateRangeText: {
+    fontSize: 14,
+    color: '#2D3748'
+   },
+   chevronIcon: {
+    width: 20,
+    height: 20,
+   },
   datePicker: {
     backgroundColor: 'white',
   },
@@ -672,6 +782,35 @@ const styles = StyleSheet.create({
     borderColor: '#000099',
     borderWidth: 1,
   },
+  footerContainer: {
+	  flexDirection: 'row',
+	  justifyContent: 'center',
+	   alignItems: 'center',
+	  marginTop: 16,
+	   gap: 30
+	 },
+	 footerButton: {
+	  marginLeft: 8,
+	 },
+	 title: {
+	  marginBottom: 12,
+	  textAlign: 'center',
+	 },
+	 modalCloseButton: {
+	  position: 'absolute', // Absolute positioning for the button
+	  top: -30, // Adjust vertical position
+	  right: -30, // Adjust horizontal position
+	  backgroundColor: 'rgba(255, 255, 255, 0.8)', // Optional: Add a background for better visibility
+	  borderRadius: 15, // Make the button circular
+	  padding: 5, // Add padding to increase touch area
+	 },
+	 modalCloseIcon: {
+	  width: 30, // Size of the icon
+	  height: 30,
+	 },
+	 backdrop: {
+	  backgroundColor: "rgba(0, 0, 0, 0.5)",
+	 },
 });
 
 export default CustomerPaymentPending;

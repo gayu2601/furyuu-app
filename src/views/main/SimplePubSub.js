@@ -33,12 +33,11 @@ export const PubSubProvider = ({ children }) => {
     };
   }, []);
 
-  const checkPubSubEligibility = async (userId) => {
+  const checkPubSubEligibility = async () => {
     try {
       const { data: devices, error: devicesError } = await supabase
         .from('user_last_device_v2')
-        .select('device_id')
-        .eq('user_id', userId);
+        .select('device_id');
 		
       const multipleDevices = devices && devices.length > 1;
 	  
@@ -66,7 +65,7 @@ export const PubSubProvider = ({ children }) => {
   }, []);
 
   const updateCache = useCallback((type, orderData = null, prefix, itemOrderNo = null, custInserted = false) => {
-	  console.log('in updateCache ' + custInserted)
+	console.log('in updateCache ' + custInserted)
     const orders = getOrders(prefix);
 	console.log('orders', orders)
 
@@ -101,7 +100,7 @@ export const PubSubProvider = ({ children }) => {
     }
   }, [getOrders, saveOrders]);
   
-  const subscriptionListener = (userId) => {
+  const subscriptionListener = () => {
 	setEligible(true);
 	// Unsubscribe from previous subscription if exists
     if (subscriptionRef.current) {
@@ -109,12 +108,11 @@ export const PubSubProvider = ({ children }) => {
     }
 
     const sub = supabase
-      .channel(`user_${userId}`)
+      .channel(`user`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
-        table: 'user_notifications',
-        filter: `user_id=eq.${userId}`
+        table: 'user_notifications'
       }, (payload) => {
 		  console.log('user_notifications Change received!', payload);
         const notification = payload.new;
@@ -138,16 +136,16 @@ export const PubSubProvider = ({ children }) => {
     subscriptionRef.current = sub;
   }
 
-  const startListening = useCallback(async (userId) => {
+  const startListening = useCallback(async () => {
 	  console.log('in startListening')
-    const isEligible = await checkPubSubEligibility(userId);
+    const isEligible = await checkPubSubEligibility();
     if (!isEligible) {
       console.log('User not eligible for PubSub - either not subscribed or single device');
 	  setEligible(false);
       return false;
     }
 
-    subscriptionListener(userId);
+    subscriptionListener();
 	return true;
   }, [checkPubSubEligibility, updateCache]);
 
@@ -160,7 +158,7 @@ export const PubSubProvider = ({ children }) => {
   }, []);
 
   const notify = useCallback(async (userId, type, orderStatus, orderData = null, itemOrderNo = null, custInserted) => {
-	const isEligible = await checkPubSubEligibility(userId);
+	const isEligible = await checkPubSubEligibility();
 	console.log('in notify ' + eligible + isEligible)
 	console.log(orderData + ',' + itemOrderNo)
 	if (!isEligible) {
@@ -186,7 +184,7 @@ export const PubSubProvider = ({ children }) => {
 	  }
 	  	  
 		if(isEligible && !eligible) {
-			subscriptionListener(userId);
+			subscriptionListener();
 		}
     } catch (error) {
       console.error('Notification failed:', error);

@@ -92,7 +92,7 @@ const DashboardCard = () => {
         eventEmitter.off('storageUpdated', getCountOfValuesInKeys);
     };
 
-  }, [currentUser.username])
+  }, [])
 
   const chartData = [
     { count: pendingCnt, color: "#FFB74D", label: "Pending" }, // Pending

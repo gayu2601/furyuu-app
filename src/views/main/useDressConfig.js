@@ -42,7 +42,6 @@ const loadDressConfig = async (sessionUserIdParam) => {
         }
       }
 	  if(sessionUserId) {
-		  console.warn(sessionUserId.username);
 		  const { data: fields, error: fieldsError } = await supabase.rpc("get_all_measurement_fields");
 		  
 		  if (fieldsError) throw fieldsError;

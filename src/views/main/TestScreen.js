@@ -25,6 +25,7 @@ import { usePermissions } from './PermissionsContext';
 import { KeyboardAvoidingView } from '../extra/3rd-party';
 import MultiSelectOptions from './MultiSelectOptions';
 import moment from 'moment';
+import AppStateManager from '../../components/AppStateManager';
 
   const CameraIcon = (props) => <Icon {...props} name="camera-outline" />;
   const ImageIcon = (props) => <Icon {...props} name="image-outline" />;
@@ -35,6 +36,7 @@ import moment from 'moment';
 
 const TestScreen = ({ route }) => {
   const { currentUser } = useUser();
+  const appStateManager = AppStateManager.getInstance();
   const { isConnected } = useNetwork();
   const navigation = useNavigation();
   const { cameraPermission, mediaPermission, requestCameraPermission, requestMediaPermission } = usePermissions();
@@ -106,7 +108,6 @@ const TestScreen = ({ route }) => {
 	const [showSubDropdown, setShowSubDropdown] = useState(true);
 	
 	const [selectedIndex, setSelectedIndex] = useState(null); 
-	const [occError, setOccError] = useState(false);
 	  
 	    const [currentIndex, setCurrentIndex] = useState(0);
 	  
@@ -160,7 +161,6 @@ const TestScreen = ({ route }) => {
 				console.log(custDetails)
 				setCustName(custDetails.custName)
 				setPhoneNo(custDetails.phoneNo.substring(3))
-				setOccError(false)
 				/*if(custDetails.tempSave) {
 					setInputDisabled(true);
 				}*/
@@ -257,15 +257,8 @@ const TestScreen = ({ route }) => {
 	  const [uniqId, setUniqId] = useState(getIdCounter());
 	    
   const handleSelectOcc = (index) => {
-	    if(index.row === 0) {
-			setOccError(true);
-			setOccIndex(index);
-			setOccasion(occOptions[index.row]);
-		} else {
-			setOccError(false);
-			setOccIndex(index);
-			setOccasion(occOptions[index.row]);
-		}
+	    setOccIndex(index);
+		setOccasion(occOptions[index.row]);
 	};
 	
 	  const sleeveOptions = [
@@ -320,7 +313,49 @@ const TestScreen = ({ route }) => {
 		return () => backHandler.remove(); // Clean up the back handler
 	  }, [step, custName, phoneNo, occasion, localItems]);
 	  
-	useFocusEffect(
+	  useEffect(() => {
+		// Define your background callback function
+		const handleAppGoingToBackground = async () => {
+		  console.warn('App is going to background from YourScreen');
+		  saveAllLocalStates();
+			addItemBatchContext(itemKey, localItems);
+
+			const phNo = phoneNo.startsWith('+91') ? phoneNo : '+91' + phoneNo;
+			setNewOrderCust({
+			  custName,
+			  phoneNo: phNo,
+			  occasion,
+			});
+		};
+		
+		// Register the callback when component mounts
+		appStateManager.registerBackgroundCallback(handleAppGoingToBackground);
+		
+		// Cleanup: Unregister when component unmounts
+		return () => {
+		  appStateManager.unregisterBackgroundCallback(handleAppGoingToBackground);
+		};
+	  }, []);
+	  
+	useEffect(() => {
+	  const unsubscribe = navigation.addListener('blur', () => {
+		console.log('🔴 Screen left (navigation)');
+
+		saveAllLocalStates();
+		addItemBatchContext(itemKey, localItems);
+
+		const phNo = phoneNo.startsWith('+91') ? phoneNo : '+91' + phoneNo;
+		setNewOrderCust({
+		  custName,
+		  phoneNo: phNo,
+		  occasion
+		});
+	  });
+
+	  return unsubscribe;
+	}, [navigation, custName, phoneNo, occasion, localItems]);
+	
+	/*useFocusEffect(
 		useCallback(() => {
 			console.log('screen focused')
 			console.log(localItems)
@@ -340,7 +375,7 @@ const TestScreen = ({ route }) => {
 			});
 		  };
 		}, [navigation, custName, phoneNo, occasion, localItems])
-	);
+	);*/
 
 	useEffect(() => {
 		navigation.setOptions({
@@ -1141,8 +1176,6 @@ const TestScreen = ({ route }) => {
 				setCustNameError(true);
 			} else if(phoneNo.trim() === '') {
 				setPhoneError(true);
-			} else if(occasion === ' ') {
-				setOccError(true);
 			}
 			const isValid = isValidPhoneNumber(phoneNo)
 			if(isValid) {
@@ -1258,6 +1291,19 @@ const TestScreen = ({ route }) => {
 	const [selectedIndexSubType, setSelectedIndexSubType] = useState(new IndexPath(0));
 	const [selectedIndexPants, setSelectedIndexPants] = useState(new IndexPath(0));
 	
+	useFocusEffect(
+	  useCallback(() => {
+		  console.log('in useFocusEffect renderitem', routeParams)
+		if (routeParams?.fromCustomDesign) {
+			console.warn('setting showDesign')
+			setSelectedItemDesign({...item, ...localState});
+		  setShowDesign(true);
+		  setInCustom(false);
+
+		  //navigation.setParams({ fromCustomDesign: false }); dont do this as this resets fromCustomDesign to false before the showDesign modal is rendered
+		}
+	  }, [routeParams?.fromCustomDesign])
+	);
 	  const handleCustomDesign = (customDesignFile, fieldName) => {
 		  updateLocalState(fieldName, customDesignFile);
 		  updateItem(selectedItemDesign.id, fieldName, customDesignFile);
@@ -1727,6 +1773,8 @@ const TestScreen = ({ route }) => {
 										saveAllLocalStates();
 										navigation.navigate('CustomDesign', {
 										field: 'sleeve',
+										prevScreen: 'Test',
+										editRouteParams: {...routeParams, fromCustomDesign: true}, 
 										returnFile: (selectedFile) => {
 										  const updatedItemDesign = { ...selectedItemDesign, sleeveDesignFile: selectedFile };
 										  setSelectedItemDesign(updatedItemDesign);
@@ -1904,6 +1952,8 @@ const TestScreen = ({ route }) => {
 						visible={neckModalVisible}
 						onClose={() => setNeckModalVisible(false)}
 						fieldName={neckModalField}
+						prevScreen='Test'
+						editRouteParams={{...route?.params, fromCustomDesign: true}}
 						updateSelectedItemDesign={updateSelectedItemDesign}
 						setShowDesign={setShowDesign}
 						setInCustom={setInCustom}
@@ -2760,7 +2810,7 @@ const renderSlotSummary = (slots) => {
 				
 				<Select
 								style={styles.selectFieldOcc}
-								label='Occasion *'
+								label='Occasion'
 								selectedIndex={occIndex}
 								onSelect={handleSelectOcc}
 								value={occasion}
@@ -2769,13 +2819,12 @@ const renderSlotSummary = (slots) => {
 								  <SelectItem title={option} key={index} style={{backgroundColor: 'white'}}/>
 								))}
 				</Select>
-				{occError && <Text status='danger'>Select an occasion type</Text>}
           </Card>
 		  {customerDataFound && renderUpcomingCelebrations()}
 		  {renderNewCustomerFields()}
 		  <View style={styles.nextButtonContainer}>
 		    <Button appearance='outline' style={styles.cancelButton} onPress={handleClear}>Clear details</Button>
-			<Button onPress={handleNextStep} style={styles.nextButton} disabled={!custName || !phoneNo || occasion === ' '}>Next</Button>
+			<Button onPress={handleNextStep} style={styles.nextButton} disabled={!custName || !phoneNo}>Next</Button>
 		  </View>
 		</View>
 		</TouchableWithoutFeedback>

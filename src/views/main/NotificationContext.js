@@ -12,8 +12,8 @@ const NotificationProvider = ({ children }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [hasMore, setHasMore] = useState(true);
   
-  const getCachedNotifications = useCallback((username, startIndex, endIndex) => {
-    const cacheKey = `${username}_Notifications`;
+  const getCachedNotifications = useCallback((startIndex, endIndex) => {
+    const cacheKey = `Notifications`;
     const cachedData = storage.getString(cacheKey);
     
     if (cachedData) {
@@ -34,12 +34,12 @@ const NotificationProvider = ({ children }) => {
 
   const fetchNotifications = useCallback(async (currentUser1, page = 0) => {
     try {
+	  console.log('in fetchNotifications');
       const startIndex = page * PAGE_SIZE;
       const endIndex = startIndex + PAGE_SIZE;
       
       // First check cache for requested range
       const cachedNotifications = getCachedNotifications(
-        currentUser1.username, 
         startIndex, 
         endIndex
       );
@@ -91,7 +91,7 @@ const NotificationProvider = ({ children }) => {
       }
 
       // Update cache with all notifications we have
-      const cacheKey = `${currentUser1.username}_Notifications`;
+      const cacheKey = `Notifications`;
       const existingCache = storage.getString(cacheKey);
       let allCachedNotifications = [];
       
@@ -149,7 +149,7 @@ const NotificationProvider = ({ children }) => {
 		  throw error;
 	  }
 
-      const cacheKey = `${currentUser1.username}_Notifications`;
+      const cacheKey = `Notifications`;
       const cachedData = storage.getString(cacheKey);
       
       if (cachedData) {

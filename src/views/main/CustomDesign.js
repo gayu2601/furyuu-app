@@ -21,11 +21,12 @@ const CustomDesign = () => {
 		  headerLeft: () => (
 			<TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon} onPress={() => {
 				console.log('in custom design top nav action')
-				if (prevScreen === 'Edit') {
-				  navigation.navigate('EditOrderDetails', editRouteParams);
-				} else {
-					navigation.goBack();
-				}
+				navigation.navigate({
+				 name: prevScreen,
+				 params: {
+				   ...editRouteParams
+				 }
+				});
 			}}/>
 		  ),
 		});
@@ -53,11 +54,12 @@ const CustomDesign = () => {
 			console.log(path)
             returnFile(path);
           }
-		if(prevScreen === 'Edit') {
-			navigation.navigate('EditOrderDetails', editRouteParams)
-		} else {
-			navigation.goBack(); 
-		}
+		navigation.navigate({
+          name: prevScreen,
+          params: {
+            ...editRouteParams
+          }
+        });
 	//onOK(signature); // Callback from Component props
   };
   

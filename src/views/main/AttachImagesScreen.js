@@ -32,18 +32,14 @@ export default function AttachImagesScreen({ route }) {
       screen: 'OrderDetails',
       params: {
         item,
-        userType,
         orderDate: item.orderDate,
-        shopName,
-        shopAddress,
-        shopPhNo,
         isShareIntent: true
       }
     });
   };
   
   const updateStorage = (picsArr, replaceMode = false) => {
-	  const key = currentUser.username + '_Created';
+	  const key = item.orderStatus === 'Completed' ? 'Completed_true' : 'Completed_false';
 	  
 	  // Process the first cache regardless of conditions
 	  console.log(key);
@@ -54,45 +50,13 @@ export default function AttachImagesScreen({ route }) {
 		const updatedCache = cacheValue.map(item1 => {
 		  if (item1.orderNo === item.orderNo) {
 			console.log(item1);
-			if (replaceMode) {
-				console.log('in if replaceMode')
-			  item1.patternPics[selectedItemIndex] = picsArr;
-			  console.log(item1.patternPics)
-			} else {
-			  item1.patternPics[selectedItemIndex].push(...picsArr);
-			  console.log(item1.patternPics)
-			}
+			item1.patternPics = picsArr;
 		  }
 		  return item1;
 		});
 		console.log(updatedCache);
 		storage.set(key, JSON.stringify(updatedCache));
 	  }
-	  
-	  // Only process key1 if userType is not 'tailor' OR (userType is 'tailor' AND item.custUsername exists)
-	  /*if (item.custUsername) {
-		const key1 = item.custUsername + '_Created';
-		
-		console.log(key1);
-		const jsonCacheValue1 = storage.getString(key1);
-		const cacheValue1 = jsonCacheValue1 ? JSON.parse(jsonCacheValue1) : null;
-		
-		if (cacheValue1?.length > 0) {
-		  const updatedCache1 = cacheValue1.map(item1 => {
-			if (item1.orderNo === item.orderNo) {
-			  console.log(item1);
-			  if (replaceMode) {
-				item1.patternPics[selectedItemIndex] = picsArr;
-			  } else {
-				item1.patternPics[selectedItemIndex].push(...picsArr);
-			  }
-			}
-			return item1;
-		  });
-		  console.log(updatedCache1);
-		  storage.set(key1, JSON.stringify(updatedCache1));
-		}
-	  }*/
 	};
   
   const processImages = async (replaceMode = false) => {
@@ -149,7 +113,8 @@ export default function AttachImagesScreen({ route }) {
         
         if (error) throw error;
         
-        item.patternPics[selectedItemIndex] = picsArr;
+        item.patternPics[selectedItemIndex] = [...picsArr];
+		console.log(item.patternPics);
       } else {
         // For attach to existing mode
 		console.log('in replaceMode false')

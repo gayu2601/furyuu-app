@@ -46,16 +46,12 @@ const IncomeExpenseHistoryScreen = ({ navigation }) => {
   const styles = useStyleSheet(themedStyles);
   const { currentUser } = useUser();
 
-	let tt = storage.getString(currentUser.username + '_income_expense_tooltip_shown');
-  const [showTooltip, setShowTooltip] = useState(!tt ? true : false);
-  
   const fetchTransactions = async () => {
     try {
       setLoading(true);
       let query = supabase
         .from('IncomeExpense')
         .select('*')
-        .eq('username', currentUser.username)
         .order('created_at', { ascending: false });
 	  
 	  if (dateFilterActive && range.startDate && range.endDate) {
@@ -151,7 +147,7 @@ const IncomeExpenseHistoryScreen = ({ navigation }) => {
         eventEmitter.off('transactionAdded', fetchTransactions);
 		subscription.unsubscribe();
     };
-  }, [dateFilterActive, range.startDate, range.endDate, currentUser.username]);
+  }, [dateFilterActive, range.startDate, range.endDate]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -339,11 +335,6 @@ const IncomeExpenseHistoryScreen = ({ navigation }) => {
 		setDateFilterActive(true);
 	}
   };
-  
-  const closeTooltip = () => {
-	setShowTooltip(false); 
-	storage.set(currentUser.username + '_income_expense_tooltip_shown', 'true');
-  }
   
   return (
   <View style={styles.outerContainer}>
@@ -660,26 +651,6 @@ const themedStyles = StyleService.create({
 	  lineHeight: 22,
 	  margin: 16,
 	  textAlign: 'justify'
-  },
-  tooltipContent: {
-    padding: 10
-  },
-  tooltipTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 10,
-  },
-  tooltipText: {
-    fontSize: 15,
-    color: '#666',
-    lineHeight: 22,
-    marginBottom: 10,
-	textAlign: 'justify'
-  },
-  tooltipButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end'
   },
   nextButton1: {
     backgroundColor: '#007AFF',

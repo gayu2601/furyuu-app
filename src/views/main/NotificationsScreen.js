@@ -84,25 +84,6 @@ const NotificationsScreen = ({ navigation }) => {
     if(!notifItem.notificationRead) {
 		markNotificationAsRead(currentUser, notifItem.id)
 	};
-
-    if(notifItem.notificationTitle === 'New Order Alert!') {
-      const jsonItem = notifItem.notificationData;
-      const {objectId, custName, custUsername, shopName, orderDetails, orderNo, orderItem} = jsonItem || {};
-      const updatedItem = { ...orderItem, username: currentUser.username };
-      const dateFinal = orderItem.orderDate ? orderItem.orderDate : new Date();
-      
-      navigation.navigate('OrderDetailsMain', {
-        screen: 'OrderDetails',
-        params: { 
-          item: updatedItem, 
-          userType: currentUser.userType, 
-          orderDate: dateFinal, 
-          isShareIntent: false, 
-          custUsername: custUsername, 
-          orderDetails: orderDetails 
-        }
-      });
-    }
   }, []);
 
   const renderItem = useCallback(({ item, index }) => {

@@ -31,6 +31,8 @@ const ProfileScreen = () => {
 	  { title: 'Employee List', icon: 'list-outline', key: 'employeeList', onPress: () => navigation.navigate('EmployeeList') },
 	  { title: 'Log Out', icon: 'log-out-outline', key: 'logout', onPress: () => logoutAlert() }
 	];
+	
+	const filteredData = currentUser.userType === 'worker' ? data.filter(item => item.key === 'logout') : data;
 
 	useEffect(() => {
 		if(!isConnected) {
@@ -118,7 +120,7 @@ const ProfileScreen = () => {
     <Layout style={styles.container}>
       <List
         style={styles.list}
-        data={data}
+        data={filteredData}
         renderItem={renderItem}
       />
     </Layout>

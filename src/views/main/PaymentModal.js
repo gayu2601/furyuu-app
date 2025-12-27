@@ -5,8 +5,12 @@ import { supabase } from '../../constants/supabase'
 import { showSuccessMessage, showErrorMessage } from './showAlerts';
 import { storage } from '../extra/storage';
 
-const PaymentModal = ({ visible, onClose, onSave, orderNo, orderAmt, paymentStatus, advance, noCache }) => {
+const PaymentModal = ({ visible, onClose, onSave, orderNo, orderAmt, paymentStatus, advance, paymentMode, paymentNotes, noCache }) => {
   const [payStatus, setPayStatus] = useState(paymentStatus); 
+  	const [payMode, setPayMode] = useState(paymentMode);
+	const [payNotes, setPayNotes] = useState(paymentNotes);
+  const payModes = ['Cash', 'Credit/Debit Card', 'UPI', 'Net-banking', 'Other'];
+  const [payModeIndex, setPayModeIndex] = useState(paymentMode ? payModes.indexOf(paymentMode) : 0);
   const payStatuses = ['Pending', 'Fully paid', 'Partially paid'];
   const [payStatusIndex, setPayStatusIndex] = useState(paymentStatus ? payStatuses.indexOf(paymentStatus) : 0); 
   const [advanceAmount, setAdvanceAmount] = useState(advance);
@@ -14,10 +18,20 @@ const PaymentModal = ({ visible, onClose, onSave, orderNo, orderAmt, paymentStat
   const [loading, setLoading] = useState(false);
   
   const handlePayStatusSelect = (index) => {
+		console.log('in handlePayStatusSelect')
 		setPayStatusIndex(index);
 		setPayStatus(payStatuses[index]);
 		if(index < 2) {
 			setAdvanceAmount(0);
+		}
+	};
+	
+	const handlePayModeSelect = (index) => {
+		console.log('in handlePayModeSelect', index)
+		setPayModeIndex(index);
+		setPayMode(payModes[index]);
+		if(index < 4) {
+			setPayNotes(null);
 		}
 	};
 	
@@ -33,7 +47,7 @@ const PaymentModal = ({ visible, onClose, onSave, orderNo, orderAmt, paymentStat
 			if(!noCache) {
 				const { data, error } = await supabase
 				  .from('OrderItems')
-				  .update({ paymentStatus: payStatus, advance: am })
+				  .update({ paymentStatus: payStatus, advance: am, paymentMode: payMode, paymentNotes: payNotes })
 				  .eq('orderNo', orderNo)
 				  .select(`*`)
 				  .single();
@@ -57,6 +71,8 @@ const PaymentModal = ({ visible, onClose, onSave, orderNo, orderAmt, paymentStat
 					  if (orderIndex !== -1) {
 						cacheValue[orderIndex].paymentStatus = payStatus;
 						cacheValue[orderIndex].advance = am;
+						cacheValue[orderIndex].paymentMode = payMode;
+						cacheValue[orderIndex].paymentNotes = payNotes;
 						storage.set(cacheKey, JSON.stringify(cacheValue));
 						console.log("Updated cacheValue stored successfully.");
 					  } else {
@@ -69,7 +85,9 @@ const PaymentModal = ({ visible, onClose, onSave, orderNo, orderAmt, paymentStat
 
 				const updatedPaymentData = {
 					paymentStatus: payStatus,
-					advance: am
+					advance: am,
+					paymentMode: payMode,
+					paymentNotes: payNotes
 				  };
 				onSave(updatedPaymentData);
 				onClose();
@@ -127,6 +145,30 @@ const PaymentModal = ({ visible, onClose, onSave, orderNo, orderAmt, paymentStat
 					/>
 				  </View>
 				)}
+				<View>
+					  <Text category='label' style={styles.dateText}>						
+						Payment Modes
+					  </Text>
+					    <View style={styles.radioWrap}>
+							{payModes.map((paySt, index) => (
+							  <Radio
+								key={index}
+								checked={payModeIndex === index}
+								onChange={() => handlePayModeSelect(index)}
+								style={styles.radioItem}
+							  >
+								{paySt}
+							  </Radio>
+							))}
+					  </View>
+					  {payMode === 'Other' && (
+						<Input
+						  style={{width: 80}}
+						  value={payNotes}
+						  onChangeText={(text) => setPayNotes(text)}
+						/>
+					  )}
+				</View>
 
 			<Button style={styles.button} size='small' appearance='outline' onPress={savePaymentDetails}>
 			  Save
@@ -171,7 +213,16 @@ const styles = StyleSheet.create({
   },
   card:{
 	width: 350
-  }
+  },
+  radioWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',        // ✅ allows wrapping
+    marginTop: 8,
+  },
+  radioItem: {
+    marginRight: 10,
+    marginBottom: 8,         // spacing between rows
+  },
 });
 
 export default PaymentModal;
