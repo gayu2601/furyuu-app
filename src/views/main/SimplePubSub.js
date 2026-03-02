@@ -85,7 +85,18 @@ export const PubSubProvider = ({ children }) => {
 	  console.log('updated', updated);
 	  saveOrders(updated, prefix);
     } else if (type === 'DELETE_ORDER') {
-      const filtered = orders.filter(o => o.orderNo !== itemOrderNo);
+      const filtered = orders.map(o => 
+		  o.orderNo === itemOrderNo 
+			? { ...o, orderStatus: 'Cancelled' }
+			: o
+		);
+      saveOrders(filtered, prefix);
+    } else if (type === 'RESTORE_ORDER') {
+      const filtered = orders.map(o => 
+		  o.orderNo === itemOrderNo 
+			? { ...o, orderStatus: 'New' }
+			: o
+		);
       saveOrders(filtered, prefix);
     } else if (type === 'UPDATE_MEAS') {
 		saveOrders(orderData, prefix);

@@ -97,12 +97,13 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
     { id: 'phone', label: 'Phone', iconName: 'phone-outline' }
   ];
 
-  const statuses = ['All Orders', 'New', 'Cutting', 'Stitching', 'Finishing', 'Checking', 'Billing'];
+  const statuses = ['All Orders', 'New', 'Cutting', 'Stitching', 'Finishing', 'Checking', 'Billing', 'Cancelled'];
   const workflowStatuses = ['New', 'Cutting', 'Stitching', 'Finishing', 'Checking', 'Billing', 'Delivered'];
   
   const filters = statusCheckType ? searchFilters : statuses;
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const DeleteIcon = (props) => <Icon {...props} name='trash-2-outline' style={styles.deleteIcon} fill={'red'}/>;
+  const ResendIcon = (props) => <Icon {...props} name='corner-down-left-outline' style={styles.resendIcon} fill={theme['color-primary-500']}/>;
 
   // Single useEffect for initialization and event listeners
 	useEffect(() => {
@@ -356,7 +357,7 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
     // Apply status filter if statusCheckType is false
     //if (!statusCheckType) {
       filtered = selectedStatus === 'All Orders' 
-		? orders 
+		? orders.filter(order => order.orderStatus !== 'Cancelled') 
 		: orders.filter(order => order.orderStatus === selectedStatus);
     //}
     
@@ -382,10 +383,6 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
   };
 
   const filteredOrders = filterOrders();
-  
-  /*const filteredOrders = selectedStatus === 'All Orders' 
-    ? orders 
-    : orders.filter(order => order.orderStatus === selectedStatus);*/
 
   const renderSearchFilters = () => {
 	  const filtersToRender = statusCheckType ? searchFilters : [searchFilters[1]];
@@ -613,48 +610,34 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
       </Modal>
 	)
 	
-	const handleDeleteOrder = async (itemOrderNo, dressPicsAll, patternPicsAll) => {
-		console.log('in handleDeleteOrder')
+	const handleUpdateOrder = async (itemOrderNo, isDelete) => {
+		console.log('in handleUpdateOrder')
 		try {
 		  setLoading(true);
 		  const response = await supabase
 			  .from('OrderItems')
-			  .delete()
+			  .update({orderStatus: isDelete ? 'Cancelled' : 'New'})
 			  .eq('orderNo', itemOrderNo)
 
 			if (response.error) {
-			  console.error('Deletion failed:', response.error.message);
+			  console.error('Updation failed:', response.error.message);
 			  showErrorMessage('No matching order found!');
 			  throw error;
 			}
-			const { dataRemove, errorRemove } = await supabase
-								  .storage
-								  .from('order-images')
-								  .remove(dressPicsAll.flat().map(filename => `dressImages/${filename}`))
-								if(errorRemove) {
-									throw errorRemove;
-								}
-			const { dataRemove1, errorRemove1 } = await supabase
-								  .storage
-								  .from('order-images')
-								  .remove(patternPicsAll.flat().map(filename => `patternImages/${filename}`))
-								if(errorRemove1) {
-									throw errorRemove1;
-								}
 			
-			updateCache('DELETE_ORDER', null, `${orderType}_${statusCheckType}`, itemOrderNo);    
-			await notify(currentUser.id, 'DELETE_ORDER', `${orderType}_${statusCheckType}`, null, itemOrderNo);
+			updateCache(isDelete ? 'DELETE_ORDER' : 'RESTORE_ORDER', null, `${orderType}_${statusCheckType}`, itemOrderNo);    
+			await notify(currentUser.id, isDelete ? 'DELETE_ORDER' : 'RESTORE_ORDER', `${orderType}_${statusCheckType}`, null, itemOrderNo);
 
 			queueMicrotask(() => {
 				readOrdersGlobal(null, orderType, statusCheckType, false, null, null, INITIAL_SIZE, null, true)
 				setOffset(INITIAL_SIZE);
 			});
-				showSuccessMessage('Order Deleted!');
+				isDelete ? showSuccessMessage('Order Deleted!') : showSuccessMessage('Order Restored!');
 				eventEmitter.emit('storageUpdated');
 				eventEmitter.emit('transactionAdded');
 				eventEmitter.emit('payStatusChanged');
 		} catch (error) {
-		  showErrorMessage('Failed to delete the order: ' + error.message);
+		  showErrorMessage('Failed to update the order: ' + error.message);
 		} finally {
 		  setLoading(false);
 		}
@@ -671,7 +654,25 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
                 },
                 {
                     text: 'OK',
-                    onPress: () => handleDeleteOrder(item.orderNo, item.dressPics, item.patternPics)
+                    onPress: () => handleUpdateOrder(item.orderNo, true)
+                }
+            ],
+            {cancelable: true}
+        )
+    }
+	
+	const restoreOrderAlert = (item) => {
+        Alert.alert(
+            "Confirmation", "Do you want to restore this order?",
+            [
+                {
+                    text: 'Cancel',
+                    onPress: () => console.log("Cancel"),
+                    style: "cancel",
+                },
+                {
+                    text: 'OK',
+                    onPress: () => handleUpdateOrder(item.orderNo, false)
                 }
             ],
             {cancelable: true}
@@ -791,13 +792,22 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
 				  {evaProps => <Text {...evaProps} style={styles.buttonText}>Prod Details</Text>}
 				</Button>
 				
-				<Button
+				{order.orderStatus !== 'Completed' && (
+					order.orderStatus === 'Cancelled' ? (<Button
 				  status='basic'
 				  appearance='ghost'
-				  accessoryLeft={DeleteIcon}
+				  accessoryLeft={ResendIcon}
 				  style={{marginRight: -20}}
-				  onPress={() => deleteOrderAlert(order)}
-				/>
+				  onPress={() => restoreOrderAlert(order)}
+				/>) : (
+					<Button
+					  status='basic'
+					  appearance='ghost'
+					  accessoryLeft={DeleteIcon}
+					  style={{marginRight: -20}}
+					  onPress={() => deleteOrderAlert(order)}
+					/>	
+				))}
 
 			  </View>
 			)}
@@ -1460,6 +1470,10 @@ const styles = StyleSheet.create({
   deleteIcon: {
 	width: 20,
 	height: 20
+  },
+  resendIcon: {
+	width: 25,
+	height: 25
   },
   progressText: {
 	marginTop: 10,

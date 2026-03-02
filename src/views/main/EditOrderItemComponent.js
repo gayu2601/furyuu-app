@@ -85,15 +85,15 @@ const EditOrderItemComponent = (props, ref) => {
   const sleeveOptions = [
 		"Ordinary",
 		"Puff",
-		"Knot",
 		"Sleeveless",
-		"Draw design",
+		"Draw design"
 	  ];
 	  
 	  const sleeveLenOptions = [
-		"Short",
-		"Medium",
-		"Full",
+		"Elbow",
+		"Half",
+		"3/4th",
+		"Full"
 	  ];
   
     const [selectedIndexSleeve, setSelectedIndexSleeve] = useState(sleeveOptions.indexOf(item.sleeveType) || 0);
@@ -185,6 +185,7 @@ const EditOrderItemComponent = (props, ref) => {
 		setCurrentImages(newImages);
 		setPicsRaw(newImagesRaw);
 		setDeletedPics(prevDeletedPics => [...prevDeletedPics, picsRaw[index]]);
+		updateItemField('dressPics', newImages);
 	};
 	
 	const handleDeleteImagePattern = (index) => {
@@ -196,6 +197,7 @@ const EditOrderItemComponent = (props, ref) => {
 		setPatternImages(newImages);
 		setPatternPicsRaw(newImagesRaw);
 		setDeletedPatternPics(prevDeletedPics => [...prevDeletedPics, patternPicsRaw[index]]);
+		updateItemField('patternPics', newImages);
 	};
 	
 	const handleDeleteImageMeas = (index) => {
@@ -207,6 +209,7 @@ const EditOrderItemComponent = (props, ref) => {
 		setMeasImages(newImages);
 		setMeasPicsRaw(newImagesRaw);
 		setDeletedMeasPics(prevDeletedPics => [...prevDeletedPics, measPicsRaw[index]]);
+		updateItemField('measurementPics', newImages);
 	};
 	
 	const handleOptionPress = (option) => {
@@ -245,19 +248,19 @@ const EditOrderItemComponent = (props, ref) => {
 				  const newDressImages = [...dressImages, source.uri];
 				  setDressImages(newDressImages);
 				  setCurrentImages(newDressImages);
-				  a = picsRaw ? [...picsRaw, ...newUris] : newUris
+				  a = picsRaw ? [...picsRaw, source.uri] : [source.uri]
 				  setPicsRaw(a);
 				  updateItemField('dressPics', newDressImages);
 			  } else if(picType === 'pattern') {
 				  const newPatternImages = [...patternImages, source.uri];
 				  setPatternImages(newPatternImages);
-				  a = patternPicsRaw ? [...patternPicsRaw, ...newUris] : newUris
+				  a = patternPicsRaw ? [...patternPicsRaw, ...source.uri] : source.uri
 				  setPatternPicsRaw(a);
 				  updateItemField('patternPics', newPatternImages);
 			  } else {
 				  const newMeasImages = [...measImages, source.uri];
 				  setMeasImages(newMeasImages);
-				  a = measPicsRaw ? [...measPicsRaw, ...newUris] : newUris
+				  a = measPicsRaw ? [...measPicsRaw, ...source.uri] : source.uri
 				  setMeasPicsRaw(a);
 				  updateItemField('measurementPics', newMeasImages)
 			  }
@@ -770,7 +773,7 @@ const EditOrderItemComponent = (props, ref) => {
   
   const handleDeleteDesign = (designType, fieldType) => {
 		  updateItemField(designType, null);
-		  updateItemField(fieldType, null);
+		  if(fieldType !== 'sleeveType') updateItemField(fieldType, null);
 		  switch(fieldType) {
 				case 'frontNeckType':
 					setFnImg(null);
@@ -964,7 +967,7 @@ const EditOrderItemComponent = (props, ref) => {
                           setSleeveImg(selectedFile);
                           updateItemField('sleeveDesignFile', selectedFile);
                         },
-                        prevScreen: 'Edit',
+                        prevScreen: 'EditOrderDetails',
                         editRouteParams: editRouteParams
                       });
                     }}
@@ -984,7 +987,7 @@ const EditOrderItemComponent = (props, ref) => {
                         updateItemField('sleeveDesignFile', selectedFile);
                         setSleeveImg(selectedFile);
                       },
-                      prevScreen: 'Edit',
+                      prevScreen: 'EditOrderDetails',
                       editRouteParams: editRouteParams
                     });
                   }}
@@ -1333,6 +1336,7 @@ const EditOrderItemComponent = (props, ref) => {
         updateSelectedItemDesign={editSelectedItemDesign}
         editRouteParams={editRouteParams}
         setInCustom={setInCustom}
+		prevScreen='EditOrderDetails'
       />
     </View>
   );
@@ -1662,7 +1666,7 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   changeDesignButton: {
-    marginTop: 10,
+    marginVertical: 10,
     width: 120,
   },
   selectTypeButton: {
@@ -1693,9 +1697,6 @@ const styles = StyleSheet.create({
     height: 16,
     marginLeft: 8,
   },
-  fieldContainer: {
-    marginBottom: 16,
-  },
   fieldLabel: {
     marginBottom: 8,
     fontWeight: '500',
@@ -1712,7 +1713,7 @@ const styles = StyleSheet.create({
   drawButton: {
     borderRadius: 10,
     marginBottom: 15,
-    marginTop: 10,
+    marginTop: -10,
     width: 200,
     alignItems: 'center'
   },
@@ -1755,6 +1756,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 4,
+  },
+  fieldContainer: {
+	marginTop: 10 
   },
   measurementLabel: {
     flex: 1,

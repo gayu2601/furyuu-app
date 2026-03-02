@@ -45,10 +45,6 @@ const CustomerDetails = memo(({ item, phone }) => (
     <SectionHeader icon="person-outline" title="Customer Details" />
     <MemoizedCard>
       <DetailRow label="Name" value={item.custName} />
-		<DetailRow 
-			label="Phone No" 
-			value={phone?.includes('+91') ? phone?.substring(3) : phone} 
-		/>
       <DetailRow 
         label="Phone No" 
         value={item.phoneNo} 

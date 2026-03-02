@@ -290,16 +290,16 @@ const StatsScreen = forwardRef((props, ref) => {
 				  ],
 				  label: item.order_month_name
 				}));
-				console.log('transformedData1:', transformedData1);
 
 				const transformedData2 = oldNewRevenue.map(item => ({
-				  stacks: [
-					{ value: item.revenue_before_month, color: theme["color-primary-100"] },
-					{ value: item.revenue_in_month, color: theme["color-primary-500"], marginBottom: 1 }
-				  ],
+				  stacks: calculatePercentageStacks(
+					item.revenue_before_month,
+					item.revenue_in_month,
+					theme["color-primary-100"],
+					theme["color-primary-500"]
+				  ),
 				  label: item.order_month_name
 				}));
-				console.log('transformedData2:', transformedData2);
 				
 				const grouped = pieData.reduce((acc, item) => {
 				  acc[item.category] = (acc[item.category] || 0) + Number(item.amount);
@@ -375,6 +375,25 @@ const StatsScreen = forwardRef((props, ref) => {
 					setLoading(false);
 				}
 		}
+		
+		const calculatePercentageStacks = (value1, value2, color1, color2) => {
+		  const total = value1 + value2;
+		  
+		  if (total === 0) {
+			return [
+			  { value: 0, color: color1 },
+			  { value: 0, color: color2, marginBottom: 1 }
+			];
+		  }
+		  
+		  const percentage1 = Math.round((value1 / total) * 100);
+		  const percentage2 = 100 - percentage1; // Ensures exactly 100%
+		  
+		  return [
+			{ value: percentage1, color: color1 },
+			{ value: percentage2, color: color2, marginBottom: 1 }
+		  ];
+		};
 	  
 	  useEffect(() => {
 			if(!isConnected) {
@@ -586,46 +605,6 @@ const handleMenuSelect = (chartType) => {
 	labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`
   }
   
-  const percentageDataOrders = oldNewOrders.map(item => {
-    const total = item.stacks.reduce((sum, stack) => sum + stack.value, 0);
-    if (total === 0) {
-      return {
-        ...item,
-        stacks: item.stacks.map(stack => ({
-          ...stack,
-          value: 0
-        }))
-      };
-    }
-    return {
-      ...item,
-      stacks: item.stacks.map(stack => ({
-        ...stack,
-        value: (stack.value / total) * 100
-      }))
-    };
-  });
-  
-  const percentageDataRevenue = oldNewRev.map(item => {
-    const total = item.stacks.reduce((sum, stack) => sum + stack.value, 0);
-    if (total === 0) {
-      return {
-        ...item,
-        stacks: item.stacks.map(stack => ({
-          ...stack,
-          value: 0
-        }))
-      };
-    }
-    return {
-      ...item,
-      stacks: item.stacks.map(stack => ({
-        ...stack,
-        value: (stack.value / total) * 100
-      }))
-    };
-  });
-
   const scrollViewSizeChanged = (contentWidth) => {
 		if (filterType !== 'this-month') {
 		  scrollViewRef.current?.scrollToEnd({ x: contentWidth, animated: true });
@@ -740,13 +719,6 @@ const handleMenuSelect = (chartType) => {
 					height={height}
 					chartConfig={lineChartConfig}
 					bezier
-					renderDotContent={() =>
-						heatmapNumDays < 30 && (
-						  <Text style={styles.overlayText}>
-							Select more than 2 months date range to display sales trend
-						  </Text>
-						)
-					  }
 					style={styles.chartKitStyle}
 				  />
 				</View>
@@ -780,26 +752,25 @@ const handleMenuSelect = (chartType) => {
 			  <View style={styles.chartContainer}>
 				{selectedChart === "Orders" ? (
 					<BarChart
-						isAnimated
+						key={oldNewOrders.length}
 						width={width}
 						barWidth={20}
 						maxValue={100}
 						rotateLabel
-						stackData={percentageDataOrders}
+						stackData={oldNewOrders}
 						hideRules
 						xAxisLabelTextStyle={{fontSize: 10, marginTop: 5}}
 						yAxisTextStyle={{fontSize: 10}}
-						yAxisLabelSuffix="%"
 						labelsDistanceFromXaxis={15}
 					/>
 				) : (
 				  <BarChart
-						isAnimated
+						key={oldNewRev.length}
 						width={width}
 						barWidth={20}
 						maxValue={100}
 						rotateLabel
-						stackData={percentageDataRevenue}
+						stackData={oldNewRev}
 						hideRules
 						xAxisLabelTextStyle={{fontSize: 10, marginTop: 5}}
 						yAxisTextStyle={{fontSize: 10}}

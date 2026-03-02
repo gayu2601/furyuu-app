@@ -26,6 +26,7 @@ import ShareIntentScreenTailor from "./src/views/main/ShareIntentScreenTailor";
 import AttachImagesScreen from "./src/views/main/AttachImagesScreen";
 import CustomDesign from "./src/views/main/CustomDesign";
 import TestScreen from "./src/views/main/TestScreen";
+import RoleConfigScreen from "./src/views/auth/RoleConfigScreen";
 import EmployeeOnboardingForm from "./src/views/auth/EmployeeOnboardingForm";
 import EmployeeList from "./src/views/auth/EmployeeList";
 import EmployeeDetail from "./src/views/auth/EmployeeDetail";
@@ -52,7 +53,7 @@ import { PermissionsProvider, usePermissions } from "./src/views/main/Permission
 import { OrderItemsProvider } from "./src/views/main/OrderItemsContext";
 import { NotificationProvider, useNotification } from './src/views/main/NotificationContext';
 import { SlotBookingProvider } from './src/views/main/SlotBookingContext';
-import { ReadOrderItemsProvider } from "./src/views/main/ReadOrderItemsContext";
+import { ReadOrderItemsProvider, useReadOrderItems } from "./src/views/main/ReadOrderItemsContext";
 import { storage } from './src/views/extra/storage';
 import { checkBillingReminders } from './src/views/extra/billingUtils';
 import * as Notifications from "expo-notifications";
@@ -70,6 +71,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { usePubSub } from './src/views/main/SimplePubSub';
 import useDressConfig from './src/views/main/useDressConfig';
 import AppStateManager from './src/components/AppStateManager'; // Adjust path as needed
+import * as ImagePicker from 'expo-image-picker';
 
 const Stack = createStackNavigator()
 
@@ -244,6 +246,17 @@ function ProfileNavigator() {
 										),
 					  })}
 				/>
+				<Stack.Screen
+					  name="RoleConfigScreen"
+					  component={RoleConfigScreen}
+					  options={({ navigation, route }) => ({
+						headerTitle: getHeaderTitle(route),
+						headerLeft: () => (
+										  <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
+											onPress={() => navigation.goBack()} />
+										),
+					  })}
+				/>
 		  </Stack.Navigator>
 	  )
 	}
@@ -255,13 +268,39 @@ const DrawerNavigator = ({ route }) => {
   console.log(`🚪 NEW DrawerNavigator Instance: ${instanceId.current}`);
 
 	const { currentUser, updateCurrentUser } = useUser();
+	const { readOrdersGlobal } = useReadOrderItems();
 	const { requestCameraPermission, requestMediaPermission } = usePermissions();
 	const { startListening } = usePubSub();
 	let currentUserLocal = currentUser;
 	const { fetchNotifications } = useNotification();
   const [initialRoute, setInitialRoute] = useState(null);
-      const appStateManager = useRef(AppStateManager.getInstance());
-  	
+    const appStateManager = useRef(AppStateManager.getInstance());
+	  
+	const _originalLaunchImageLibrary = ImagePicker.launchImageLibraryAsync;
+	const _originalLaunchCamera = ImagePicker.launchCameraAsync;
+
+	ImagePicker.launchImageLibraryAsync = async function(options) {
+	  console.log('Image picker wrapper called'); // Debug log
+	  try {
+		appStateManager.current.setImagePickerActive(true);
+		const result = await _originalLaunchImageLibrary(options);
+		return result;
+	  } catch (error) {
+		console.error('Image picker error:', error);
+		throw error;
+	  }
+	};
+
+	ImagePicker.launchCameraAsync = async function(options) {
+	  try {
+		appStateManager.current.setImagePickerActive(true);
+		const result = await _originalLaunchCamera(options);
+		return result;
+	  } catch (error) {
+		console.error('Camera picker error:', error);
+		throw error;
+	  }
+	};
   console.log("DrawerNavigator route.params: ", route?.params);
   
   // Handle current user setup once on mount
@@ -271,6 +310,7 @@ const DrawerNavigator = ({ route }) => {
 		const userData = route.params.data1;
 		currentUserLocal = userData;
 		updateCurrentUser(userData);
+		readOrdersGlobal(null, null, null, false, null, null, 50);
     }
   }, [route?.params?.data1]);
   
@@ -317,6 +357,23 @@ const DrawerNavigator = ({ route }) => {
     getNotifs();
 	
   }, [currentUserLocal?.id, route?.params?.newUser]);
+  
+  const isTabVisible = (tabName) => {
+    const userRole = currentUserLocal?.userType;
+    
+    // Production role - only show specific tabs
+    if (userRole === 'production') {
+      return ['HomeMain', 'OrderDetailsMain'].includes(tabName);
+    }
+    
+    // Designer role - all except Dashboard
+    if (userRole === 'designer') {
+      return tabName !== 'Dashboard';
+    }
+    
+    // Admin - show all
+    return true;
+  };
   
   const navigationContainer = useMemo(() => (
     <NavigationContainer
@@ -463,14 +520,14 @@ const DrawerNavigator = ({ route }) => {
                 headerRight: () => (
 					<View style={{flexDirection: 'row'}}>
 					  <Icon name="share-outline" style={{ width: 25, height: 25, marginRight: 20 }} onPress={() => {navigation.setParams({ triggerShare: true });}}/>
-					  	<MaterialCommunityIcons
+						{currentUserLocal.userType !== 'production' && <MaterialCommunityIcons
 						  name={"pencil"}
 						  size={25}
 						  style={{ marginRight: 20, marginLeft: -10 }}
 						  onPress={() => {
 							navigation.navigate('EditOrderDetails', { ...route.params });
 						  }}
-						/>
+						/>}
 					</View>
                 ),
                 headerLeft: () => <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon} />,
@@ -486,7 +543,7 @@ const DrawerNavigator = ({ route }) => {
         )}
       </BottomTab.Screen>
 
-	  {currentUser.userType === 'owner' && (<BottomTab.Screen
+	  {isTabVisible('Dashboard') && (<BottomTab.Screen
         name="Dashboard"
         options={{ headerShown: false, unmountOnBlur: true }}
       >
@@ -509,7 +566,8 @@ const DrawerNavigator = ({ route }) => {
         )}
       </BottomTab.Screen>)}
 	  
-	  <BottomTab.Screen
+	{isTabVisible('Payments') && (
+		<BottomTab.Screen
         name="Payments"
         options={{ headerShown: false, unmountOnBlur: true }}
       >
@@ -530,9 +588,9 @@ const DrawerNavigator = ({ route }) => {
 			  />
 		</Stack.Navigator>
         )}
-      </BottomTab.Screen>
+	</BottomTab.Screen>)}
 	  
-	  <BottomTab.Screen
+	  {isTabVisible('Add Income/Expense') && (<BottomTab.Screen
         name="Add Income/Expense"
         options={{ headerShown: false, unmountOnBlur: true }}
       >
@@ -562,7 +620,7 @@ const DrawerNavigator = ({ route }) => {
 			  />
 		</Stack.Navigator>
         )}
-      </BottomTab.Screen>
+      </BottomTab.Screen>)}
 	
 
       <Stack.Screen
@@ -714,6 +772,8 @@ function getHeaderTitle(route) {
 		return 'Employee List';
 	case 'EmployeeDetail':
 		return 'Employee Details';	
+	case 'RoleConfigScreen':
+		return 'Configure Role Passwords';
   }
 }
 
@@ -731,7 +791,7 @@ function getHeaderTitleDress(route) {
 
 export default function App() {
 
-	  const [sessionLocal, setSessionLocal] = useState(null)
+	const [sessionLocal, setSessionLocal] = useState(null)
 	const [currentUser, setCurrentUser] = useState(null)
     const [loading, setLoading] = useState(false)
 	const { loadDressConfig, isDressConfigLoading } = useDressConfig();
@@ -739,7 +799,7 @@ export default function App() {
     const fetchSession = useCallback(async () => {
 		console.log("in fetchSession");
 		console.log(currentUser)
-        try {
+		try {
 			setLoading(true)
 			const networkState = await Network.getNetworkStateAsync();
 			const isConnected = networkState.isConnected;
@@ -749,6 +809,14 @@ export default function App() {
 				if (localSession) {
 					console.log("Using local session");
 					const parsedSession = JSON.parse(localSession);
+					
+					// Retrieve dynamically assigned userType from storage
+					const storedUserType = storage.getString('userType');
+					if (storedUserType && parsedSession.userData) {
+						parsedSession.userData.userType = storedUserType;
+						console.log('Applied stored userType:', storedUserType);
+					}
+					
 					setSessionLocal(parsedSession);
 					setCurrentUser(parsedSession.userData);
 				} else {
@@ -761,12 +829,12 @@ export default function App() {
 					throw error;
 				}
 				console.log(session)
-			    setSessionLocal(session)
+				setSessionLocal(session)
 				if(session) {
 					console.log('session found in App.js')
 					const { data: data1, error: error1, status } = await supabase
 									.from('profiles')
-									.select(`*`)
+									.select('*')
 									.eq('id', session.user.id)
 									.maybeSingle()
 					if (error1 && status !== 406) {
@@ -775,7 +843,18 @@ export default function App() {
 					} else {
 						console.log(data1)
 						if(data1) {
-							  setCurrentUser(data1);
+							// Retrieve dynamically assigned userType from storage
+							const storedUserType = storage.getString('userType');
+							if (storedUserType) {
+								data1.userType = storedUserType;
+								console.log('Applied stored userType:', storedUserType);
+							} else {
+								console.log('No stored userType found, using DB value or default');
+								// Optional: Set a default role if none exists
+								// data1.userType = data1.userType || 'employee';
+							}
+							
+							setCurrentUser(data1);
 							storage.set(
 								'session',
 								JSON.stringify({
@@ -794,13 +873,13 @@ export default function App() {
 					setSessionLocal(session)
 				})
 			}
-        } catch (error) {
-            Alert.alert("Error!", error.message)
-        } finally {
-            setLoading(false)
-        }
-    }, []);
-	
+		} catch (error) {
+			Alert.alert("Error!", error.message)
+		} finally {
+			setLoading(false)
+		}
+	}, []);
+
 	useEffect(() => {
 		fetchSession()
 		console.log(sessionLocal)

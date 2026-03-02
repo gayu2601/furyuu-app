@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, memo, useCallback } from 'react';
 import { supabase } from '../../constants/supabase';
 import {
   StyleSheet,
@@ -27,20 +27,18 @@ import {
   SelectItem,
   IndexPath,
   Spinner,
-  Modal
+  Modal,
+  useTheme
 } from '@ui-kitten/components';
 import { LinearGradient } from 'expo-linear-gradient';
 import eventEmitter from './eventEmitter';
 import moment from 'moment';
+import DateFilterModal from './DateFilterModal';
 
 const { width, height } = Dimensions.get('window');
 
 const FilterIcon = (props) => (
   <Icon {...props} name='funnel-outline'/>
-);
-
-const CalendarIcon = (props) => (
-  <Icon {...props} name='calendar'/>
 );
 
 const SearchIcon = (props) => (
@@ -64,10 +62,12 @@ const EmptyIcon = (props) => (
 );
 
 const CustomerPaymentPending = () => {
+  const theme = useTheme();
   const [orders, setOrders] = useState(null);
   const [filteredOrders, setFilteredOrders] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
   const [customerFilter, setCustomerFilter] = useState('');
   let a = moment('2025-01-01').format('YYYY-MM-DD');
   let b = moment('2025-12-31').format('YYYY-MM-DD');
@@ -77,6 +77,12 @@ const CustomerPaymentPending = () => {
   let rangeJson = {startDate: new Date(a), endDate: new Date(b)};
   const [range, setRange] = useState(rangeJson);
   const [isDateChanged, setIsDateChanged] = useState(false);
+  const [filterTypeStr, setFilterTypeStr] = useState('This Year');
+	const [filterType, setFilterType] = useState('this-year');
+		
+	const CalendarIcon = (props) => (
+	  <Icon {...props} name='calendar' color={theme['color-primary-500']}/>
+	);
 	
 	useEffect(() => {
 		const getPaymentStatus = async() => {
@@ -124,28 +130,48 @@ const CustomerPaymentPending = () => {
   const [summary, setSummary] = useState({ totalOrders: 0, totalAmount: 0, totalPending: 0 });
 
   // Apply filters
-  const applyFilters = () => {
-	  console.log('applyFilters');
-    if (!orders || orders.length === 0) {
-		console.log('if')
-      setFilteredOrders([]);
-      setSummary({ totalOrders: 0, totalAmount: 0, totalPending: 0 });
-      return;
-    }
-    
-    let filtered = orders.filter(order => {
-      const orderDate = new Date(order.orderDate);
-      const matchesCustomer = customerFilter === '' || 
-        order.custName?.toLowerCase().includes(customerFilter?.toLowerCase());
-      const matchesFromDate = orderDate >= range.startDate;
-      const matchesToDate = orderDate <= range.endDate;
-      
-      return matchesCustomer && matchesFromDate && matchesToDate;
-    });
-	
-    setFilteredOrders(filtered);
-    setSummary(calculateSummary(filtered));
-  };
+  const applyFilters = useCallback(() => {
+	  if (!orders || orders.length === 0) {
+		setFilteredOrders([]);
+		setSummary({ totalOrders: 0, totalAmount: 0, totalPending: 0 });
+		return;
+	  }
+	  
+	  const startTimestamp = range.startDate.getTime();
+	  const endTimestamp = range.endDate.getTime();
+	  const lowerCustomerFilter = customerFilter?.toLowerCase() || '';
+	  const hasCustomerFilter = lowerCustomerFilter !== '';
+	  
+	  // Single pass: filter + calculate summary
+	  const result = orders.reduce(
+		(acc, order) => {
+		  // Early exit if customer filter doesn't match
+		  if (hasCustomerFilter && !order.custName?.toLowerCase().includes(lowerCustomerFilter)) {
+			return acc;
+		  }
+		  
+		  // Parse date to timestamp once
+		  const orderTimestamp = new Date(order.orderDate).getTime();
+		  
+		  // Check date range
+		  if (orderTimestamp >= startTimestamp && orderTimestamp <= endTimestamp) {
+			acc.filtered.push(order);
+			acc.summary.totalOrders += 1;
+			acc.summary.totalAmount += order.orderAmt || 0;
+			acc.summary.totalPending += order.pendingAmt || 0;
+		  }
+		  
+		  return acc;
+		},
+		{ 
+		  filtered: [], 
+		  summary: { totalOrders: 0, totalAmount: 0, totalPending: 0 } 
+		}
+	  );
+	  
+	  setFilteredOrders(result.filtered);
+	  setSummary(result.summary);
+	}, [orders, range.startDate, range.endDate, customerFilter]);
 
   const clearFilters = () => {
 	setIsDateChanged(false);
@@ -367,6 +393,7 @@ const CustomerPaymentPending = () => {
               value={customerFilter}
               onChangeText={setCustomerFilter}
               accessoryRight={SearchIcon}
+			  
               style={styles.customerInput}
               size='small'
             />
@@ -430,12 +457,20 @@ const CustomerPaymentPending = () => {
       </View>
     </Card>
   );
+  
+  const handleApply = (filterData) => {
+		console.log('Filter applied:', filterData);
+		setFilterTypeStr(filterData.filterTypeStr);
+		setFilterType(filterData.filterType);
+		setRange({startDate: new Date(filterData.dateRangeStart), endDate: new Date(filterData.dateRangeEnd)});
+		setFromDate(filterData.dateRangeStart);
+		setToDate(filterData.dateRangeEnd);
+	};
 
   const renderContent = () => {
     if (loading) {
       return (
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {renderFilters()}
           {renderSummary()}
           {renderLoadingState()}
         </ScrollView>
@@ -451,12 +486,51 @@ const CustomerPaymentPending = () => {
       );
     }
 	
-	console.log(orders)
-	console.log(filteredOrders)
+	const handleButtonPress = () => {
+		setModalVisible(true);
+	};
+	
+	const renderCloseIcon = (props) => (
+		<TouchableOpacity onPress={() => setCustomerFilter('')}>
+		  <CloseIcon {...props}/>
+		</TouchableOpacity>
+	  );
+	  
+	const renderSearchIcon = (props) => (
+		<SearchIcon {...props}/>
+	  );
 
     return (
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {renderFilters()}
+        <TouchableOpacity style={styles.dateRangeContainer} onPress={handleButtonPress}>
+			  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+				<Button
+						appearance='ghost'
+						status='basic'
+						accessoryLeft={CalendarIcon}
+						onPress={handleButtonPress}
+						style={{marginLeft: -10}}
+				/>
+				<View>
+					<Text category='s1' style={styles.dateStr}>{filterTypeStr}</Text> 
+					<Text category='s2' style={styles.dateStrText}>{fromDate} <Text style={styles.arrow}>→</Text> {toDate}</Text>
+				</View>
+			  </View>
+				<Icon 
+					name='chevron-down-outline'
+					style={{width: 30, height: 30, marginRight: 10}}
+					fill={theme['color-primary-500']}
+				  />
+		</TouchableOpacity>
+		<View style={styles.customerFilterContainer}>
+            <Input
+              placeholder='Search customer...'
+              value={customerFilter}
+              onChangeText={setCustomerFilter}
+              accessoryRight={customerFilter ? renderCloseIcon : renderSearchIcon}
+              style={styles.customerInput}
+            />
+        </View>
         {renderSummary()}
         
         <Card style={styles.ordersCard}>
@@ -509,6 +583,11 @@ const CustomerPaymentPending = () => {
 		  onReset={resetRange}
 		  isFilter={true}
 	   />
+	   <DateFilterModal 
+			visible={modalVisible}
+			onClose={() => setModalVisible(false)}
+			onApply={handleApply}
+		/>
     </Layout>
   );
 };
@@ -602,7 +681,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   customerFilterContainer: {
-    marginBottom: 16,
+    marginVertical: 10
   },
   customerInput: {
     backgroundColor: 'white',
@@ -811,6 +890,16 @@ const styles = StyleSheet.create({
 	 backdrop: {
 	  backgroundColor: "rgba(0, 0, 0, 0.5)",
 	 },
+	 dateStr: {
+	  fontWeight: 'bold', marginLeft: -5
+	  },
+	  dateStrText: {
+		  marginLeft: -5
+	  },
+	  dateRangeContainer: {flexDirection: 'row', backgroundColor: 'white', justifyContent: 'space-between', alignItems: 'center', borderRadius: 8, height: 70},
+	  arrow: {
+		marginBottom: 2, fontSize: 20, fontWeight: 'bold'
+	  },
 });
 
 export default CustomerPaymentPending;

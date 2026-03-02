@@ -4,6 +4,7 @@ import { ApplicationProvider, Layout, Input, Avatar, Text, Icon, Button, Autocom
 import MasonryList from 'react-native-masonry-list';
 import { AntDesign } from '@expo/vector-icons';
 import { useUser } from '../main/UserContext';
+import { useReadOrderItems } from '../main/ReadOrderItemsContext';
 import * as Notifications from "expo-notifications";
 import { useRoute, useFocusEffect } from "@react-navigation/native";
 import { useNotification } from '../main/NotificationContext';
@@ -142,6 +143,7 @@ const HomeScreenNew = ({ navigation }) => {
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [selIndex, setSelIndex] = useState(0);
   const { currentUser } = useUser();
+  const { getOrders } = useReadOrderItems();
     const [showMultiSelectModal, setShowMultiSelectModal] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
     const [spIndex, setSpIndex] = useState([]);
@@ -238,7 +240,9 @@ const HomeScreenNew = ({ navigation }) => {
       workerDependencies.updateNotificationCount,
       workerDependencies.markNotificationAsRead,
       workerDependencies.notificationCount,
-      handleRemoteLogout
+      handleRemoteLogout,
+	  navigation,
+	  getOrders
     );
 
     worker.start();

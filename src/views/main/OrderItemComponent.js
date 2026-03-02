@@ -8,9 +8,10 @@ import { supabase } from '../../constants/supabase'
 import { usePermissions } from './PermissionsContext';
 import * as MediaLibrary from 'expo-media-library';
 import { showSuccessMessage, showErrorMessage } from './showAlerts';
+import ImageViewComponent from './ImageViewComponent';
 
 const ShareIcon = (props) => <Icon {...props} name='share-outline' />;
-const DownloadIcon = (props) => <Icon {...props} name='download-outline' style={styles.downloadIcon}/>;
+const DownloadIcon = (props) => <Icon {...props} name='download-outline' color='#fff' style={styles.downloadIcon}/>;
 const ChevronDownIcon = (props) => <Icon {...props} name='chevron-down-outline' />;
 const ChevronUpIcon = (props) => <Icon {...props} name='chevron-up-outline' />;
 const PlusIcon = (props) => <Icon {...props} name='plus-outline' />;
@@ -37,9 +38,11 @@ const OrderItemComponent = ({
   const [sleeveFile, setSleeveFile] = useState(null);
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [imgModalVisible, setImgModalVisible] = useState(false);
+  const [imgModalVisible1, setImgModalVisible1] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [currentImages, setCurrentImages] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [expandedSections, setExpandedSections] = useState({
     addons: true,
     slots: false,
@@ -394,9 +397,12 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
               </View>
 			</View>
               {fnFile && (
-                <View style={styles.customImageContainer}>
-                  <Image source={{ uri: fnFile }} style={styles.customImage} />
-                </View>
+                	<TouchableOpacity
+					  style={styles.customImageContainer}
+					  onPress={() => openFullscreen(fnFile)}
+					>
+					  <Image source={{ uri: fnFile }} style={styles.customImage} />
+					</TouchableOpacity>
               )}
           </View>
 
@@ -409,9 +415,12 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
               </View>
 			</View>
               {bnFile && (
-                <View style={styles.customImageContainer}>
+                <TouchableOpacity 
+					  style={styles.customImageContainer}
+					  onPress={() => openFullscreen(bnFile)}
+				>
                   <Image source={{ uri: bnFile }} style={styles.customImage} />
-                </View>
+                </TouchableOpacity>
               )}
           </View>
 
@@ -424,9 +433,12 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
               </View>
 			</View>
               {sleeveFile && (
-                <View style={styles.customImageContainer}>
+                <TouchableOpacity 
+					  style={styles.customImageContainer}
+					  onPress={() => openFullscreen(sleeveFile)}
+				>
                   <Image source={{ uri: sleeveFile }} style={styles.customImage} />
-                </View>
+                </TouchableOpacity>
               )}
           </View>
 
@@ -760,18 +772,25 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
 		backdropStyle={styles.backdrop}
         onBackdropPress={closeModal}
       >
-        <Card>
+        <Card disabled={true}>
           <List
             data={currentImages}
             renderItem={({ item, index }) => (
-              <ListItem>
+              <ListItem style={{
+				width: screenWidth * 0.95,
+				height: screenHeight,          
+				padding: 0,
+				marginHorizontal: -15,
+			  }}
+			  disabled={true}
+			>
 				<TouchableOpacity 
 					style={styles.closeButton} 
 					onPress={() => setModalVisible(false)}
 				  >
-					<Icon style={styles.closeIcon} name="close-outline" color={theme["color-primary-500"]}/>
+					<Icon style={styles.closeIcon} name="close-outline" color='#fff'/>
 				</TouchableOpacity>
-                <Image source={{ uri: item }} style={styles.carouselImage} />
+                <ImageViewComponent imageUri={item} />
                 {!isBag && <Button
                   style={styles.shareButton}
                   appearance="ghost"
@@ -782,39 +801,30 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
             )}
             horizontal
             keyExtractor={(item, index) => index.toString()}
+			pagingEnabled
+			showsHorizontalScrollIndicator={false}
+			onScroll={(event) => {
+				const slideIndex = Math.round(event.nativeEvent.contentOffset.x / screenWidth);
+				setCurrentIndex(slideIndex);
+			}}
           />
+		{currentImages.length > 1 && (
+		  <View style={styles.paginationContainer}>
+			{currentImages.map((_, index) => (
+			  <View
+				key={index}
+				style={[
+				  styles.paginationDot,
+				  index === currentIndex && styles.paginationDotActive
+				]}
+			  />
+			))}
+		  </View>
+		)}
+
         </Card>
       </Modal>
-	      <Modal
-			visible={imgModalVisible}
-			backdropStyle={styles.backdrop}
-			onBackdropPress={closeFullscreen}
-			style={styles.fullScreenModal}
-		  >
-			<Card>
-			    <TouchableOpacity 
-					style={styles.closeButton} 
-					onPress={closeFullscreen}
-				  >
-					<Icon style={styles.closeIcon} name="close-outline" color={theme["color-primary-500"]}/>
-				</TouchableOpacity>
-			  {fullscreenImage && (
-				<>
-					<Image
-					  source={{ uri: fullscreenImage }}
-					  style={styles.carouselImage}
-					  resizeMode="contain"
-					/>
-					{!isBag && <Button
-					  style={styles.shareButton}
-					  appearance="ghost"
-					  accessoryLeft={DownloadIcon}
-					  onPress={() => downloadImage(fullscreenImage)}
-					/>}
-				</>
-			  )}
-			</Card>
-		  </Modal>
+		<ImageViewComponent imageUri={fullscreenImage} modalVisible={imgModalVisible} closeModal={closeFullscreen}  useInternalModal={true} downloadImage={downloadImage}/>
     </View>
   );
 };
@@ -1320,21 +1330,14 @@ const styles = StyleSheet.create({
   backdrop: {
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  carouselImage: {
-    width: 300,
-    height: screenHeight * 0.9,
-    resizeMode: 'contain',
-    borderRadius: 8,
-  },
   shareButton: {
     position: 'absolute',
-	top: 0,
-	right: 45,
-	backgroundColor: 'rgba(0, 0, 0, 0.2)',
+	top: 35,
+	right: 75,
   },
   downloadIcon: {
-	  width: 20,
-	  height: 20
+	  width: 30,
+	  height: 30
   },
   measurementStatusContainer: {
     marginBottom: 16,
@@ -1415,16 +1418,15 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     position: 'absolute',
-    top: 5,
-    right: 5,
+    top: 40,
+    right: 40,
     zIndex: 1,
     padding: 5,
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
     borderRadius: 25,
   },
   closeIcon: {
-	width: 20,
-	height: 20
+	width: 30,
+	height: 30
   },
   fullscreenImage: {
     width: 300,
@@ -1441,7 +1443,30 @@ const styles = StyleSheet.create({
 	},
 	measText: {marginBottom: 5, marginTop: 10},
 	heading: {marginBottom: 10, fontWeight: 'bold'},
-	topView: {marginTop: 5}
+	topView: {marginTop: 5},
+	paginationContainer: {
+	  position: 'absolute',
+	  bottom: 100,
+	  width: '100%',
+	  flexDirection: 'row',
+	  justifyContent: 'center',
+	  alignItems: 'center',
+	  marginLeft: 20
+	},
+	paginationDot: {
+	  width: 8,
+	  height: 8,
+	  borderRadius: 4,
+	  backgroundColor: 'blue',
+	  marginHorizontal: 4,
+	  backgroundColor: 'rgba(0, 0, 0, 0.2)', 
+	},
+	paginationDotActive: {
+	  backgroundColor: 'blue',
+	  width: 10,
+	  height: 10,
+	  borderRadius: 5,
+	},
 });
 
 export default OrderItemComponent;

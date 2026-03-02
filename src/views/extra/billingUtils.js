@@ -71,7 +71,6 @@ export const checkBillingReminders = async() => {
               { 
                 orderNo: order.orderNo,
                 type: 'billing_reminder',
-                screen: 'OrderDetails',
                 daysInBilling
               }
             );

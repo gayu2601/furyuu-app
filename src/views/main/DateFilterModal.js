@@ -16,38 +16,52 @@ const DateFilterModal = ({ visible, onClose, onApply }) => {
   const options = [
     { title: 'This year', value: 'this-year' },
     { title: 'This month', value: 'this-month' },
+    { title: 'Last month', value: 'last-month' },
     { title: 'Last year', value: 'last-year' },
     { title: 'Custom date range', value: 'custom' }
   ];
+  
+  const getDateRange = (filterType) => {
+	  let start, end;
+	  
+	  switch (filterType) {
+		case 'this-year':
+		  start = moment().startOf("year").utcOffset(5.5);
+		  end = moment(); // Current date
+		  break;
+		  
+		case 'this-month':
+		  start = moment().startOf("month");
+		  end = moment().endOf("month");
+		  break;
+		  
+		case 'last-month':
+		  start = moment().subtract(1, "month").startOf("month");
+		  end = moment().subtract(1, "month").endOf("month");
+		  break;
+		  
+		case 'last-year':
+		default:
+		  start = moment().subtract(1, "year").startOf("year").utcOffset(5.5);
+		  end = moment().subtract(1, "year").endOf("year").utcOffset(5.5);
+		  break;
+	  }
+	  
+	  return {
+		start: start.format("YYYY-MM-DD"),
+		end: end.format("YYYY-MM-DD")
+	  };
+	};
 
   const handleSelect = (index) => {
     setSelectedIndex(index);
 	if(options[index].value === 'custom') {
 		setShowDatePicker(true);
 	} else {
-      if (options[index].value === 'this-year') {
-        const currentYear = moment();
-		const firstDay = currentYear.startOf("year").utcOffset(5.5).format("YYYY-MM-DD");
-		//const lastDay = currentYear.endOf("year").utcOffset(5.5).format("YYYY-MM-DD");
-		const lastDay = moment(new Date()).format('YYYY-MM-DD');
-		setDateRangeStart(firstDay);
-		setDateRangeEnd(lastDay);
-        setDateRange(`${firstDay} to ${lastDay}`);
-      } else if (options[index].value === 'this-month') {
-        const now = moment();
-		const firstDay = now.startOf("month").format("YYYY-MM-DD");
-		const lastDay = now.endOf("month").format("YYYY-MM-DD");
-		setDateRangeStart(firstDay);
-		setDateRangeEnd(lastDay);
-        setDateRange(`${firstDay} to ${lastDay}`);
-      } else {
-		const lastYear = moment().subtract(1, "year");
-		const firstDay = lastYear.startOf("year").utcOffset(5.5).format("YYYY-MM-DD");
-		const lastDay = lastYear.endOf("year").utcOffset(5.5).format("YYYY-MM-DD");
-		setDateRangeStart(firstDay);
-		setDateRangeEnd(lastDay);
-        setDateRange(`${firstDay} to ${lastDay}`);
-      }
+		const { start, end } = getDateRange(options[index].value);
+		setDateRangeStart(start);
+		setDateRangeEnd(end);
+		setDateRange(`${start} to ${end}`);
 	}
   };
 

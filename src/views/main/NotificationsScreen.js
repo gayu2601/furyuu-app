@@ -3,9 +3,12 @@ import { StyleSheet, View, BackHandler, TouchableOpacity } from "react-native";
 import { Text, Layout, List, ListItem, Input, Button, Divider, Icon, useTheme } from '@ui-kitten/components';
 import moment from 'moment';
 import { useUser } from '../main/UserContext';
+import { useReadOrderItems } from '../main/ReadOrderItemsContext';
 import { useNotification } from '../main/NotificationContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../../constants/supabase';
+import { useNavigation } from '@react-navigation/native';
+import { showErrorMessage } from '../main/showAlerts';
 
 const CloseIcon = React.memo((props) => <Icon {...props} name='close-outline'/>);
 const SearchIcon = React.memo((props) => <Icon {...props} name='search-outline'/>);
@@ -13,6 +16,7 @@ const SearchIcon = React.memo((props) => <Icon {...props} name='search-outline'/
 // Memoized NotificationItem component
 const NotificationItem = memo(({ item, index, onPress, theme }) => {
   const itemKey = `${index}-${item.notificationRead}`;
+  const { navigation } = useNavigation();
   
   return (
     <ListItem 
@@ -48,6 +52,7 @@ const NotificationItem = memo(({ item, index, onPress, theme }) => {
 
 const NotificationsScreen = ({ navigation }) => {
   const { notifications, searchQuery, searchNotifications, markNotificationAsRead, hasMore, fetchNotifications } = useNotification();
+  const { getOrders } = useReadOrderItems();
   //const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const { currentUser } = useUser();
@@ -81,9 +86,31 @@ const NotificationsScreen = ({ navigation }) => {
   const handleNotifPress = useCallback(async(notifItem, index) => {
 	  console.log('in handleNotifPress')
 	  console.log(notifItem);
-    if(!notifItem.notificationRead) {
-		markNotificationAsRead(currentUser, notifItem.id)
-	};
+	  if(!notifItem.notificationRead) {
+			markNotificationAsRead(currentUser, notifItem.id)
+	  };
+	  let oo = notifItem.notificationData.orderNo || notifItem.notificationData.order.orderNo
+	  	const allOrders = getOrders('all', null);
+		//console.log('allOrders', allOrders);
+		const thisOrder = allOrders.find(
+		  o => o.orderNo === oo
+		);
+		console.log(oo);
+
+		console.log(thisOrder);
+
+		if(thisOrder) {
+			console.log(thisOrder);
+			navigation.navigate('OrderDetailsMain', {screen: 'OrderDetails',
+					params: {
+						item: thisOrder,
+						orderDate: moment(thisOrder.orderDate).format('DD-MM-YYYY'),
+						isShareIntent: false
+					}
+			});
+		} else {
+			showErrorMessage('No order details found for this order!');
+		}
   }, []);
 
   const renderItem = useCallback(({ item, index }) => {

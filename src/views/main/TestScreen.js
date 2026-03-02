@@ -84,6 +84,7 @@ const TestScreen = ({ route }) => {
 
     const { addItemContext, addItemBatchContext, getItems, addPicItem, resetItemsForLabel, saveOrder, getNewOrderCust, setNewOrderCust } = useOrderItems();
 	const { prevOrderNo, setPrevOrderNo } = useReadOrderItems();
+	const [localOrderNo, setLocalOrderNo] = useState(prevOrderNo + 1);
     const custDetails = useMemo(() => getNewOrderCust(), [getNewOrderCust]);
 	const routeParams = route?.params ?? {};
 	
@@ -148,7 +149,7 @@ const TestScreen = ({ route }) => {
 			  let ph = routeParams.phoneNo.includes('+91') ? routeParams.phoneNo.substring(3) : routeParams.phoneNo
 			  setPhoneNo(ph)
 			  //setInputDisabled(false)
-			  saveOrder([], {custName: '', phoneNo: '', occasion: '', custInserted: false})
+			  saveOrder([], {custName: '', phoneNo: '', occasion: '', custInserted: false, orderNo: 0})
 			  resetItemsForLabel()
 			  resetIdCounter()
 		  }
@@ -183,6 +184,7 @@ const TestScreen = ({ route }) => {
 		if(prevOn) {
 			console.log('got from cache', prevOn);
 			setPrevOrderNo(Number(prevOn));
+			setLocalOrderNo(Number(prevOn + 1));
 		} else {
 			try {
 			  const { data, error } = await supabase
@@ -195,6 +197,7 @@ const TestScreen = ({ route }) => {
 				console.log('setting prevOrderNo', data[0].orderNo);
 				storage.set('prevOrderNo', data[0].orderNo);
 				setPrevOrderNo(data[0].orderNo);
+				setLocalOrderNo(Number(data[0].orderNo + 1));
 			  }
 			} catch (err) {
 			  console.error("Error fetching max orderNo:", err);
@@ -316,7 +319,7 @@ const TestScreen = ({ route }) => {
 	  useEffect(() => {
 		// Define your background callback function
 		const handleAppGoingToBackground = async () => {
-		  console.warn('App is going to background from YourScreen');
+		  console.log('App is going to background from TestScreen');
 		  saveAllLocalStates();
 			addItemBatchContext(itemKey, localItems);
 
@@ -538,7 +541,22 @@ const TestScreen = ({ route }) => {
 	const saveCustDetails = async() => {
 		console.log('in saveCustDetails')
 		const phNo = phoneNo.includes('+91') ? phoneNo : '+91' + phoneNo;
-				//if(dob || anniversary || location || profession || awarenessSource) {
+		const { data: existingCustomer } = await supabase
+		  .from('Customer')
+		  .select('*')
+		  .eq('phoneNo', phNo)
+		  .maybeSingle();
+
+		if (existingCustomer) {
+		  setNewOrderCust({
+				custName: custName, 
+				phoneNo: phNo, 
+				occasion: occasion,
+				custInserted: false
+			});
+			setCustomerData(existingCustomer);
+			setCustomerDataFound(true);
+		} else {
 					const { data, error } = await supabase
 					  .from('Customer')
 					  .upsert({ custName: custName, phoneNo: phNo, dob: formatDate(dob), anniversary: formatDate(anniversary), location: location, profession: profession, awareness_source: awarenessSource }, { onConflict: 'phoneNo' }).select().single();
@@ -557,7 +575,7 @@ const TestScreen = ({ route }) => {
 					});
 					setCustomerData(data);
 					setCustomerDataFound(true);
-				//}
+		}
 	}
 	
 	const renderNewCustomerFields = () => {
@@ -813,7 +831,9 @@ const TestScreen = ({ route }) => {
 				repeatMeas: true,
 				extraOptions: {},
 				slotDates: [],
-				slots: {}
+				slots: {},
+				savedDesign: false,
+				savedMeas: false
 			  };
 			  
 			  console.log("newItem if: ", newItem);
@@ -859,7 +879,9 @@ const TestScreen = ({ route }) => {
 				repeatMeas: false,
 				extraOptions: {},
 				slotDates: [],
-				slots: {}
+				slots: {},
+				savedDesign: false,
+				savedMeas: false
 			  };
 			  
 			  console.log("newItem else: ", newItem);
@@ -961,7 +983,7 @@ const TestScreen = ({ route }) => {
 					console.log('itemKey: ' + itemKey)
 					addItemBatchContext(itemKey, updatedItems);
 					resetItemsForLabel(itemKey)
-					saveOrder(updatedItems, {custName: custName, phoneNo: phNo, occasion: occasion, custInserted: custInserted});
+					saveOrder(updatedItems, {custName: custName, phoneNo: phNo, occasion: occasion, custInserted: custInserted, orderNo: localOrderNo});
 					showSuccessMessage("Item added!");
 					setLocalItems([]);
 					setLocalCount(1)
@@ -1119,7 +1141,9 @@ const TestScreen = ({ route }) => {
 				repeatMeas: true,
 				extraOptions: {},
 				slotDates: [],
-				slots: {}
+				slots: {},
+				savedDesign: false,
+				savedMeas: false
 			  };
 			  
 			  console.log("newItem:", newItem);
@@ -1172,6 +1196,22 @@ const TestScreen = ({ route }) => {
 	}
 	
 	const handleNextStep = async() => {
+		console.log('localOrderNo', localOrderNo);
+			const { count, error } = await supabase
+				.from('OrderItems')
+				.select('*', { count: 'exact', head: true })
+				.eq('orderNo', localOrderNo);
+			  
+			  if (error) {
+				console.error('Error checking order number:', error);
+				throw error;
+			  }
+			  console.log('in handleNextStep', count)
+			if(count > 0) {
+				showErrorMessage('Order already exists with entered order no!');
+				return;
+			}
+			
 			if(custName.trim() === '') {
 				setCustNameError(true);
 			} else if(phoneNo.trim() === '') {
@@ -1267,13 +1307,13 @@ const TestScreen = ({ route }) => {
 		sleeveDesignFile: item.sleeveDesignFile,
 		extraMeasurements: item.extraMeasurements,
 		slotDates: item.slotDates,
-		slots: item.slots
+		slots: item.slots,
+		savedDesign: item.savedDesign,
+		savedMeas: item.savedMeas,
 	  });
 
 	  const [isPricingExpanded, setIsPricingExpanded] = useState(false);
 	  const [isAddonsExpanded, setIsAddonsExpanded] = useState(true);
-	  const [savedDesign, setSavedDesign] = useState(false);
-	    const [savedMeas, setSavedMeas] = useState(false);
 	    const [selectedItemDesign, setSelectedItemDesign] = useState(null);
 	    const [selectedItem, setSelectedItem] = useState(null);
 	const [showMeas, setShowMeas] = useState(false);
@@ -1290,6 +1330,7 @@ const TestScreen = ({ route }) => {
 	const [showDesign, setShowDesign] = useState(false);
 	const [selectedIndexSubType, setSelectedIndexSubType] = useState(new IndexPath(0));
 	const [selectedIndexPants, setSelectedIndexPants] = useState(new IndexPath(0));
+	const [showMeasurements, setShowMeasurements] = useState(true);
 	
 	useFocusEffect(
 	  useCallback(() => {
@@ -1343,7 +1384,9 @@ const TestScreen = ({ route }) => {
 		  deliveryType: item.deliveryType,
 		  expressDuration: item.expressDuration,
 		  slotDates: item.slotDates,
-		  slots: item.slots
+		  slots: item.slots,
+		  savedDesign: item.savedDesign,
+		  savedMeas: item.savedMeas
 		});
 	  }, [item.id]); // Only update when item ID changes, not on every item change
 
@@ -1541,7 +1584,8 @@ const TestScreen = ({ route }) => {
 			  if(picType === 'measurementPics') {
 				const updItem = { ...selectedItem, measurementPics: [...(selectedItem.measurementPics || []), source.uri], };
 				setSelectedItem(updItem);
-				setSavedMeas(true);
+				updateLocalState('savedMeas', true);
+				appStateManager.setImagePickerActive(false);
 			  }
 			}
 		} else {
@@ -1581,7 +1625,8 @@ const TestScreen = ({ route }) => {
 				console.log('updItem:')
 				console.log(updItem)
 				setSelectedItem(updItem);
-				setSavedMeas(true);		  
+				updateLocalState('savedMeas', true);	
+				appStateManager.setImagePickerActive(false);				
 			  }
 			}
 		} else {
@@ -1753,7 +1798,7 @@ const TestScreen = ({ route }) => {
   const onCheckedChange = (isChecked) => {
 	  const updItem = { ...selectedItem, dressGiven: isChecked };
 		setSelectedItem(updItem);
-		setSavedMeas(true);
+		updateLocalState('savedMeas', true);
 		updateLocalState('dressGiven', isChecked);
 	};
 	
@@ -1887,7 +1932,7 @@ const TestScreen = ({ route }) => {
 								onChange={(index) => {
 									const updatedItemDesign = { ...selectedItemDesign, sleeveType: sleeveOptions[index] === 'Draw design' ? 'Custom' : sleeveOptions[index] };
 									setSelectedItemDesign(updatedItemDesign);
-									setSavedDesign(true);
+									updateLocalState('savedDesign', true)
 									handleSelectSleeve(index)
 								}}
 							  >
@@ -1932,7 +1977,7 @@ const TestScreen = ({ route }) => {
 								onChange={(index) => {
 									const updatedItemDesign = { ...selectedItemDesign, sleeveLength: sleeveLenOptions[index] };
 									setSelectedItemDesign(updatedItemDesign);
-									setSavedDesign(true);
+									updateLocalState('savedDesign', true)
 									handleSelectSleeveLen(index)
 								}}
 							  >
@@ -1969,7 +2014,7 @@ const TestScreen = ({ route }) => {
 	  const updatedItemDesign = { ...selectedItemDesign, [fieldName]: value };
 	  console.log(updatedItemDesign);
 	  setSelectedItemDesign(updatedItemDesign);
-	  setSavedDesign(true);
+	  updateLocalState('savedDesign', true)
 	  updateLocalState(fieldName, value)
 	  if(fieldName.includes('DesignFile') || value === 'Custom') {
 		updateItem(selectedItemDesign.id, fieldName, value);
@@ -1981,7 +2026,7 @@ const TestScreen = ({ route }) => {
 									console.log('onPress selectedItem.extraMeasurements:')
 									console.log(selectedItem.extraMeasurements);
 									if(selectedItem.extraMeasurements?.length > 0) {
-										setSavedMeas(true);
+										updateLocalState('savedMeas', true);
 										let aMeas = handleSaveMeas();
 										console.log('aMeas:')
 										console.log(aMeas);
@@ -2043,21 +2088,55 @@ const renderSlotSummary = (slots) => {
 		  console.log('in renderMeasurementsModal', fields)
 		  return (
 				<Modal style={styles.fullScreenModalMeas} visible={showMeas} backdropStyle={styles.backdrop} onBackdropPress={() => setShowMeas(false)}>
-				<KeyboardAvoidingView>
-							  <Layout style={styles.tabContent}>
-								<View style={styles.fieldContainerDG}>
-									<Text category='label' >Measurement Dress Given</Text>
-									<CheckBox
-									  checked={selectedItem.dressGiven}
-									  onChange={(isChecked) => {
-												  onCheckedChange(isChecked)
-										}}
-									/>
-								</View>
-							<View style={{ marginLeft: -10, marginTop: 10 }}>
-							  <Text category='h6' style={{ marginBottom: 10 }}>
-								Measurement Pics:
-							  </Text>
+					<Layout style={styles.tabContent}>
+						<ScrollView
+						   style={styles.scrollView}
+						   contentContainerStyle={styles.scrollViewContent}
+						   showsVerticalScrollIndicator={true}
+						   persistentScrollbar={true}
+						   bounces={false}
+						   nestedScrollEnabled={true}
+						   keyboardShouldPersistTaps="handled"
+						>
+							<Text category='h6' style={{ marginLeft: -10, marginBottom: 16 }}>
+							 Measurement Dress
+							</Text>
+							
+							<View style={[styles.fieldContainerDG, { paddingVertical: 8 }]}>
+								<Text category='label'>Measurement Dress Given</Text>
+								<CheckBox
+									checked={selectedItem.dressGiven}
+									onChange={(isChecked) => {
+									onCheckedChange(isChecked)
+									}}
+								/>
+							</View>
+							<View style={{ marginVertical: 12, alignItems: 'center' }}>
+							 <View style={{
+							   position: 'absolute',
+							   width: '100%',
+							   height: 1,
+							   backgroundColor: '#E4E9F2',
+							   top: '50%'
+							 }} />
+							 <Text
+							   category='c1'
+							   style={{
+								backgroundColor: '#FFFFFF',
+								paddingHorizontal: 12,
+								color: '#8F9BB3',
+								fontWeight: '500'
+							   }}
+							 >
+							   OR
+							 </Text>
+							</View>
+							
+							<View style={{ marginVertical: 16 }}>
+							 <Text category='h6' style={{ marginLeft: -10, marginBottom: 12 }}>
+							   Upload Measurement Pics
+							 </Text>
+
 							  {selectedItem.measurementPics?.length > 0 ? (
 								<ScrollView 
 									horizontal 
@@ -2111,24 +2190,51 @@ const renderSlotSummary = (slots) => {
 								  </Button>
 							  )}
 							</View>
-							<Divider/>
-							<Text category='h6' style={{marginLeft: -15, marginTop: 10}}> Measurements: </Text>
-								<ScrollView style={styles.scrollView}
-								  contentContainerStyle={styles.scrollViewContent}
-								  showsVerticalScrollIndicator={true}
-								  persistentScrollbar={true}
-								  bounces={false}
-								  nestedScrollEnabled={true}
-								  keyboardShouldPersistTaps="handled"
-								>							
+							
+						<View style={{ marginVertical: 12, alignItems: 'center' }}>
+						 <View style={{
+						   position: 'absolute',
+						   width: '100%',
+						   height: 1,
+						   backgroundColor: '#E4E9F2',
+						   top: '50%'
+						 }} />
+						 <Text
+						   category='c1'
+						   style={{
+							backgroundColor: '#FFFFFF',
+							paddingHorizontal: 12,
+							color: '#8F9BB3',
+							fontWeight: '500'
+						   }}
+						 >
+						   OR
+						 </Text>
+						</View>
+						
+						<TouchableOpacity
+						 style={[styles.collapseHeader, {
+						   paddingVertical: 12,
+						   paddingHorizontal: 4,
+						   marginHorizontal: -10,
+						   marginBottom: 8
+						 }]}
+						 onPress={() => setShowMeasurements(prev => !prev)}
+						>
+						 <Text category="h6" style={{ marginLeft: -5 }}>
+						   Measurements {showMeasurements ? '▲' : '▼'}
+						 </Text>
+						</TouchableOpacity>
+						
+						{showMeasurements && (
+						<>						
 					{fields.map((field) => (
 							<View key={field.key} style={styles.fieldContainer2}>
-							  <Text category='label'>
+							  <Text category='label' style={[styles.labelText1, { fontSize: 14, fontWeight: '500' }]}>
 								{field.key}
-								{field.required && <Text style={{color: 'red'}}> *</Text>}
 							  </Text>
 							  <Input
-								style={{width: 60}}
+								style={{width: 80}}
 								autoCapitalize='none'
 								keyboardType='numeric'
 								value={selectedItem.measurementData?.[field.key]?.toString() || ''}
@@ -2143,7 +2249,7 @@ const renderSlotSummary = (slots) => {
 									measurementData: updatedMeasurementData 
 								  };
 								  updateLocalState('measurementData', updatedMeasurementData);
-								  setSavedMeas(true);
+								  updateLocalState('savedMeas', true);
 								  setSelectedItem(updItem);
 								}}
 							  />
@@ -2158,7 +2264,7 @@ const renderSlotSummary = (slots) => {
 									size='small'
 									value={pair.name}
 									onChangeText={(newValue) => {
-									  setSavedMeas(true);
+									  updateLocalState('savedMeas', true);
 									  updateMeasurement(index, 'name', newValue);
 									}}
 								  />
@@ -2166,20 +2272,19 @@ const renderSlotSummary = (slots) => {
 									placeholder="Size"
 									autoCapitalize='none'
 									size='small'
-									style={{width: 60}}
+									style={{width: 80}}
 									keyboardType='numeric'
 									value={pair.value}
 									onChangeText={(newValue) => {
-									  setSavedMeas(true);
+									  updateLocalState('savedMeas', true);
 									  updateMeasurement(index, 'value', newValue);
 									}}
 								  />
 							</View>
 					))}
-
-				</ScrollView>
-						  
-								  <View style={styles.buttonTextContainer}>
+					</>
+				)}
+            <View style={styles.buttonTextContainer}>
 										<Button
 											  appearance='ghost'
 											  size='large'
@@ -2191,17 +2296,22 @@ const renderSlotSummary = (slots) => {
 											  )}
 
 											</Button>
-								  </View>
-
-								<View style={{alignItems: 'center'}}>
-									<Button size='small' onPress={saveAllMeas}
-									>
-										Save
-									</Button>
-								</View>
-							  </Layout>
-							</KeyboardAvoidingView>
-						  </Modal>
+			</View>
+			</ScrollView>
+            
+			<View style={styles.buttonGroup}>
+             <Button
+               size='small'
+               onPress={saveAllMeas}
+             >
+               Save
+             </Button>
+             <Button size='small' appearance='outline' onPress={() => setShowMeas(false)}>
+               Cancel
+             </Button>
+            </View>
+			</Layout>
+		</Modal>
 	)}
 	
 	const navigateToSlotScreen = () => {
@@ -2302,13 +2412,13 @@ const renderSlotSummary = (slots) => {
 			  )}
 			</Layout>
 			
-			<Layout style={styles.dateContainer}>
+			{currentUser.userType === 'admin' && <Layout style={styles.dateContainer}>
 					<Layout style={styles.innerLayout}>
 						<Icon name='calendar-outline' style={styles.icon} fill={theme['color-primary-500']}/>
 						<Text category='s1' style={{marginLeft: 6}}>Slots</Text>
 					</Layout>
 					<Button size='small' onPress={navigateToSlotScreen}>{Object.keys(item.slots).length > 0 ? 'Edit slots' : 'Select slots'}</Button>
-			</Layout>
+			</Layout>}
 			{Object.keys(item.slots).length > 0 && renderSlotSummary(item.slots)}
 			
 			{/* Date Container */}
@@ -2358,7 +2468,7 @@ const renderSlotSummary = (slots) => {
 				  style={{marginRight: 5}}
 				  onPress={handleDesignEdit}
 				>
-				  {savedDesign ? 'Updated': 'Edit'}
+				  {localState.savedDesign ? 'Updated': 'Edit'}
 				</Button>
 			  </Layout>
 			)}
@@ -2397,7 +2507,7 @@ const renderSlotSummary = (slots) => {
 					style={{marginRight: 5}}
 					onPress={handleMeasurementEdit}
 				  >
-					{savedMeas ? 'Updated' : 'Edit'}
+					{localState.savedMeas ? 'Updated' : 'Edit'}
 				  </Button>
 				</Layout>
 			  </ScrollView>
@@ -2698,14 +2808,18 @@ const renderSlotSummary = (slots) => {
 			  Keyboard.dismiss(); // Close keyboard when tapping outside
 		  }}>
 		  <View>
-			<View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
-				<Text category='h6' style={styles.title}>Customer Details</Text>
-				<Text style={styles.title}>Prev. Order: #{prevOrderNo}</Text>
-			</View>
+			<Text category='h6' style={styles.title}>Customer Details</Text>
 			<Card style={styles.card} status="primary">
 			  <Input
+					style={{ width: '100%' }}
+					label="Current Order No"
+					keyboardType="numeric"
+					value={localOrderNo.toString()}
+					onChangeText={(text) => {setLocalOrderNo(Number(text)); setPrevOrderNo(Number(text));}}
+				/>
+			  <Input
 				status={(phoneError || phoneErrorValid) ? 'danger' : 'basic'}
-				style={{ width: '100%' }}
+				style={{ width: '100%', marginTop: 10 }}
 				label="Customer Phone Number *"
 				keyboardType="phone-pad"
 				accessoryRight={renderContactsIcon}
@@ -3130,6 +3244,12 @@ const styles = StyleSheet.create({
 	marginLeft: -10,
 	alignItems: 'center'
   },
+  labelText1: {
+	  width: 180,
+	  marginRight: 8,
+	  marginTop: 5,
+	  flexWrap: 'wrap',
+	},
   fieldContainerDG: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -3760,7 +3880,8 @@ const styles = StyleSheet.create({
 	marginHorizontal: 100
   },
   celebrationTitle: {marginBottom: 8},
-  pantsTypeField: {marginTop: 10}
+  pantsTypeField: {marginTop: 10},
+  buttonGroup: {flexDirection: 'row', gap: 20, marginTop: 10, marginHorizontal: 60}
 });
 
 export default TestScreen;

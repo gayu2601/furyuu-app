@@ -35,7 +35,7 @@ const CustomDesign = () => {
   const handleOK = (signature) => {
     //console.log(signature);
 	console.log('in handleOK')
-	const uniqueName = `sign_${Date.now()}.png`;
+	const uniqueName = `sign_${Date.now()}.png`; 
 		const path = FileSystem.cacheDirectory + uniqueName;
 		  FileSystem.writeAsStringAsync(
 			path,

@@ -114,8 +114,7 @@ const IncomeExpenseHistoryScreen = ({ navigation }) => {
   };
 
   useEffect(() => {
-	eventEmitter.on('transactionAdded', fetchTransactions);
-    fetchTransactions();
+	fetchTransactions();
 	const subscription = supabase
 	  .channel('income-expense-changes')
 	  .on(
@@ -144,7 +143,6 @@ const IncomeExpenseHistoryScreen = ({ navigation }) => {
 	
 	return () => {
         // Cleanup listener
-        eventEmitter.off('transactionAdded', fetchTransactions);
 		subscription.unsubscribe();
     };
   }, [dateFilterActive, range.startDate, range.endDate]);

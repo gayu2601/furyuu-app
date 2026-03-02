@@ -53,15 +53,24 @@ const DashboardCard = () => {
 			
 			// Process orders based on their status
 			if (key === "Completed_false") {
-			  // Count orders with future due dates
-			  const ordersWithFutureDueDates = orders.filter(order =>
-				order.orderDate >= oneMonthAgo && order.dueDate?.every(dueDate => dueDate === null || dueDate >= currentDate)
-			  ).length;
+			  // Single pass through orders - filter and count in one iteration
+			  let ordersWithFutureDueDates = 0;
+			  let ordersWithPastDueDates = 0;
 			  
-			  // Count overdue orders
-			  const ordersWithPastDueDates = orders.filter(order =>
-				order.orderDate >= oneMonthAgo && order.dueDate?.some(dueDate => dueDate < currentDate)
-			  ).length;
+			  for (const order of orders) {
+				// Skip cancelled orders
+				if (order.orderStatus === 'Cancelled') continue;
+				
+				// Skip orders outside date range
+				if (order.orderDate < oneMonthAgo) continue;
+				
+				// Check if overdue
+				if (order.dueDate?.some(dueDate => dueDate < currentDate)) {
+				  ordersWithPastDueDates++;
+				} else if (order.dueDate?.every(dueDate => dueDate === null || dueDate >= currentDate)) {
+				  ordersWithFutureDueDates++;
+				}
+			  }
 			  
 			  // Update counters
 			  totalOverdueOrders += ordersWithPastDueDates;

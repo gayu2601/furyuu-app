@@ -29,10 +29,11 @@ const ProfileScreen = () => {
 	const data = [
 	  { title: 'New Employee Onboarding', icon: 'person-outline', key: 'newEmployee', onPress: () => navigation.navigate('EmployeeOnboardingForm') },
 	  { title: 'Employee List', icon: 'list-outline', key: 'employeeList', onPress: () => navigation.navigate('EmployeeList') },
+	  { title: 'Configure Role Passwords', icon: 'keypad-outline', key: 'rolePasswords', onPress: () => navigation.navigate('RoleConfigScreen') },
 	  { title: 'Log Out', icon: 'log-out-outline', key: 'logout', onPress: () => logoutAlert() }
 	];
 	
-	const filteredData = currentUser.userType === 'worker' ? data.filter(item => item.key === 'logout') : data;
+	const filteredData = currentUser.userType !== 'admin' ? data.filter(item => item.key === 'logout') : data;
 
 	useEffect(() => {
 		if(!isConnected) {
@@ -47,11 +48,17 @@ const ProfileScreen = () => {
 			try {
 				setLoading(true);
 
-				saveOrder([], {custName: '', phoneNo: '', occasion: ''});
+				saveOrder([], {custName: '', phoneNo: '', occasion: '', custInserted: false, orderNo: 0});
 				resetItemsForLabel();
 				resetIdCounter();
 				
 				await checkAndDeleteSession();
+				
+				storage.delete('session');
+				storage.delete('userType');
+				storage.delete('Customers');
+				storage.delete('Employees');
+				
 				const {error: error3} = await supabase
 						.from('profiles')
 						.update({pushToken: null})

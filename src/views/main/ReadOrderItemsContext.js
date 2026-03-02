@@ -104,10 +104,12 @@ export const ReadOrderItemsProvider = ({ children }) => {
     return readOrderItems[key] || [];
   }, [readOrderItems]);*/
   
-  const getOrders = useCallback((orderType, startDateLocal) => {
+  const getOrders = (orderType, startDateLocal) => {
     if (orderType === 'all') {
-      let orders = Object.values(readOrderItems).flat();
+		console.log('readOrderItems', readOrderItems);
+      let orders = JSON.parse(storage.getString('ALL_ORDERS') ?? '[]');
 	  if (startDateLocal) {
+		  console.log('in startDateLocal', startDateLocal);
 		  const start = new Date(startDateLocal);
 		  const now = new Date();
 
@@ -116,11 +118,10 @@ export const ReadOrderItemsProvider = ({ children }) => {
 			return oDate >= start && oDate <= now;
 		  });
 	  }
-	  orders.sort((a, b) => new Date(a.date) - new Date(b.date));
 	  return orders;
     }
     return readOrderItems[orderType] || [];
-  }, [readOrderItems]);
+  };
 
   const getFilters = useCallback(() => state, [state]);
   
@@ -240,8 +241,8 @@ export const ReadOrderItemsProvider = ({ children }) => {
 	
   const readOrdersGlobal = useCallback(async (
     searchQuery,
-    orderType,
-	statusCheckType,
+    orderType = null,
+	statusCheckType = null,
     isDateChanged,
     startDate,
     endDate,
@@ -250,7 +251,12 @@ export const ReadOrderItemsProvider = ({ children }) => {
 	isReset = false
   ) => {
 	console.log('in readOrdersGlobal : '+ offset + ',' + limit)
-    const key = `${orderType}_${statusCheckType}`;
+	const isAllOrders = !orderType && !statusCheckType;
+
+    const key = isAllOrders
+      ? 'ALL_ORDERS'
+      : `${orderType}_${statusCheckType}`;
+
     const from = offset;
     const to = offset + limit;
 

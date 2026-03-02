@@ -275,6 +275,11 @@ const OrderBagScreen = ({ navigation }) => {
   <Text category='h6' style={styles.sectionTitle}>👤 Customer Details</Text>
     <Card style={styles.customerCard}>
       <View style={styles.detailRow}>
+        <Text category='s1' appearance='hint'>Order No</Text>
+        <Text category='s1'>{custDetails.orderNo}</Text>
+      </View>
+      <Divider style={styles.divider} />
+      <View style={styles.detailRow}>
         <Text category='s1' appearance='hint'>Name</Text>
         <Text category='s1'>{custDetails.custName}</Text>
       </View>
@@ -535,6 +540,9 @@ const OrderBagScreen = ({ navigation }) => {
 
 								let insertJson = { username: currentUser.username, orderDate: new Date(), orderStatus: 'New', orderAmt: calculateTotalAmount(items), paymentStatus: payStatus, advance: parseInt(advancePaid ? advancePaid : 0), customerId: custId, occasion: custDetails.occasion, paymentMode: paymentMode, expressCharges: expressCharges, paymentNotes: payNotes };
 								
+								if (custDetails.orderNo && custDetails.orderNo > 0) {
+									insertJson.orderNo = custDetails.orderNo;
+								}								
 								console.log('insertJson:')
 								console.log(insertJson)
 								const { data: data1, error: error1 } = await supabase
@@ -600,7 +608,7 @@ const OrderBagScreen = ({ navigation }) => {
 										setEventEmitted(true);
 									}
 								
-							  saveOrder([], {custName: '', phoneNo: '', occasion: ''});
+							  saveOrder([], {custName: '', phoneNo: '', occasion: '', custInserted: false, orderNo: 0});
 							  resetItemsForLabel();
 							  resetIdCounter();
 							  clearAllBookings();
@@ -632,7 +640,7 @@ const OrderBagScreen = ({ navigation }) => {
 	
 	const handleDelete = (indexList, itemId, slotDates) => {
 		if(indexList === null) {
-			saveOrder([], {custName: '', phoneNo: '', occasion: ''});
+			saveOrder([], {custName: '', phoneNo: '', occasion: '', custInserted: false, orderNo: 0});
 			clearAllBookings();
 		} else {
 			const updatedOrder = [...items];
@@ -641,7 +649,7 @@ const OrderBagScreen = ({ navigation }) => {
 			if(updatedOrder.length > 0) {
 				saveOrder(updatedOrder, custDetails, true);
 			} else {
-				saveOrder([], {custName: '', phoneNo: '', occasion: ''});
+				saveOrder([], {custName: '', phoneNo: '', occasion: '', custInserted: false, orderNo: 0});
 			}
 		}
 	}
