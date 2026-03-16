@@ -49,13 +49,14 @@ const EditOrderDetails = ({ navigation }) => {
   const [payStatus, setPayStatus] = useState(item.paymentStatus || 'Pending'); 
   const [advancePaid, setAdvancePaid] = useState(item.advance || 0)
 	const itemRefs = useRef({});
-	const [inCustom, setInCustom] = useState(false);
 	const [orderAmtChanged, setOrderAmtChanged] = useState(false);
 	const [paymentMode, setPaymentMode] = useState(item.paymentMode || 'Cash');
 	const [paymentNotes, setPaymentNotes] = useState(item.paymentNotes);
   const [payModeIndex, setPayModeIndex] = useState(item.paymentMode ? payModes.indexOf(item.paymentMode) : 0);
   const [editCust, setEditCust] = useState(false);
   const [phChanged, setPhChanged] = useState(false);
+  const [orderNoLocal, setOrderNoLocal] = useState(item.orderNo);
+  const [orderNoChanged, setOrderNoChanged] = useState(false);
   const [custName, setCustName] = useState(item.custName);
   const [phoneNo, setPhoneNo] = useState(item.phoneNo);
   const [customerId, setCustomerId] = useState(item.customerId);
@@ -65,36 +66,25 @@ const EditOrderDetails = ({ navigation }) => {
 		navigation.setOptions({
 		  headerLeft: () => (
 			<TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon} onPress={() => {
-				if (inCustom) {
-					console.log('inCustom true');
-				  navigation.navigate('EditOrderDetails', {...route.params});
-				  setInCustom(false);
-				} else {
 					clearAllBookings();
 					let ph = phoneNo.includes('+91') ? phoneNo : '+91'+phoneNo;
 					const updatedItem = {
 					  ...item,
 					  custName: custName,
 					  phoneNo: ph,
-					  customerId: customerId
+					  customerId: customerId,
+					  orderNo: orderNoLocal
 					};
 					console.log('updatedItem', updatedItem);
 					console.log(route.params);
 				  navigation.navigate('OrderDetails', {...route.params, item: updatedItem })
-				}
 			}}/>
 		  ),
 		});
-	  }, [navigation, inCustom, custName, phoneNo, customerId]);
+	  }, [navigation, custName, phoneNo, customerId, orderNoLocal]);
 	
 	useEffect(() => {
 		const backAction = () => {
-			if (inCustom) {
-				console.log('inCustom true');
-			  navigation.navigate('EditOrderDetails', {...route.params});
-			  setInCustom(false);
-			  return true; // Prevent further back action
-			} else {
 				clearAllBookings();
 				console.log('inside backAction')
 				let ph = phoneNo.includes('+91') ? phoneNo : '+91'+phoneNo;
@@ -103,13 +93,13 @@ const EditOrderDetails = ({ navigation }) => {
 				  ...item,
 				  custName: custName,
 				  phoneNo: ph,
-				  customerId: customerId
+				  customerId: customerId,
+				  orderNo: orderNoLocal
 				};
 				console.log('updatedItem', updatedItem);
 				console.log(route.params);
 			  navigation.replace('OrderDetails', {...route.params, item: updatedItem })
 			  return true;
-			}
 		};
 
 		const backHandler = BackHandler.addEventListener(
@@ -118,7 +108,7 @@ const EditOrderDetails = ({ navigation }) => {
 		);
 
 		return () => backHandler.remove(); // Clean up the back handler
-	}, [inCustom, custName, phoneNo, customerId]);
+	}, [custName, phoneNo, customerId, orderNoLocal]);
 	
   useEffect(() => {
 	  if(!isConnected) {
@@ -415,6 +405,23 @@ const EditOrderDetails = ({ navigation }) => {
 	  
 	  return finalDuration;
 	};
+	
+	const getCountKey = (key) => {
+		switch(key) {
+				case 'deletedPics':
+					return 'dressImages';
+				case 'deletedPatternPics':
+					return 'patternImages';
+				case 'deletedMeasPics':
+					return 'measurementImages';
+				case 'deletedFnImg':
+					return 'frontNeckDesignFile';
+				case 'deletedBnImg':
+					return 'backNeckDesignFile';
+				case 'deletedSleeveImg':
+					return 'sleeveDesignFile';
+		}
+	}
   
   const saveEditedOrder = async() => {
 	    if(!isConnected) {
@@ -516,24 +523,31 @@ const EditOrderDetails = ({ navigation }) => {
 								let picsDbFinal = await uploadOrderImages(key, ditem[key]);
 								updateData[key] = picsDbFinal;
 								updVal[key][ind] = picsDbFinal?.split(',') || null;
-							} else if (key === 'deletedPics') {
-								const { dataRemove, errorRemove } = await supabase
-								  .storage
-								  .from('order-images')
-								  .remove(ditem.deletedPics.map(filename => `dressImages/${filename}`))
-								if(errorRemove) {
+							} else if (['deletedPics', 'deletedPatternPics', 'deletedMeasPics'].includes(key)) { 
+								  // Determine the folder name based on key
+								  let imgFolderName = getCountKey(key);
+								  
+								  const { dataRemove, errorRemove } = await supabase
+									.storage
+									.from('order-images')
+									.remove(ditem[key].map(filename => `${imgFolderName}/${filename}`));
+
+								  if (errorRemove) {
 									throw errorRemove;
-								}
-							} else if (key === 'deletedPatternPics' || key === 'deletedMeasPics') {
-								let imgFolderName = key === 'deletedPatternPics' ? 'patternImages' : 'measurementImages';
-								const { dataRemove, errorRemove } = await supabase
-								  .storage
-								  .from('order-images')
-								  .remove(ditem[key].map(filename => `${imgFolderName}/${filename}`))
-								if(errorRemove) {
-									throw errorRemove;
-								}
-							} else if(['frontNeckDesignFile', 'backNeckDesignFile', 'sleeveDesignFile'].includes(key)) {
+								  }
+						    } else if (['deletedFnImg', 'deletedBnImg', 'deletedSleeveImg'].includes(key)) {
+								  // Determine the folder name based on key
+								  let imgFolderName = getCountKey(key);
+								  
+								  const { dataRemove1, errorRemove1 } = await supabase
+									.storage
+									.from('design-files')
+									.remove([`${imgFolderName}/${ditem[key]}`]);
+
+								  if (errorRemove1) {
+									throw errorRemove1;
+								  }
+						    } else if(['frontNeckDesignFile', 'backNeckDesignFile', 'sleeveDesignFile'].includes(key)) {
 								console.log('uploading ' + key)
 								let aa = await uploadDesignFile(ditem, key)
 								console.log(aa)
@@ -563,6 +577,7 @@ const EditOrderDetails = ({ navigation }) => {
 								  express_slots_booked: express,
 								  total_slots_booked: total,
 								}));
+								console.log('rowsToInsert', rowsToInsert);
 								const { data: dataSlots, error: errorSlots } = await supabase
 									.rpc('upsert_delivery_slots', { 
 										rows_data: rowsToInsert 
@@ -693,64 +708,78 @@ const EditOrderDetails = ({ navigation }) => {
 	}
   
   const saveCustDetails = async() => {
-	try {
-		const isValid = isValidPhoneNumber(phoneNo)
-		if(!phChanged && !isValid) setEditCust(false);
-		let custId = null;
-		let ph = phoneNo.includes('+91') ? phoneNo : '+91'+phoneNo;
-		const { data, error } = await supabase
-					.from("Customer")
-					.select("id")
-					.eq('phoneNo', ph)
-					.maybeSingle();
-		console.log(custName, ph);
-		if(!data) {
-			const {data: dataUser, error: errorUser } = await supabase
-			  .from('Customer')
-			  .insert({ custName: custName || item.custName, phoneNo: ph })
-			  .select().single();
+    try {
+        const isValid = isValidPhoneNumber(phoneNo)
+        if(!phChanged && !orderNoChanged && !isValid) setEditCust(false);
+        let custId = null;
+        let ph = phoneNo.includes('+91') ? phoneNo : '+91'+phoneNo;
+        const { data, error } = await supabase
+                    .from("Customer")
+                    .select("id")
+                    .eq('phoneNo', ph)
+                    .maybeSingle();
+        console.log(custName, ph);
+        if(!data) {
+            const {data: dataUser, error: errorUser } = await supabase
+              .from('Customer')
+              .insert({ custName: custName || item.custName, phoneNo: ph })
+              .select().single();
 
-			if(errorUser) {
-				throw errorUser;
-			}
-										
-			console.log(dataUser)
-			custId = dataUser.id;
-		} else {
-			custId = data.id;
+            if(errorUser) {
+                throw errorUser;
+            }
+                                    
+            console.log(dataUser)
+            custId = dataUser.id;
+        } else {
+            custId = data.id;
+        }
+
+        const orderItemsUpdate = { customerId: custId };
+		if(orderNoChanged) {
+			const { data: existingOrder } = await supabase
+				.from('OrderItems')
+				.select('orderNo')
+				.eq('orderNo', orderNoLocal)
+				.maybeSingle();
+
+			if(existingOrder) throw new Error(`Order number ${orderNoLocal} already exists`);
+			orderItemsUpdate.orderNo = orderNoLocal;
 		}
-		const { error: error1 } = await supabase
-					  .from('OrderItems')
-					  .update({ customerId: custId })
-					  .eq('orderNo', item.orderNo);
-			if(error1) {
-				throw error1;
-			}
-			await Promise.all(
-			  item.dressItemId.map(async (id) => {
-				const { error: error2 } = await supabase
-				  .from('measurements_new')
-				  .update({ customer_id: custId })
-				  .eq('dress_item_id', id);
-				if (error2) {
-				  throw error2;
-				}
-			  })
-			);
-		setCustomerId(custId);
-		let updVal = {...item, custName: custName, phoneNo: ph, customerId: custId};
-		updateCache('UPDATE_ORDER', updVal, cacheKey);
-		await notify(currentUser.id, 'UPDATE_ORDER', cacheKey, updVal);
-		eventEmitter.emit('newOrderAdded');
 
-		showSuccessMessage('Saved customer details successfully!')
-		setEditCust(false);
-		setPhChanged(false);
-		console.log('saved cust details', custName, phoneNo);
-	} catch(error) {
-		showErrorMessage('Error saving customer details: ' + error);
-		console.error(error)
-	}
+        const { error: error1 } = await supabase
+                      .from('OrderItems')
+                      .update(orderItemsUpdate)
+                      .eq('orderNo', item.orderNo);
+        if(error1) {
+            throw error1;
+        }
+        await Promise.all(
+          item.dressItemId.map(async (id) => {
+            const { error: error2 } = await supabase
+              .from('measurements_new')
+              .update({ customer_id: custId })
+              .eq('dress_item_id', id);
+            if (error2) {
+              throw error2;
+            }
+          })
+        );
+        setCustomerId(custId);
+        let updVal = {...item, custName: custName, phoneNo: ph, customerId: custId, ...(orderNoChanged && { orderNo: orderNoLocal })};
+        updateCache('UPDATE_ORDER', updVal, cacheKey);
+        await notify(currentUser.id, 'UPDATE_ORDER', cacheKey, updVal);
+        eventEmitter.emit('newOrderAdded');
+
+        showSuccessMessage('Saved customer details successfully!')
+        setEditCust(false);
+        setPhChanged(false);
+        setOrderNoChanged(false);
+        console.log('saved cust details', custName, phoneNo);
+    } catch(error) {
+        showErrorMessage('Error saving customer details: ' + error);
+        console.error(error)
+    }
   }
   
   const EditIcon = (props) => <Icon {...props} name="edit-outline" />;
@@ -773,6 +802,18 @@ const EditOrderDetails = ({ navigation }) => {
 				/>
 		</View>
 			  <Card style={styles.cardFinal}>
+				<View style={styles.detailRow}>
+				  <Text category="label">
+					Order No
+				  </Text>
+				  {editCust ? <Input
+					value={orderNoLocal.toString()}
+					onChangeText={(text) => {
+						setOrderNoLocal(text);
+						setOrderNoChanged(true);
+					}}
+				  /> : <Text category="s2">{orderNoLocal}</Text>}
+				</View>
 				<View style={styles.detailRow}>
 				  <Text category="label">
 					Name

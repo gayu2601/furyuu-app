@@ -46,6 +46,9 @@ const EditOrderItemComponent = (props, ref) => {
 	const [deletedPics, setDeletedPics] = useState([]);
 	const [deletedPatternPics, setDeletedPatternPics] = useState([]);
 	const [deletedMeasPics, setDeletedMeasPics] = useState([]);
+	const [deletedFnImg, setDeletedFnImg] = useState(null);
+	const [deletedBnImg, setDeletedBnImg] = useState(null);
+	const [deletedSleeveImg, setDeletedSleeveImg] = useState(null);
 	const [picType, setPicType] = useState('dress');
   // Edit states
   const [editableItem, setEditableItem] = useState(item);
@@ -99,7 +102,6 @@ const EditOrderItemComponent = (props, ref) => {
     const [selectedIndexSleeve, setSelectedIndexSleeve] = useState(sleeveOptions.indexOf(item.sleeveType) || 0);
 	const [selectedIndexSleeveLen, setSelectedIndexSleeveLen] = useState(sleeveLenOptions.indexOf(item.sleeveLength) ||0);
 	const [sleeveType, setSleeveType] = useState(item.sleeveType);
-	const [inCustom, setInCustom] = useState(false);
 	  
     const { cameraPermission, mediaPermission, requestCameraPermission, requestMediaPermission } = usePermissions();
 
@@ -158,6 +160,9 @@ const EditOrderItemComponent = (props, ref) => {
 	  deletedPics,
 	  deletedPatternPics,
 	  deletedMeasPics,
+	  ...(deletedFnImg != null && { deletedFnImg }),
+	  ...(deletedBnImg != null && { deletedBnImg }),
+	  ...(deletedSleeveImg != null && { deletedSleeveImg }),
 	  ...(!('stitchingAmt' in changedFields) && { stitchingAmt: item.stitchingAmt }),
 	  ...(!('extraOptions' in changedFields) && { extraOptions: item.extraOptions }),
 	  ...changedFields
@@ -170,46 +175,70 @@ const EditOrderItemComponent = (props, ref) => {
     getSaveData
   })); 
   
+  const imagesMap = {
+	  dressPics: dressImages,
+	  patternPics: patternImages,
+	  measurementPics: measImages,
+	};
+
+	const rawMap = {
+	  dressPics: picsRaw,
+	  patternPics: patternPicsRaw,
+	  measurementPics: measPicsRaw,
+	};
+
+	const setImagesMap = {
+	  dressPics: setDressImages,
+	  patternPics: setPatternImages,
+	  measurementPics: setMeasImages,
+	};
+
+	const setRawMap = {
+	  dressPics: setPicsRaw,
+	  patternPics: setPatternPicsRaw,
+	  measurementPics: setMeasPicsRaw,
+	};
+
+	const setDeletedMap = {
+	  dressPics: setDeletedPics,
+	  patternPics: setDeletedPatternPics,
+	  measurementPics: setDeletedMeasPics,
+	};
+	
+	const fieldMap = {
+	  dress: "dressPics",
+	  pattern: "patternPics",
+	  meas: "measurementPics",
+	};
+  
   const pickImage = async (type) => {
 		  setPicType(type)
 		  setIsModalVisible(true);
 	  };
 	  
-	const handleDeleteImage = (index) => {
-		console.log('in delete image')
-		const newImages = [...dressImages];
-		let newImagesRaw = [...picsRaw]; // Creates a shallow copy
-		newImages.splice(index, 1);
-		newImagesRaw.splice(index, 1);
-		setDressImages(newImages);
-		setCurrentImages(newImages);
-		setPicsRaw(newImagesRaw);
-		setDeletedPics(prevDeletedPics => [...prevDeletedPics, picsRaw[index]]);
-		updateItemField('dressPics', newImages);
-	};
-	
-	const handleDeleteImagePattern = (index) => {
-		console.log('in delete image')
-		const newImages = [...patternImages];
-		let newImagesRaw = [...patternPicsRaw]; // Creates a shallow copy
-		newImages.splice(index, 1);
-		newImagesRaw.splice(index, 1);
-		setPatternImages(newImages);
-		setPatternPicsRaw(newImagesRaw);
-		setDeletedPatternPics(prevDeletedPics => [...prevDeletedPics, patternPicsRaw[index]]);
-		updateItemField('patternPics', newImages);
-	};
-	
-	const handleDeleteImageMeas = (index) => {
-		console.log('in delete image')
-		const newImages = [...measImages];
-		let newImagesRaw = [...measPicsRaw]; // Creates a shallow copy
-		newImages.splice(index, 1);
-		newImagesRaw.splice(index, 1);
-		setMeasImages(newImages);
-		setMeasPicsRaw(newImagesRaw);
-		setDeletedMeasPics(prevDeletedPics => [...prevDeletedPics, measPicsRaw[index]]);
-		updateItemField('measurementPics', newImages);
+	const handleDeleteImage = (picType, index) => {
+	  const images = imagesMap[picType];
+	  const rawImages = rawMap[picType];
+
+	  const newImages = [...images];
+	  const newRaw = [...rawImages];
+
+	  const deletedItem = rawImages[index];
+
+	  newImages.splice(index, 1);
+	  newRaw.splice(index, 1);
+	  
+	  if(picType === 'dressPics') {
+		  const updatedImages = currentImages.filter((_, i) => i !== index);
+		  setCurrentImages(updatedImages);
+	  }
+
+	  setImagesMap[picType](newImages);
+	  setRawMap[picType](newRaw);
+
+	  setDeletedMap[picType](prev => [...prev, deletedItem]);
+
+	  updateItemField(picType, newImages);
 	};
 	
 	const handleOptionPress = (option) => {
@@ -241,29 +270,17 @@ const EditOrderItemComponent = (props, ref) => {
 			  console.log('ImagePicker Error: ', result.error);
 			} else {
 			  const compressedSrc = await ImageManipulator.manipulateAsync(result.assets[0].uri, [], { compress: 0.5 });
-			  const source = { uri: compressedSrc.uri };
-			  console.log(source);
-			  let a = '';
-			  if(picType === 'dress') {
-				  const newDressImages = [...dressImages, source.uri];
-				  setDressImages(newDressImages);
-				  setCurrentImages(newDressImages);
-				  a = picsRaw ? [...picsRaw, source.uri] : [source.uri]
-				  setPicsRaw(a);
-				  updateItemField('dressPics', newDressImages);
-			  } else if(picType === 'pattern') {
-				  const newPatternImages = [...patternImages, source.uri];
-				  setPatternImages(newPatternImages);
-				  a = patternPicsRaw ? [...patternPicsRaw, ...source.uri] : source.uri
-				  setPatternPicsRaw(a);
-				  updateItemField('patternPics', newPatternImages);
-			  } else {
-				  const newMeasImages = [...measImages, source.uri];
-				  setMeasImages(newMeasImages);
-				  a = measPicsRaw ? [...measPicsRaw, ...source.uri] : source.uri
-				  setMeasPicsRaw(a);
-				  updateItemField('measurementPics', newMeasImages)
-			  }
+			  const uri = compressedSrc.uri;
+			  const currentImgs = imagesMap[picType];
+				const currentRaw = rawMap[picType] || [];
+
+				setImagesMap[picType]([...currentImgs, uri]);
+				setRawMap[picType]([...currentRaw, uri]);
+				updateItemField(picType, [...currentImgs, uri]);
+				
+				if(picType === 'dressPics') {
+				  setCurrentImages([...currentImages, uri]);
+				}
 			}
 		} else {
 			showErrorMessage('Camera permission not granted! Grant permission in Settings')
@@ -283,41 +300,25 @@ const EditOrderItemComponent = (props, ref) => {
 			} else if (result.error) {
 			  console.log('ImagePicker Error: ', result.error);
 			} else {
-				const compressionPromises = result.assets.map(asset => 
-				  ImageManipulator.manipulateAsync(asset.uri, [], { compress: 0.5 })
-				);
+				const compressed = await Promise.all(
+					result.assets.map(a =>
+					  ImageManipulator.manipulateAsync(a.uri, [], { compress: 0.5 })
+					)
+				  );
 
-			  Promise.all(compressionPromises)
-			  .then(compressedResults => {
-				// Extract all URIs
-				const newUris = compressedResults.map(result => result.uri);
-				let a = '';
-				if(picType === 'dress') {
-					const newDressImages = [...dressImages, ...newUris];
-					setDressImages(newDressImages);
-					setCurrentImages(newDressImages);
-					a = picsRaw ? [...picsRaw, ...newUris] : newUris;
-					setPicsRaw(a);
-					updateItemField('dressPics', newDressImages);
-			  } else if(picType === 'pattern') {
-				  const newPatternImages = [...patternImages, ...newUris];
-				  setPatternImages(newPatternImages);
-				  a = patternPicsRaw ? [...patternPicsRaw, ...newUris] : newUris
-				  setPatternPicsRaw(a);
-				  updateItemField('patternPics', newPatternImages);
-			  } else {
-				  const newMeasImages = [...measImages, ...newUris];
-				  setMeasImages(newMeasImages);
-				  a = measPicsRaw ? [...measPicsRaw, ...newUris] : newUris
-				  setMeasPicsRaw(a);
-				  updateItemField('measurementPics', newMeasImages);
-			  } 
-				console.log('a:');
-				console.log(a);
-			  })
-			  .catch(error => {
-				console.error('Error processing images:', error);
-			  });
+				  const newUris = compressed.map(c => c.uri);
+
+				  // update item-local images
+				  const currentImgs = imagesMap[picType];
+				  const currentRaw = rawMap[picType] || [];
+
+				  setImagesMap[picType]([...currentImgs, ...newUris]);
+				  setRawMap[picType]([...currentRaw, ...newUris]);
+				  updateItemField(picType, [...currentImgs, ...newUris]);
+				  
+				  if(picType === 'dressPics') {
+					  setCurrentImages([...currentImages, ...newUris]);
+				  }
 			}
 		} else {
 			showErrorMessage('Media permission not granted! Grant permission in Settings')
@@ -349,6 +350,21 @@ const EditOrderItemComponent = (props, ref) => {
     }
 }, []);
 
+const downloadDesignPics = useCallback(async(picsDb, picsType) => {
+    if (!picsDb) return null;
+    console.log('in downloadDesignPics ' + picsDb)
+    try {
+                const { data, error } = await supabase.storage
+                  .from('design-files')
+                  .getPublicUrl(`${picsType}/${picsDb}`);
+                if (error) throw error;
+                return data.publicUrl;
+        } catch (error) {
+			console.log('Error downloading design image:', error?.message || error);
+			return null;
+		}
+}, []);
+
   useEffect(() => {
     if (isBag) return;
     
@@ -375,6 +391,24 @@ const EditOrderItemComponent = (props, ref) => {
             downloadPics(item.measurementPics, 'measurementImages').then(imgs => ({ type: 'measurements', images: imgs }))
           );
         }
+		if(item.frontNeckDesignFile) {
+			downloadTasks.push(
+				downloadDesignPics(item.frontNeckDesignFile, 'frontNeckDesignFile')
+					.then(img => ({ type: 'frontNeckDesignFile', images: img }))
+			);
+		}
+		if(item.backNeckDesignFile) {
+			downloadTasks.push(
+				downloadDesignPics(item.backNeckDesignFile, 'backNeckDesignFile')
+					.then(img => ({ type: 'backNeckDesignFile', images: img }))
+			);
+		}
+		if(item.sleeveDesignFile) {
+			downloadTasks.push(
+				downloadDesignPics(item.sleeveDesignFile, 'sleeveDesignFile')
+					.then(img => ({ type: 'sleeveDesignFile', images: img }))
+			);
+		}
         
         if (downloadTasks.length > 0) {
           const results = await Promise.all(downloadTasks);
@@ -390,6 +424,15 @@ const EditOrderItemComponent = (props, ref) => {
               case 'measurements':
                 setMeasImages(result.images);
                 break;
+			  case 'frontNeckDesignFile':
+				setFnImg(result.images);
+				break;
+			  case 'backNeckDesignFile':
+				setBnImg(result.images);
+				break;
+			  case 'sleeveDesignFile':
+				setSleeveImg(result.images);
+				break;
             }
           });
         }
@@ -416,6 +459,7 @@ const EditOrderItemComponent = (props, ref) => {
   };
   
   const updateSlots = (field, diff, val) => {
+	  console.log('in updateSlots', diff, val);
 	  setEditableItem(prev => ({
 		...prev,
 		[field]: val
@@ -751,7 +795,7 @@ const EditOrderItemComponent = (props, ref) => {
                   />
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={() => handleDeleteImagePattern(index)}
+                  onPress={() => handleDeleteImage('patternPics', index)}
                   style={styles.closeButtonDesign}
                 >
                   <Icon name="trash-outline" fill="#FF6363" style={styles.closeIcon} />
@@ -759,7 +803,7 @@ const EditOrderItemComponent = (props, ref) => {
               </View>
             ))}
             
-            <Button style={styles.uploadButton} status='control' onPress={() => pickImage('pattern')}>
+            <Button style={styles.uploadButton} status='control' onPress={() => pickImage('patternPics')}>
 					<View style={styles.uploadContent}>
 					  <Icon name="cloud-upload-outline" style={styles.uploadIcon} fill={theme['color-primary-500']} />
 					  <Text category='s2' style={styles.uploadButtonText}>Upload Design Pics</Text>
@@ -776,12 +820,15 @@ const EditOrderItemComponent = (props, ref) => {
 		  if(fieldType !== 'sleeveType') updateItemField(fieldType, null);
 		  switch(fieldType) {
 				case 'frontNeckType':
+					setDeletedFnImg(fnImg.split('/').pop());
 					setFnImg(null);
 					break;
 				case 'backNeckType':
+					setDeletedBnImg(bnImg.split('/').pop());
 					setBnImg(null);
 					break;
 				case 'sleeveType':
+					setDeletedSleeveImg(sleeveImg.split('/').pop());
 					setSleeveImg(null);
 					break;
 				default:
@@ -960,7 +1007,6 @@ const EditOrderItemComponent = (props, ref) => {
                     style={styles.changeDesignButton} 
                     size='tiny'
                     onPress={() => {
-                      setInCustom(true);
                       navigation.navigate('CustomDesign', {
                         field: 'sleeve',
                         returnFile: (selectedFile) => {
@@ -980,7 +1026,6 @@ const EditOrderItemComponent = (props, ref) => {
                   style={styles.drawButton} 
                   size='small'
                   onPress={() => {
-                    setInCustom(true);
                     navigation.navigate('CustomDesign', {
                       field: 'sleeve',
                       returnFile: (selectedFile) => {
@@ -1085,7 +1130,7 @@ const EditOrderItemComponent = (props, ref) => {
                       />
                     </TouchableOpacity>
                     <TouchableOpacity
-                      onPress={() => handleDeleteImageMeas(index)}
+                      onPress={() => handleDeleteImage('measurementPics', index)}
                       style={styles.closeButtonDesign}
                     >
                       <Icon name="trash-outline" fill="#FF6363" style={styles.closeIcon} />
@@ -1188,7 +1233,7 @@ const EditOrderItemComponent = (props, ref) => {
                       />
                     </TouchableOpacity>
                   ) : (
-                    <TouchableOpacity style={styles.noImageContainer} onPress={() => pickImage('dress')}>
+                    <TouchableOpacity style={styles.noImageContainer} onPress={() => pickImage('dressPics')}>
                       <CameraIcon style={styles.noImageIcon} />
                       <Text category='c2' style={styles.noImageText}>No images</Text>
                     </TouchableOpacity>
@@ -1244,6 +1289,17 @@ const EditOrderItemComponent = (props, ref) => {
             {renderDesignPictures(patternImages)}
             {renderNeckSleeveDetails(editableItem)}
             {renderMeasurements(editableItem.measurementsObj, measImages, editableItem.notes, editableItem.dressType)}
+			<View style={styles.notesContainer}>
+				<Text category='label' style={styles.notesLabel}>Notes:</Text>
+				<Input
+						style={styles.notesInput}
+						multiline={true}
+						numberOfLines={3}
+						value={editableItem.notes || ''}
+						placeholder="Add notes here..."
+						onChangeText={(text) => updateItemField('notes', text)}
+				/>
+			</View>
           </View>
         )}
       </View>
@@ -1265,14 +1321,14 @@ const EditOrderItemComponent = (props, ref) => {
                   style={styles.shareButton}
                   appearance="ghost"
                   accessoryLeft={TrashIcon}
-                  onPress={() => handleDeleteImage(index)}
+                  onPress={() => handleDeleteImage('dressPics', index)}
                 />
               </ListItem>
             )}
             horizontal
             keyExtractor={(item, index) => index.toString()}
 			ListFooterComponent={() => (
-				<Button style={styles.carouselImage} status='control' onPress={() => pickImage('dress')}>
+				<Button style={styles.carouselImage} status='control' onPress={() => pickImage('dressPics')}>
 				  <View style={styles.uploadContent}>
 					<Icon name="cloud-upload-outline" style={styles.uploadIcon} fill={theme['color-primary-500']} />
 					<Text category='s2' style={styles.uploadButtonText}>Upload Material Pics</Text>
@@ -1335,8 +1391,7 @@ const EditOrderItemComponent = (props, ref) => {
         fieldName={neckModalField}
         updateSelectedItemDesign={editSelectedItemDesign}
         editRouteParams={editRouteParams}
-        setInCustom={setInCustom}
-		prevScreen='EditOrderDetails'
+        prevScreen='EditOrderDetails'
       />
     </View>
   );

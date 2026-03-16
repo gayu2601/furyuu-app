@@ -225,15 +225,7 @@ const EmployeeOnboardingForm = () => {
 		console.log('formData in handleSubmit', formData);
 		const requiredFields = [
 		  { field: formData.name, name: 'Name' },
-		  { field: formData.phoneNo, name: 'Phone Number' },
-		  { field: formData.dob, name: 'Date of Birth' },
-		  { field: idProofIndex.row > 0, name: 'ID Proof Type' },
-		  { field: formData.idProofPic, name: 'ID Proof Images' },
-		  { field: formData.emergencyPhNo1, name: 'Emergency Contact 1' },
-		  { field: rel1Index.row > 0, name: 'Emergency Relation 1' },
-		  { field: formData.designation, name: 'Designation' },
-		  { field: formData.salary, name: 'Salary' },
-		  { field: salaryTypeIndex.row > 0, name: 'Salary Type' }
+		  { field: formData.salary, name: 'Salary' }
 		];
 		const emptyFields = requiredFields.filter(item => !item.field);
 
@@ -241,11 +233,9 @@ const EmployeeOnboardingForm = () => {
 		  Alert.alert('Required Fields', `Please fill: ${emptyFields.map(item => item.name).join(', ')}`);
 		  return;
 		}
-		
-		console.log('formData', formData);
 		let picsArr = [];
 		let picsArrLocal = [];
-		for (const pic of formData.idProofPic) {
+		for (const pic of (formData.idProofPic ?? [])) {
 			if(startsWithFile(pic)) {
 				const arraybuffer = await fetch(pic).then((res) => res.arrayBuffer());
 
@@ -387,7 +377,7 @@ const EmployeeOnboardingForm = () => {
           
           <Input
             placeholder="Enter your full name"
-            label="Full Name *"
+            label="Name *"
             value={formData.name}
             onChangeText={(text) => setFormData(prev => ({ ...prev, name: text }))}
             style={styles.input}
@@ -397,7 +387,7 @@ const EmployeeOnboardingForm = () => {
 
           <Input
             placeholder="+91 "
-            label="Phone Number *"
+            label="Phone Number"
             value={formData.phoneNo}
             onChangeText={(text) => setFormData(prev => ({ ...prev, phoneNo: text }))}
             keyboardType="phone-pad"
@@ -410,7 +400,7 @@ const EmployeeOnboardingForm = () => {
           <View style={styles.row}>
             <Datepicker
 			  style={[styles.input, styles.halfInput]}
-			  label="Date of Birth *"
+			  label="Date of Birth"
 			  date={formData.dob}
 			  onSelect={(text) => setFormData(prev => ({ ...prev, dob: text }))}
 			  accessoryLeft={CalendarIcon}
@@ -439,7 +429,7 @@ const EmployeeOnboardingForm = () => {
           </View>
 
           <Select
-            label="ID Proof Type *"
+            label="ID Proof Type"
             selectedIndex={idProofIndex}
             onSelect={(index) => {setIdProofIndex(index); setFormData(prev => ({ ...prev, idProofType: idProofTypes[index.row] }));}}
             value={formData.idProofType}
@@ -452,7 +442,7 @@ const EmployeeOnboardingForm = () => {
           </Select>
 
           <View style={styles.fileUploadContainer}>
-            <Text style={styles.label}>ID Proof Images *</Text>
+            <Text style={styles.label}>ID Proof Images</Text>
             <TouchableOpacity style={styles.fileUploadButton} onPress={handleUploadPress}>
               {formData.idProofPic?.length > 0 ? (
 			  <>
@@ -487,7 +477,7 @@ const EmployeeOnboardingForm = () => {
           <View style={styles.row}>
             <Input
               placeholder="+91 "
-              label="Primary Contact *"
+              label="Primary Contact"
               value={formData.emergencyPhNo1}
               onChangeText={(text) => setFormData(prev => ({ ...prev, emergencyPhNo1: text }))}
               keyboardType="phone-pad"
@@ -497,7 +487,7 @@ const EmployeeOnboardingForm = () => {
             />
 
             <Select
-              label="Relationship *"
+              label="Relationship"
               selectedIndex={rel1Index}
               onSelect={(index) => {setRel1Index(index); setFormData(prev => ({ ...prev, emergencyRelation1: relationshipTypes[index.row] }));}}
               value={formData.emergencyRelation1}
@@ -545,7 +535,7 @@ const EmployeeOnboardingForm = () => {
           </View>
 
 			<Input
-              label="Designation *"
+              label="Designation"
               value={formData.designation}
               onChangeText={(text) => setFormData(prev => ({ ...prev, designation: text }))}
               style={styles.input}
@@ -563,7 +553,7 @@ const EmployeeOnboardingForm = () => {
             />
 
             <Select
-              label="Pay Period *"
+              label="Pay Period"
               selectedIndex={salaryTypeIndex}
               onSelect={(index) => {setSalaryTypeIndex(index); setFormData(prev => ({ ...prev, salaryType: salaryTypes[index.row] }));}}
               value={formData.salaryType}

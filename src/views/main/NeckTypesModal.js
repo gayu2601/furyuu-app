@@ -15,7 +15,7 @@ import KeyholeNeck from '../../components/necktypes/KeyholeNeckComponent.js';
 import PlusIcon from '../extra/icons';
 import { useNavigation } from "@react-navigation/native";
 
-const NeckTypesModal = ({ visible, onClose, fieldName, updateSelectedItemDesign, setShowDesign, prevScreen, editRouteParams = null, setInCustom = () => {}, saveAllLocalStates = () => {} }) => {
+const NeckTypesModal = ({ visible, onClose, fieldName, updateSelectedItemDesign, setShowDesign, prevScreen, editRouteParams = null, saveAllLocalStates = () => {} }) => {
   const neckTypes = [
     { id: '1', name: 'VNeck', Component: VNeck },
     { id: '2', name: 'Round', Component: RoundNeck },
@@ -43,17 +43,16 @@ const NeckTypesModal = ({ visible, onClose, fieldName, updateSelectedItemDesign,
   }
   
   const checkSubscription = () => {
-		setInCustom(true);
-		onClose();
 		if(setShowDesign) {
 			setShowDesign(false);
 		}
+		updateSelectedItemDesign(fieldName, 'Custom');
+		onClose();
 		saveAllLocalStates();
 		navigation.navigate('CustomDesign', {
 			field: fieldName,
 			returnFile: (selectedFile) => {
 				updateSelectedItemDesign(getDesignFileName(), selectedFile);
-				updateSelectedItemDesign(fieldName, 'Custom'); 
 				if(setShowDesign) {
 					setShowDesign(true);
 				}

@@ -280,12 +280,6 @@ const TestScreen = ({ route }) => {
 	  
 	  useEffect(() => {
 		const backAction = () => {
-		  /*if (inCustom) {
-			  navigation.navigate('HomeMain', {screen: 'HomeNew'});
-			  setInCustom(false);
-			  setShowDesign(true);
-			  return true; // Prevent further back action
-			}*/
 		  const phNo = phoneNo.includes('+91') ? phoneNo : '+91' + phoneNo
 		  if(step === 1) {
 			console.log('calling addItemBatchContext:')
@@ -384,11 +378,6 @@ const TestScreen = ({ route }) => {
 		navigation.setOptions({
 		  headerLeft: () => (
 			<TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon} onPress={() => {
-				/*if (inCustom) {
-				  navigation.navigate('HomeMain', {screen: 'HomeNew'});
-				  setInCustom(false);
-				  setShowDesign(true);
-				}*/
 				  const phNo = phoneNo.includes('+91') ? phoneNo : '+91' + phoneNo
 				  if(step === 1) {
 					console.log('in step1 back')
@@ -792,8 +781,7 @@ const TestScreen = ({ route }) => {
 		  if (localItems.length > 0) {
 			const firstItem = localItems[0];
 			
-			setCount(prevCount => {
-			  const newCo = prevCount + 1;
+			  const newCo = count + 1;
 			  console.log("uniq id in add item if: " + uniqId + ',' + newCo);
 			  
 			  // Create measurement data object with current dress type fields
@@ -837,12 +825,20 @@ const TestScreen = ({ route }) => {
 			  };
 			  
 			  console.log("newItem if: ", newItem);
-			  setLocalItems(prevItems => [...prevItems, newItem]);
-			  return newCo;
-			});
+			  setCount(newCo);
+			  setLocalItems(prev => {
+				  const updated = [...prev, newItem];
+
+				  // Collapse all previous, expand last
+				  setExpandedItems([
+					...Array(updated.length - 1).fill(false),
+					true,
+				  ]);
+
+				  return updated;
+				});
 		  } else {
-			setCount(prevCount => {
-			  const newCo = prevCount + 1;
+			  const newCo = count + 1;
 			  console.log("uniq id in add item else: " + uniqId + ',' + newCo);
 			  
 			  // Create empty measurement data object for new dress type
@@ -885,12 +881,20 @@ const TestScreen = ({ route }) => {
 			  };
 			  
 			  console.log("newItem else: ", newItem);
-			  setLocalItems(prevItems => [...prevItems, newItem]);
-			  return newCo;
-			});
+			  setCount(newCo);
+			  setLocalItems(prev => {
+				  const updated = [...prev, newItem];
+
+				  // Collapse all previous, expand last
+				  setExpandedItems([
+					...Array(updated.length - 1).fill(false),
+					true,
+				  ]);
+
+				  return updated;
+				});
 		  }
 		  setLocalCount(prevCount => prevCount + 1);
-		  setExpandedItems(prev => [...prev, true]);
 		};
 
 	  const updateItem = (itemId, field, value) => {
@@ -1110,8 +1114,7 @@ const TestScreen = ({ route }) => {
 			});
 			
 			setUniqId(generateUniqueId());
-			setCount(prevCount => {
-			  const newCo = prevCount + 1;
+			  const newCo = count + 1;
 			  console.log("in measurement count: " + newCo);
 			  
 			  const newItem = { 
@@ -1148,8 +1151,7 @@ const TestScreen = ({ route }) => {
 			  
 			  console.log("newItem:", newItem);
 			  setLocalItems(prevItems => [...prevItems, newItem]);
-			  return newCo;
-			});
+			  setCount(newCo);
 		  }
 	};
 	
@@ -1275,6 +1277,10 @@ const TestScreen = ({ route }) => {
 	  const toggleExpand = (index) => {
 		console.log('in toggleExpand: ' + index);
 		console.log(expandedItems);
+		const ref = itemRefs.current[index];
+		if (ref && ref.saveLocalState) {
+			ref.saveLocalState(); // this already calls updateItemMultiple internally which updates localItems
+		}
 		setExpandedItems(prev => {
 		  const newExpanded = [...prev];
 		  newExpanded[index] = !newExpanded[index];
@@ -1326,25 +1332,11 @@ const TestScreen = ({ route }) => {
 	const [selectedIndexSleeveLen, setSelectedIndexSleeveLen] = useState(0);
 	const [extraOptionsKeys, setExtraOptionsKeys] = useState(Object.keys(item.extraOptions) || []);
 	const [nameValues, setNameValues] = useState([]);
-    const [inCustom, setInCustom] = useState(false);
-	const [showDesign, setShowDesign] = useState(false);
+    const [showDesign, setShowDesign] = useState(false);
 	const [selectedIndexSubType, setSelectedIndexSubType] = useState(new IndexPath(0));
 	const [selectedIndexPants, setSelectedIndexPants] = useState(new IndexPath(0));
 	const [showMeasurements, setShowMeasurements] = useState(true);
 	
-	useFocusEffect(
-	  useCallback(() => {
-		  console.log('in useFocusEffect renderitem', routeParams)
-		if (routeParams?.fromCustomDesign) {
-			console.warn('setting showDesign')
-			setSelectedItemDesign({...item, ...localState});
-		  setShowDesign(true);
-		  setInCustom(false);
-
-		  //navigation.setParams({ fromCustomDesign: false }); dont do this as this resets fromCustomDesign to false before the showDesign modal is rendered
-		}
-	  }, [routeParams?.fromCustomDesign])
-	);
 	  const handleCustomDesign = (customDesignFile, fieldName) => {
 		  updateLocalState(fieldName, customDesignFile);
 		  updateItem(selectedItemDesign.id, fieldName, customDesignFile);
@@ -1814,12 +1806,11 @@ const TestScreen = ({ route }) => {
 	
 	const editDesign = () => {
 										setShowDesign(false);
-										setInCustom(true);
 										saveAllLocalStates();
 										navigation.navigate('CustomDesign', {
 										field: 'sleeve',
 										prevScreen: 'Test',
-										editRouteParams: {...routeParams, fromCustomDesign: true}, 
+										editRouteParams: {...routeParams}, 
 										returnFile: (selectedFile) => {
 										  const updatedItemDesign = { ...selectedItemDesign, sleeveDesignFile: selectedFile };
 										  setSelectedItemDesign(updatedItemDesign);
@@ -1998,10 +1989,9 @@ const TestScreen = ({ route }) => {
 						onClose={() => setNeckModalVisible(false)}
 						fieldName={neckModalField}
 						prevScreen='Test'
-						editRouteParams={{...route?.params, fromCustomDesign: true}}
+						editRouteParams={{...route?.params}}
 						updateSelectedItemDesign={updateSelectedItemDesign}
 						setShowDesign={setShowDesign}
-						setInCustom={setInCustom}
 						saveAllLocalStates = {saveAllLocalStates}
 					/>
 				</>
@@ -2016,7 +2006,7 @@ const TestScreen = ({ route }) => {
 	  setSelectedItemDesign(updatedItemDesign);
 	  updateLocalState('savedDesign', true)
 	  updateLocalState(fieldName, value)
-	  if(fieldName.includes('DesignFile') || value === 'Custom') {
+	  if(fieldName.includes('DesignFile')) {
 		updateItem(selectedItemDesign.id, fieldName, value);
 	  }
 	  setShowDesign(true);
@@ -2412,7 +2402,7 @@ const renderSlotSummary = (slots) => {
 			  )}
 			</Layout>
 			
-			{currentUser.userType === 'admin' && <Layout style={styles.dateContainer}>
+			{currentUser.userType !== 'production' && <Layout style={styles.dateContainer}>
 					<Layout style={styles.innerLayout}>
 						<Icon name='calendar-outline' style={styles.icon} fill={theme['color-primary-500']}/>
 						<Text category='s1' style={{marginLeft: 6}}>Slots</Text>
@@ -2657,6 +2647,16 @@ const renderSlotSummary = (slots) => {
 			</View>
 		  </TouchableOpacity>
 		  
+		  {!isExpanded && (
+			<Layout style={{marginHorizontal: 10, marginVertical: 10}}>
+			  <Text category='s2' appearance='hint'>
+				{[
+				  localState.dressSubType, localState.frontNeckType ? `Front Neck: ${localState.frontNeckType}` : null, localState.backNeckType ? `Back Neck: ${localState.backNeckType}` : null, localState.sleeveType ? `Sleeve: ${localState.sleeveType}` : null,
+				  localState.stitchingAmt ? `Price: Rs. ${localState.stitchingAmt}` : null
+				].filter(Boolean).join(', ')}
+			  </Text>
+			</Layout>
+		  )}
 		  {renderExpandedContent()}
 		  {renderMeasurementsModal()}
 		  {renderDesignModal()}
@@ -2745,33 +2745,20 @@ const renderSlotSummary = (slots) => {
 	  );
 	});
 	
-	const renderItems = () => {
-		return (
-		  <FlatList
-			data={localItems}
-			keyExtractor={(item) => item.id.toString()}
-			renderItem={({ item, index }) => (
-			  <RenderItemCollapsible 
-			    ref={(ref) => itemRefs.current[index] = ref}
-				key={item.id}
-				item={item} 
-				index={index} 
-				isExpanded={!!expandedItems[index]} 
-				onToggle={() => toggleExpand(index)}
-			  />
-			)}
-			initialNumToRender={3} // Render only visible items initially
-			maxToRenderPerBatch={2} // Limit batch size
-			windowSize={5} // Buffer size
-			removeClippedSubviews={true} // Remove items outside of viewport
-			getItemLayout={(data, index) => ({
-			  length: 100, // Approximate height of collapsed item
-			  offset: 100 * index,
-			  index,
-			})}
+	const renderItems = () => (
+	  <View>
+		{localItems.map((item, index) => (
+		  <RenderItemCollapsible
+			ref={(ref) => itemRefs.current[index] = ref}
+			key={item.id}
+			item={item}
+			index={index}
+			isExpanded={!!expandedItems[index]}
+			onToggle={() => toggleExpand(index)}
 		  />
-		);
-	};
+		))}
+	  </View>
+	);
 	
 	const handlePhNoChange = (text) => {
 				  onChangeText(text);

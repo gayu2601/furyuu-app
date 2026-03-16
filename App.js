@@ -311,6 +311,7 @@ const DrawerNavigator = ({ route }) => {
 		currentUserLocal = userData;
 		updateCurrentUser(userData);
 		readOrdersGlobal(null, null, null, false, null, null, 50);
+		checkBillingReminders();
     }
   }, [route?.params?.data1]);
   

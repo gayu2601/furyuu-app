@@ -224,9 +224,9 @@ export const ReadOrderItemsProvider = ({ children }) => {
 		const currentItems = Array.isArray(prev[key]) ? prev[key] : [];
 		return { ...prev, [key]: [...currentItems, ...newOrders] };
 	  });
-	  console.warn('prevOrderNo', prevOrderNo, newOrders[0].orderNo);
+	  console.warn('prevOrderNo', prevOrderNo, newOrders[0]?.orderNo);
 	  if (newOrders?.length > 0) {
-		const newMax = newOrders[0].orderNo; // since it's desc ordered
+		const newMax = newOrders[0]?.orderNo; // since it's desc ordered
 		setPrevOrderNo(prev => {
 		  if (!prev || newMax > prev) {
 			console.warn('setting prevOrderNo', newMax);

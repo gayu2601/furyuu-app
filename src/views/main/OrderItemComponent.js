@@ -138,6 +138,9 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
 			setDressImages(item.dressPics);
 			setPatternImages(item.patternPics);
 			setMeasImages(item.measurementPics);
+			setFNFile(item.frontNeckDesignFile);
+			setBNFile(item.backNeckDesignFile);
+			setSleeveFile(item.sleeveDesignFile);
 			return;
 		}
 		
@@ -152,16 +155,22 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
 					downloadTasks.push(
 						downloadPics(item.dressPics, 'dress').then(imgs => ({ type: 'dress', images: imgs }))
 					);
+				} else {
+					setDressImages([]);
 				}
 				if (item.patternPics) {
 					downloadTasks.push(
 						downloadPics(item.patternPics, 'pattern').then(imgs => ({ type: 'pattern', images: imgs }))
 					);
+				} else {
+					setPatternImages([]);
 				}
 				if (item.measurementPics) {
 					downloadTasks.push(
 						downloadPics(item.measurementPics, 'measurements').then(imgs => ({ type: 'measurements', images: imgs }))
 					);
+				} else {
+					setMeasImages([]);
 				}
 				
 				if(item.frontNeckDesignFile) {
@@ -169,6 +178,8 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
 						downloadDesignPics(item.frontNeckDesignFile, 'frontNeckDesignFile')
 							  .then(img => ({ type: 'frontNeckDesignFile', images: img }))
 					);
+				} else {
+					setFNFile(null);
 				}
 				
 				if(item.backNeckDesignFile) {
@@ -176,6 +187,8 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
 						downloadDesignPics(item.backNeckDesignFile, 'backNeckDesignFile')
 							  .then(img => ({ type: 'backNeckDesignFile', images: img }))
 					);
+				} else {
+					setBNFile(null);
 				}
 				
 				if(item.sleeveDesignFile) {
@@ -183,6 +196,8 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
 						downloadDesignPics(item.sleeveDesignFile, 'sleeveDesignFile')
 							  .then(img => ({ type: 'sleeveDesignFile', images: img }))
 					);
+				} else {
+					setSleeveFile(null);
 				}
 				
 				if (downloadTasks.length > 0) {
@@ -480,7 +495,7 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
     }
   }, []);
 
-  const renderMeasurements = (measurements, measurementImages = [], notes = '', dressType) => {
+  const renderMeasurements = (measurements, measurementImages = [], dressType) => {
 	  const displayFields = getDisplayFields(dressType);
 	  console.log('in renderMeasurements')
 	  console.log(displayFields)
@@ -761,7 +776,10 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
             {renderSlotSummary(item.slots)}
             {renderDesignPictures(patternImages)}
             {renderNeckSleeveDetails(item)}
-            {renderMeasurements(item.measurementData, measImages, item.notes, item.dressType)}
+            {renderMeasurements(item.measurementData, measImages, item.dressType)}
+			<View style={{marginHorizontal: 5, marginVertical: 10}}>
+				<Text category='label'>Notes: <Text category='s2'>{item.notes}</Text></Text>
+			</View>
           </View>
         )}
       </View>

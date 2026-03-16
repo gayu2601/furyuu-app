@@ -35,7 +35,6 @@ const DashboardCard = () => {
 			// Get orders from storage or database
 			const value = storage.getString(key);
 			orders = value ? JSON.parse(value) : [];
-			console.log('in DashboardCard', orders);
 			
 			// If no orders in storage, fetch from database
 			if (orders.length === 0 || newDeviceLogin) {

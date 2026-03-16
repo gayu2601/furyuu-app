@@ -132,42 +132,6 @@ const WelcomeLoginScreen = ({ navigation }) => {
 	const theme = useTheme();
 	const { loadDressConfig, isDressConfigLoading } = useDressConfig();
     
-	const sendQueuedNotifications = async (token) => {
-		console.log("in sendQueuedNotifications " + token)
-		const { data, error } = await supabase
-		  .from('QueuedNotifications')
-		  .select(`*`)
-		  .eq('notificationRead', false);
-
-		if (error) {
-		  console.error('Error fetching data:', error);
-		} else {
-		  console.log('Fetched data:', data);
-		  if(data && data.length > 0) {
-			  for (const notification of data) {
-				let dataFinal = notification.notificationData || {}
-				dataFinal.objectId = notification.id;
-				const message = {
-					to: token,
-					sound: 'default',
-					title: notification.notificationTitle,
-					body: notification.notificationMsg,
-					data: dataFinal
-				  };
-				await fetch('https://exp.host/--/api/v2/push/send', {
-					method: 'POST',
-					headers: {
-					  Accept: 'application/json',
-					  'Accept-encoding': 'gzip, deflate',
-					  'Content-Type': 'application/json',
-					},
-					body: JSON.stringify(message),
-				  });
-			  }
-		  }
-		}
-	};
-
 	const getNames = async (currentUser) => {
 		console.log("in getNames")
 		const { data, error } = await supabase.rpc("get_customers_list")
@@ -309,7 +273,6 @@ const WelcomeLoginScreen = ({ navigation }) => {
 		// Load additional data and navigate
 		await getNames(data1);
 		await getWorkers();
-		queueMicrotask(() => sendQueuedNotifications(currentDevice.pushToken));
 		await loadDressConfig(data1);
 		navigation.reset({
 		  index: 0,

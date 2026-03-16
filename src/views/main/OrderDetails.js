@@ -20,6 +20,7 @@ import DeliveryOptionsModal from './DeliveryOptionsModal';
 import eventEmitter from './eventEmitter';
 import { saveSupabaseDataToFile } from '../extra/supabaseUtils';
 import { usePubSub } from './SimplePubSub';
+import moment from 'moment';
 
 const MemoizedCard = memo(Card);
 
@@ -44,7 +45,8 @@ const CustomerDetails = memo(({ item, phone }) => (
   <View style={styles.header}>
     <SectionHeader icon="person-outline" title="Customer Details" />
     <MemoizedCard>
-      <DetailRow label="Name" value={item.custName} />
+      <DetailRow label="Order No" value={item.orderNo} />
+	  <DetailRow label="Name" value={item.custName} />
       <DetailRow 
         label="Phone No" 
         value={item.phoneNo} 
@@ -159,22 +161,378 @@ const OrderDetails = ({ navigation }) => {
 		}
 	};
 	
-	const shareOrder1 = useCallback(async () => {
-	  setPhone('');
-	  
-	  // Wait for UI to update
-	  await new Promise(resolve => {
-		InteractionManager.runAfterInteractions(resolve);
-	  });
-	  
-	  // Capture and share
-	  const uri = await captureRef(viewRef, {
-			format: 'png',
-			quality: 0.8,
+	const generateOrderDetailHTML = async () => {
+	  // Build shop logo (reuse existing logic)
+	  let shopLogoFinal = "";
+	  if (currentUser.avatar_url) {
+		const cachedPath = storage.getString(currentUser.username + '_profilePic');
+		if (cachedPath && (await FileSystem.getInfoAsync(cachedPath)).exists) {
+		  const base64 = await FileSystem.readAsStringAsync(cachedPath, {
+			encoding: FileSystem.EncodingType.Base64,
 		  });
-	  await Sharing.shareAsync(uri);
-	  setPhone(item.phoneNo);
-	}, [item.phoneNo]);
+		  shopLogoFinal = `<img src="data:image/jpeg;base64,${base64}" class="shop-logo-inline" />`;
+		}
+	  }
+
+	  // Build each dress section
+	  const generateDressSections = () => {
+		console.log('item.dressType', item.dressType);
+		return item.dressType.map((dress, index) => {
+		  const subType = dress === 'Alteration'
+			? item.alterDressType?.[index]
+			: (item.dressSubType?.[index] || '');
+		  const dueDate = item.dueDate?.[index]
+			? moment(item.dueDate[index]).format('DD-MM-YYYY')
+			: 'N/A';
+		  const stitchingAmt = item.stitchingAmt?.[index] || 0;
+		  const extraOptions = item.extraOptions?.[index] || {};
+		  const extraOptionsTotal = Object.values(extraOptions)
+			.reduce((sum, v) => sum + Number(v || 0), 0);
+		  const measurementData = item.measurementData?.[index] || {};
+		  const notes = item.notes?.[index] || '';
+		  const frontNeckType = item.frontNeckType?.[index] || 'Not specified';
+		  const backNeckType = item.backNeckType?.[index] || 'Not specified';
+		  const sleeveType = item.sleeveType?.[index] || 'Not specified';
+		  const sleeveLength = item.sleeveLength?.[index] || 'Not specified';
+		  const subTailorName = item.subTailorName?.[index];
+		  const subTailorPhNo = item.subTailorPhNo?.[index];
+		  const subTailorDueDate = item.subTailorDueDate?.[index]
+			? moment(item.subTailorDueDate[index]).format('DD-MM-YYYY')
+			: null;
+		  const orderFor = item.associateCustName?.[index] || item.custName;
+
+		  // Add-ons rows
+		  const addonsRows = Object.entries(extraOptions).length > 0
+			? `
+			  <tr>
+				<td>Stitching Amount</td>
+				<td>Rs. ${stitchingAmt}</td>
+			  </tr>
+			  ${Object.entries(extraOptions).map(([key, val]) => `
+				<tr>
+				  <td>${key}</td>
+				  <td>Rs. ${val}</td>
+				</tr>
+			  `).join('')}
+			  <tr class="total-row">
+				<td><strong>Item Total</strong></td>
+				<td><strong>Rs. ${Number(stitchingAmt) + extraOptionsTotal}</strong></td>
+			  </tr>
+			`
+			: `<tr><td colspan="2">No add-ons</td></tr>`;
+
+		  // Measurements rows
+		  const measurementRows = Object.entries(measurementData).length > 0
+			? Object.entries(measurementData).map(([key, val]) => {
+				const label = key.replace(/([A-Z])/g, ' $1')
+				  .replace(/^./, s => s.toUpperCase());
+				return `
+				  <tr>
+					<td>${label}</td>
+					<td>${val}</td>
+				  </tr>
+				`;
+			  }).join('')
+			: `<tr><td colspan="2">No measurements recorded</td></tr>`;
+
+		  // Sub-tailor section
+		  const subTailorSection = subTailorName ? `
+			<div class="sub-section">
+			  <h4>Assigned To</h4>
+			  <table>
+				<tr><td class="label-col">Worker Name</td><td>${subTailorName}</td></tr>
+				<tr><td class="label-col">Phone</td><td>${subTailorPhNo?.replace('+91', '') || 'N/A'}</td></tr>
+				${subTailorDueDate ? `<tr><td class="label-col">Due Date</td><td>${subTailorDueDate}</td></tr>` : ''}
+			  </table>
+			</div>
+		  ` : '';
+
+		  return `
+			<div class="dress-section">
+			  <div class="dress-header">
+				<span class="dress-number">Dress ${index + 1}</span>
+				<span class="dress-title">${subType} ${dress}</span>
+				${orderFor !== item.custName ? `<span class="order-for">For: ${orderFor}</span>` : ''}
+			  </div>
+
+			  <div class="dress-meta">
+				<span>Due: ${dueDate}</span>
+				<span>Status: ${item.orderStatus}</span>
+			  </div>
+
+			  <div class="sub-section">
+				<h4>Pricing & Add-ons</h4>
+				<table>
+				  <thead>
+					<tr><th>Item</th><th>Amount</th></tr>
+				  </thead>
+				  <tbody>${addonsRows}</tbody>
+				</table>
+			  </div>
+
+			  <div class="sub-section">
+				<h4>Neck & Sleeve Details</h4>
+				<table>
+				  <tr><td class="label-col">Front Neck</td><td>${frontNeckType}</td></tr>
+				  <tr><td class="label-col">Back Neck</td><td>${backNeckType}</td></tr>
+				  <tr><td class="label-col">Sleeve Type</td><td>${sleeveType}</td></tr>
+				  <tr><td class="label-col">Sleeve Length</td><td>${sleeveLength}</td></tr>
+				</table>
+			  </div>
+
+			  <div class="sub-section">
+				<h4>Measurements</h4>
+				<table>
+				  <thead>
+					<tr><th>Field</th><th>Value</th></tr>
+				  </thead>
+				  <tbody>${measurementRows}</tbody>
+				</table>
+			  </div>
+
+			  ${notes ? `
+				<div class="sub-section">
+				  <h4>Notes</h4>
+				  <p class="notes-text">${notes}</p>
+				</div>
+			  ` : ''}
+
+			  ${subTailorSection}
+			</div>
+		  `;
+		}).join('');
+	  };
+
+	  return `
+		<html>
+		  <head>
+			<meta charset="UTF-8"/>
+			<style>
+			  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+			  body {
+				font-family: Arial, sans-serif;
+				font-size: 13px;
+				color: #222;
+				padding: 16px;
+				background: #fff;
+			  }
+
+			  .bill-container {
+				border: 2px solid #000;
+				padding: 20px;
+			  }
+
+			  /* Header */
+			  .header { text-align: center; margin-bottom: 20px; }
+			  .shop-title-row {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				gap: 10px;
+			  }
+			  .shop-logo-inline {
+				width: 40px; height: 40px; object-fit: contain;
+			  }
+			  .shop-details { text-align: center; margin-bottom: 12px; }
+			  .order-title {
+				font-size: 18px; font-weight: bold; margin-bottom: 8px;
+			  }
+
+			  /* Customer info */
+			  .customer-row {
+				display: flex;
+				justify-content: space-between;
+				margin-bottom: 20px;
+				padding-bottom: 12px;
+				border-bottom: 1px solid #ccc;
+			  }
+
+			  /* Payment summary */
+			  .payment-summary {
+				background: #f5f5f5;
+				padding: 12px;
+				border-radius: 4px;
+				margin-bottom: 24px;
+			  }
+			  .payment-summary table {
+				width: auto;
+				border: none;
+				margin: 0;
+			  }
+			  .payment-summary td {
+				border: none;
+				padding: 4px 16px 4px 0;
+			  }
+
+			  /* Dress sections */
+			  .dress-section {
+				border: 1px solid #ddd;
+				border-radius: 6px;
+				margin-bottom: 20px;
+				overflow: hidden;
+			  }
+			  .dress-header {
+				background: #2563eb;
+				color: #fff;
+				padding: 10px 14px;
+				display: flex;
+				align-items: center;
+				gap: 12px;
+			  }
+			  .dress-number {
+				background: rgba(255,255,255,0.25);
+				border-radius: 12px;
+				padding: 2px 10px;
+				font-size: 12px;
+				font-weight: bold;
+			  }
+			  .dress-title {
+				font-size: 15px;
+				font-weight: bold;
+				text-transform: capitalize;
+				flex: 1;
+			  }
+			  .order-for {
+				font-size: 12px;
+				opacity: 0.85;
+				font-style: italic;
+			  }
+			  .dress-meta {
+				background: #eff6ff;
+				padding: 6px 14px;
+				display: flex;
+				gap: 24px;
+				font-size: 12px;
+				color: #555;
+				border-bottom: 1px solid #ddd;
+			  }
+
+			  /* Sub sections */
+			  .sub-section {
+				padding: 12px 14px;
+				border-top: 1px solid #eee;
+			  }
+			  .sub-section h4 {
+				font-size: 12px;
+				text-transform: uppercase;
+				letter-spacing: 0.5px;
+				color: #555;
+				margin-bottom: 8px;
+			  }
+
+			  /* Tables */
+			  table {
+				width: 100%;
+				border-collapse: collapse;
+				margin: 0;
+			  }
+			  th {
+				background: #f2f2f2;
+				font-size: 12px;
+				text-align: left;
+				padding: 6px 8px;
+				border: 1px solid #ddd;
+			  }
+			  td {
+				padding: 6px 8px;
+				border: 1px solid #ddd;
+				font-size: 13px;
+			  }
+			  .label-col {
+				width: 40%;
+				color: #555;
+				font-weight: 500;
+			  }
+			  .total-row td {
+				background: #f9fafb;
+			  }
+
+			  /* Notes */
+			  .notes-text {
+				background: #fffbeb;
+				border-left: 3px solid #f59e0b;
+				padding: 8px 12px;
+				border-radius: 2px;
+				font-size: 13px;
+			  }
+
+			  /* Footer */
+			  .footer {
+				text-align: center;
+				margin-top: 30px;
+				color: #888;
+				font-size: 11px;
+			  }
+			</style>
+		  </head>
+		  <body>
+			<div class="bill-container">
+
+			  <div class="header">
+				<div class="order-title">Order #${item.orderNo}</div>
+				<div class="shop-details">
+				  <div class="shop-title-row">
+					<h2>Furyuu Designers</h2>
+				  </div>
+				  <p>Thaneer Pandhal, 31A, V. K Road, 1st St, Maheshwari Nagar, Coimbatore, Tamil Nadu 641004</p>
+				  <p>Ph No.: 7871477077</p>
+				</div>
+			  </div>
+
+			  <div class="customer-row">
+				<div>
+				  <strong>Customer:</strong> ${item.custName}<br/>
+				  <strong>Order Date:</strong> ${item.orderDate}
+				</div>
+			  </div>
+
+			  <div class="payment-summary">
+				<table>
+				  <tr>
+					<td><strong>Total Amount:</strong></td>
+					<td>Rs. ${parseInt(item.orderAmt)}</td>
+				  </tr>
+				  <tr>
+					<td><strong>Payment Status:</strong></td>
+					<td>${item.paymentStatus}</td>
+				  </tr>
+				  ${item.paymentStatus === 'Partially paid' ? `
+					<tr>
+					  <td><strong>Advance Paid:</strong></td>
+					  <td>Rs. ${item.advance}</td>
+					</tr>
+					<tr>
+					  <td><strong>Balance Due:</strong></td>
+					  <td>Rs. ${parseInt(item.orderAmt - item.advance)}</td>
+					</tr>
+				  ` : ''}
+				</table>
+			  </div>
+
+			  ${generateDressSections()}
+
+			  <div class="footer">
+				<p>Generated by Thaiyal - The Tailoring App</p>
+			  </div>
+			</div>
+		  </body>
+		</html>
+	  `;
+	};
+  
+  const shareOrder1 = useCallback(async () => {
+	  try {
+		setLoading(true);
+		const htmlContent = await generateOrderDetailHTML();
+		const { uri } = await Print.printToFileAsync({ html: htmlContent });
+		await Sharing.shareAsync(uri, { mimeType: 'application/pdf' });
+	  } catch (error) {
+		showErrorMessage('Failed to share order details: ' + error.message);
+	  } finally {
+		setLoading(false);
+	  }
+	}, [item]);
 	  
 	// Replace the existing renderOrderDetailsItem callback with this:
 	const renderOrderDetailsItem = useCallback(({ item: dress, index }) => {

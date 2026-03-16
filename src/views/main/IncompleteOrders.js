@@ -92,7 +92,7 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
   
   const theme = useTheme();
   const searchFilters = [
-    { id: 'orderid', label: 'Order ID', iconName: 'hash-outline' },
+    { id: 'orderNo', label: 'Order No', iconName: 'hash-outline' },
     { id: 'name', label: 'Name', iconName: 'person-outline' },
     { id: 'phone', label: 'Phone', iconName: 'phone-outline' }
   ];
@@ -242,7 +242,7 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
   
   const getPlaceholderText = () => {
     switch(activeFilter) {
-      case 'orderid': return 'Search by Order ID (e.g., ORD-001)';
+      case 'orderNo': return 'Search by Order No';
       case 'name': return 'Search by customer name';
       case 'phone': return 'Search by phone number';
       default: return 'Search orders...';
@@ -367,12 +367,12 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
       
       filtered = filtered.filter(order => {
         switch(activeFilter) {
-          case 'orderid':
-            return order.orderNo.toString().includes(searchLower);
           case 'name':
             return order.custName.toLowerCase().includes(searchLower);
           case 'phone':
             return order.phoneNo.includes(searchValue);
+		  case 'orderNo':
+            return order.orderNo.toString().includes(searchValue);
           default:
             return true;
         }
@@ -385,7 +385,9 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
   const filteredOrders = filterOrders();
 
   const renderSearchFilters = () => {
-	  const filtersToRender = statusCheckType ? searchFilters : [searchFilters[1]];
+	  const filtersToRender = statusCheckType 
+		? searchFilters 
+		: searchFilters.filter(f => f.id === 'name' || f.id === 'orderNo');
 
 	  return (
 		<ScrollView
@@ -423,24 +425,28 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
     
     return (
       <Button
-        key={filter.id}
-        appearance={isActive ? 'filled' : 'outline'}
-        status={isActive ? 'success' : 'basic'}
-        size='small'
-        accessoryLeft={IconComponent}
-        style={[styles.filterButton, isActive && styles.activeFilterButton]}
-        onPress={() => {
-          if (activeFilter === filter.id) {
-            setActiveFilter(null);
-            setSearchValue('');
-          } else {
-            setActiveFilter(filter.id);
-            setSearchValue('');
-          }
-        }}
-      >
-        {filter.label}
-      </Button>
+		  key={filter.id}
+		  appearance={isActive ? 'filled' : 'outline'}
+		  status={isActive ? 'success' : 'basic'}
+		  size='small'
+		  style={[styles.filterButton, isActive && styles.activeFilterButton]}
+		  onPress={() => {
+			if (activeFilter === filter.id) {
+			  setActiveFilter(null);
+			  setSearchValue('');
+			} else {
+			  setActiveFilter(filter.id);
+			  setSearchValue('');
+			}
+		  }}
+		>
+		  {evaProps => (
+			<View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+			  <Icon name={filter.iconName} style={{ width: 14, height: 14 }} fill={isActive ? 'white' : '#8F9BB3'} />
+			  <Text {...evaProps} style={{ fontSize: 12, color: isActive ? 'white' : '#8F9BB3' }}>{filter.label}</Text>
+			</View>
+		  )}
+		</Button>
     );
   };
 
@@ -1418,7 +1424,7 @@ const styles = StyleSheet.create({
   },
   filterButton: {
     marginRight: 8,
-    borderRadius: 12,
+    borderRadius: 12
   },
   activeFilterButton: {
     elevation: 2,
