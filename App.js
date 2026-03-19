@@ -12,6 +12,7 @@ import { PubSubProvider } from './src/views/main/SimplePubSub';
 import * as Network from 'expo-network';
 import ProfileScreen from './src/views/auth/ProfileScreen';
 import OrderBagScreen from './src/views/main/OrderBagScreen';
+import SlotViewingScreen from './src/views/main/SlotViewingScreen';
 import HomeScreenNew from "./src/views/main/HomeScreenNew";
 import ImportCustomerScreen from "./src/views/main/ImportCustomerScreen";
 import HomeScreenTabView from "./src/views/main/HomeScreenTabView";
@@ -410,6 +411,9 @@ const DrawerNavigator = ({ route }) => {
 		  case 'Add Income/Expense':
             iconName = 'trending-up-outline';
             break;
+		  case 'Slots':
+            iconName = 'calendar-outline';
+            break;
           default:
             iconName = 'grid-outline';
         }
@@ -432,6 +436,9 @@ const DrawerNavigator = ({ route }) => {
             break;
 		  case 'Add Income/Expense':
             name = 'Income/Expense';
+            break;
+		  case 'Slots':
+            name = 'Slots';
             break;
           default:
             name = 'grid-outline';
@@ -543,6 +550,27 @@ const DrawerNavigator = ({ route }) => {
           </Stack.Navigator>
         )}
       </BottomTab.Screen>
+	  
+	  <BottomTab.Screen
+        name="Slots"
+        options={{ headerShown: false, unmountOnBlur: true }}
+      >
+        {({ navigation }) => (
+          <Stack.Navigator>
+			<Stack.Screen
+						  name="SlotViewingScreen"
+						  component={SlotViewingScreen}
+						  options={({ navigation, route }) => ({
+						headerTitle: 'Slots',
+						headerLeft: () => (
+										  <TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon}
+											onPress={() => navigation.goBack()} />
+										),
+						})}
+			  />
+		</Stack.Navigator>
+        )}
+	</BottomTab.Screen>
 
 	  {isTabVisible('Dashboard') && (<BottomTab.Screen
         name="Dashboard"

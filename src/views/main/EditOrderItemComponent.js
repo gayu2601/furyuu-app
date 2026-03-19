@@ -525,29 +525,42 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
 	}
 	
 	const handleSlotSelection = (val) => {
-		console.log('in handleSlotSelection')
+		console.log('in handleSlotSelection');
 		console.log(val);
-		console.log(item.slots)
+		console.log(item.slots);
+
+		const allDates = new Set([
+			...Object.keys(item.slots || {}),
+			...Object.keys(val || {}),
+		]);
+
 		const diffs = Object.fromEntries(
-		  Object.entries(val).map(([date, newVal]) => {
-			const oldVal = item.slots[date] || {};
-			return [
-			  date,
-			  {
-				regular: (newVal.regular || 0) - (oldVal.regular || 0),
-				express: (newVal.express || 0) - (oldVal.express || 0),
-				total: (newVal.total || 0) - (oldVal.total || 0),
-			  },
-			];
-		  })
+			[...allDates].map((date) => {
+				const oldVal = item.slots?.[date] || {};
+				const newVal = val?.[date] || {};
+
+				return [
+					date,
+					{
+						regular: (newVal.regular || 0) - (oldVal.regular || 0),
+						express: (newVal.express || 0) - (oldVal.express || 0),
+						total: (newVal.total || 0) - (oldVal.total || 0),
+					},
+				];
+			})
 		);
 
-		console.log("Diffs:", diffs); 
+		console.log("Diffs:", diffs);
 
-		if(val) {
+		// optional: skip if no meaningful changes
+		/*const hasChanges = Object.values(diffs).some(
+			(d) => d.regular !== 0 || d.express !== 0 || d.total !== 0
+		);*/
+
+		if (val) {
 			updateSlots('slots', diffs, val);
 		}
-	}
+	};
   
   const renderSlotSummary = (slots) => {
     const data = Object.entries(slots).map(([date, { regular, express, total, expressDuration }]) => ({
