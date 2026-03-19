@@ -2,7 +2,7 @@ name: supabase-daily-backup
 
 on:
   schedule:
-    - cron: '30 20 * * *'
+    - cron: '30 0,6,12,18 * * *'
   workflow_dispatch:
 
 jobs:
