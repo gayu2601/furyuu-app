@@ -70,6 +70,14 @@ const EditOrderItemComponent = (props, ref) => {
     measurements: false
   });
   
+  const [editDressType, setEditDressType] = useState(item.dressType || '');
+	const [editDressSubType, setEditDressSubType] = useState(
+	  item.dressType === 'salwar'
+		? item.dressSubType || ''
+		: (item.dressSubType?.trim() || '')
+	);
+
+  
   const ADDON_OPTIONS = [
 	  "Lining",
 	  "Piping",
@@ -155,8 +163,6 @@ const EditOrderItemComponent = (props, ref) => {
   const getSaveData = () => {
     let a = {
       dressItemId: item.dressItemId,
-	  dressType: item.dressType,
-	  dressSubType: item.dressSubType,
 	  deletedPics,
 	  deletedPatternPics,
 	  deletedMeasPics,
@@ -165,7 +171,10 @@ const EditOrderItemComponent = (props, ref) => {
 	  ...(deletedSleeveImg != null && { deletedSleeveImg }),
 	  ...(!('stitchingAmt' in changedFields) && { stitchingAmt: item.stitchingAmt }),
 	  ...(!('extraOptions' in changedFields) && { extraOptions: item.extraOptions }),
-	  ...changedFields
+	  ...(!('dressType' in changedFields) && { dressType: item.dressType }),
+      ...(!('dressSubType' in changedFields) && { dressSubType: item.dressSubType }),
+	  ...changedFields,
+	  ...(changedFields.dressType && { dressType: changedFields.dressType.toLowerCase() }),
     };
 	console.log(a)
 	return a;
@@ -1220,8 +1229,7 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
   
   return (
     <View style={styles.topView}>
-	  <Text category='s1' style={styles.heading}>Dress {index + 1}</Text>
-      <View style={styles.orderContainer}>
+	  <View style={styles.orderContainer}>
         {/* Garment Info Card */}
         <TouchableOpacity 
           style={styles.garmentCard} 
@@ -1256,10 +1264,7 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
                 {/* Item Info */}
                 <View style={styles.garmentInfoSection}>
                   <Text category='s1' style={styles.garmentTitle}>
-                    {item.dressType === 'salwar' 
-						? `${item.dressSubType.split('_')[0]} ${item.dressType}${item.dressSubType.split('_')[1] ? ` (${item.dressSubType.split('_')[1]} Pants)` : ''}`
-						: `${item.dressSubType || ''} ${item.dressType}`.trim()
-					}
+                    {`${editDressSubType || ''} ${editDressType}`.trim() || 'Dress'}
                   </Text>
                   <Text category='c1' style={styles.itemDue}>
                     Due: {formattedDate}
@@ -1285,6 +1290,31 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
                 </View>
               </View>
             </View>
+			
+			  <Divider />
+
+			  {/* Bottom Row — editable fields */}
+			  <View style={styles.bottomRow}>
+				<View style={styles.fieldWrap}>
+				  <Text category='c1' style={styles.fieldLabel}>Sub type</Text>
+				  <Input
+					style={styles.fieldInput}
+					value={editDressSubType}
+					onChangeText={(text) => { setEditDressSubType(text); updateItemField('dressSubType', text.trim()); }}
+					autoCapitalize="none"
+				  />
+				</View>
+				<View style={styles.fieldWrap}>
+				  <Text category='c1' style={styles.fieldLabel}>Dress type</Text>
+				  <Input
+					style={styles.fieldInput}
+					value={editDressType}
+					onChangeText={(text) => { setEditDressType(text); updateItemField('dressType', text.trim()); }}
+					autoCapitalize="none"
+				  />
+				</View>
+			  </View>
+
           </View>
         </TouchableOpacity>
 
@@ -2066,7 +2096,46 @@ const styles = StyleSheet.create({
 		textAlign: 'center',
 		fontSize: 12
 	  },
-	  topView: {marginTop: 5}
+	  topView: {marginTop: 5},
+	topRow: {
+	  flexDirection: 'row',
+	  alignItems: 'center',
+	  justifyContent: 'space-between',
+	  padding: 12,
+	  gap: 8,
+	},
+	topLeft: {
+	  flexDirection: 'row',
+	  alignItems: 'center',
+	  gap: 10,
+	  flex: 1,
+	},
+	topRight: {
+	  flexDirection: 'row',
+	  alignItems: 'center',
+	  gap: 8,
+	  flexShrink: 0,
+	},
+	bottomRow: {
+	  flexDirection: 'row',
+	  gap: 8,
+	  paddingHorizontal: 12,
+	  paddingBottom: 12,
+	  paddingTop: 8,
+	},
+	fieldWrap: {
+	  flex: 1,
+	  gap: 3,
+	},
+	fieldLabel: {
+	  fontSize: 10,
+	  color: '#888',
+	  marginLeft: 2,
+	},
+	fieldInput: {
+	  height: 32,
+	  fontSize: 12,
+	},
 });
 
 export default forwardRef(EditOrderItemComponent);

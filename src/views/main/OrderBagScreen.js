@@ -61,8 +61,8 @@ const OrderBagScreen = ({ navigation }) => {
 
   const userType = currentUser.userType;
   const items = getNewOrder();
-  //const items = [{"alterDressType": "", "associateCustName": "", "backNeckDesignFile": null, "backNeckType": "Boat", "dressGiven": false, "dressPics": ["file:///data/user/0/com.thaiyal.Tailor/cache/ImageManipulator/076ee617-7261-46b2-84a1-20316c05897f.jpg", "file:///data/user/0/com.thaiyal.Tailor/cache/ImageManipulator/b5470fa0-217b-4f98-a9ce-f5f7be44777a.jpg"], "dressSubType": "Normal", "dressType": "blouse", "dueDate": "2025-08-27", "editable": true, "extraMeasurements": {"eee": 4}, "extraOptions": {"Hemming": "50", "Hook/Button": "80"}, "frontNeckDesignFile": null, "frontNeckType": "Sweetheart", "id": 1, "localId": 1, "measurementData": {"armHoleCurve": "", "armPitDepth": "", "backCut": "", "backDepth": "", "backNeck": "", "blouseLength": "", "chest": "", "cvb": "", "dartDepth": "", "frontCut": "", "frontDepth": "", "frontNeck": "", "hemCurve": "7", "hookLength": "", "red": "5", "shoulder": "", "shoulderCurve": "", "shoulderToWaist": "9", "sideCut": "", "sleeve": "", "sleeveOpening": "", "waist": ""}, "measurementPics": [], "notes": "Dd", "patternPics": ["file:///data/user/0/com.thaiyal.Tailor/cache/ImageManipulator/03418653-17b2-4cce-a941-375ed128edf0.jpg", "file:///data/user/0/com.thaiyal.Tailor/cache/ImageManipulator/bb4efe2b-4ad4-4578-a742-e2ac4212b016.jpg"], "repeatDesign": false, "repeatMeas": false, "sleeveDesignFile": null, "sleeveLength": "Medium", "sleeveType": "Sleeveless", "stitchingAmt": "500"}]
-  //const custDetails = {"custName": "lak", "occasion": "Ethnic", "phoneNo": "+919841690009"};
+  //const items = [{"alterDressType": "", "associateCustName": "", "backNeckDesignFile": null, "backNeckType": "Pentagon", "dressGiven": false, "dressPics": ["file:///data/user/0/com.furyuu.app/cache/ImageManipulator/830c5917-b078-41a0-b171-350008db4772.jpg", "file:///data/user/0/com.furyuu.app/cache/ImageManipulator/5d7868f8-0181-41ba-920a-49e7e3c17464.jpg"], "dressSubType": undefined, "dressType": "partywear", "dueDate": "2026-04-02", "editable": false, "extraMeasurements": {}, "extraOptions": {"Lace": "80", "Piping": "50"}, "frontNeckDesignFile": "file:///data/user/0/com.furyuu.app/cache/sign_1773998764925.png", "frontNeckType": "", "id": 0, "localId": 1, "measurementData": {"APEX_PT": "", "ARM_R": "", "BN": "", "BR": "", "C1": "", "C2": "", "CO_L": "", "FL": "5", "FN": "", "KL_R": "", "OTHER": "", "P_FL": "", "SEAT": "", "SH": "", "SH_W": "", "SL": "", "SW": "", "S_MID": "", "TH_LR": "", "W1_HR": "", "W2_HR": "", "hsns": ""}, "measurementPics": ["file:///data/user/0/com.furyuu.app/cache/ImageManipulator/b55edd0d-dc57-4036-9952-110c301670dc.jpg", "file:///data/user/0/com.furyuu.app/cache/ImageManipulator/6f3882a4-88b7-4868-80f0-dd3cb34bbf6f.jpg"], "notes": "Ttt", "patternPics": ["file:///data/user/0/com.furyuu.app/cache/ImageManipulator/77347407-e343-4b64-9300-795f672df78c.jpg"], "repeatDesign": true, "repeatMeas": true, "savedDesign": true, "savedMeas": true, "sleeveDesignFile": "file:///data/user/0/com.furyuu.app/cache/sign_1773998777073.png", "sleeveLength": "Half", "sleeveType": "Custom", "slotDates": ["2026-03-26", "2026-03-27"], "slots": {"2026-03-26": [Object], "2026-03-27": [Object]}, "stitchingAmt": "500"}, {"alterDressType": "", "associateCustName": "", "backNeckDesignFile": null, "backNeckType": "Pentagon", "dressGiven": false, "dressPics": [], "dressSubType": undefined, "dressType": "partywear", "dueDate": "2026-04-02", "editable": true, "extraMeasurements": {}, "extraOptions": {}, "frontNeckDesignFile": "file:///data/user/0/com.furyuu.app/cache/sign_1773998764925.png", "frontNeckType": "", "id": 1, "localId": 2, "measurementData": {"APEX_PT": "", "ARM_R": "", "BN": "", "BR": "", "C1": "", "C2": "", "CO_L": "", "FL": "", "FN": "", "KL_R": "", "OTHER": "", "P_FL": "", "SEAT": "", "SH": "", "SH_W": "", "SL": "", "SW": "", "S_MID": "", "TH_LR": "", "W1_HR": "", "W2_HR": "", "hsns": ""}, "measurementPics": [], "notes": "", "patternPics": [], "repeatDesign": true, "repeatMeas": true, "savedDesign": false, "savedMeas": false, "sleeveDesignFile": "file:///data/user/0/com.furyuu.app/cache/sign_1773998777073.png", "sleeveLength": "Half", "sleeveType": "Custom", "slotDates": [], "slots": {}, "stitchingAmt": "600"}, {"alterDressType": "", "associateCustName": "", "backNeckDesignFile": "file:///data/user/0/com.furyuu.app/cache/sign_1773998917449.png", "backNeckType": "", "dressGiven": true, "dressPics": ["file:///data/user/0/com.furyuu.app/cache/ImageManipulator/747ae46f-332b-473c-a2e8-a253d557c061.jpg"], "dressSubType": undefined, "dressType": "tops", "dueDate": "2026-03-31", "editable": true, "extraMeasurements": {}, "extraOptions": {"Lace": ""}, "frontNeckDesignFile": null, "frontNeckType": "Teardrop", "id": 2, "localId": 1, "measurementData": {"APEX_PT": "", "ARM_R": "", "BN": "", "C1": "", "C2": "", "FL": "", "FN": "", "SH": "6", "SH_W": "", "SL": "", "SW": "", "S_MID": ""}, "measurementPics": ["file:///data/user/0/com.furyuu.app/cache/ImageManipulator/f5b9a7af-b4ea-4982-9d5b-76b3d3381aa4.jpg"], "notes": "", "patternPics": ["file:///data/user/0/com.furyuu.app/cache/ImageManipulator/36551ceb-b6c2-43d1-b91d-b6d27942651a.jpg", "file:///data/user/0/com.furyuu.app/cache/ImageManipulator/73b48396-dd7f-4a00-a87c-3b41b798cb1f.jpg"], "repeatDesign": false, "repeatMeas": false, "savedDesign": true, "savedMeas": true, "sleeveDesignFile": null, "sleeveLength": "Elbow", "sleeveType": "Ordinary", "slotDates": ["2026-03-26", "2026-03-28"], "slots": {"2026-03-26": [Object], "2026-03-28": [Object]}, "stitchingAmt": "600"}]
+  //const custDetails = {"custInserted": false, "custName": "Raabi.T", "occasion": " ", "orderNo": 254, "phoneNo": "+916381982688"};
   const custDetails = getNewOrderCust();
   const payStatuses = ['Pending', 'Fully paid', 'Partially paid'];
   const breadcrumbRoutes = [
@@ -301,6 +301,8 @@ const OrderBagScreen = ({ navigation }) => {
 	  let minDuration = Infinity;
 	  let finalDuration = null;
 	  
+	  console.log(slotsObj);
+	  
 	  for (const { expressDuration } of Object.values(slotsObj)) {
 		console.log(expressDuration);
 		
@@ -325,308 +327,205 @@ const OrderBagScreen = ({ navigation }) => {
 	  return finalDuration;
 	};
 
-  const addDressItemsToParse = async (orderNo, customerId, custName, phNo, itemsExp) => {
-		try {
-			const grouped = {};
-			let dressItemIds = [];
-			for (let i = 0; i < itemsExp.length; i++) {
-				const item = itemsExp[i];
-				console.log("in add: ")
-				console.log(item);
-				const jsonCacheVal = storage.getString(phNo+'_'+item.dressType);
-						if(item.frontNeckDesignFile) {
-							console.log('uploading frontNeckDesignFile')
-							uploadDesignFile(item, 'frontNeckDesignFile')
-						}
-						if(item.backNeckDesignFile) {
-							console.log('uploading backNeckDesignFile')
-							uploadDesignFile(item, 'backNeckDesignFile')
-						}
-						if(item.sleeveDesignFile) {
-							console.log('uploading sleeveDesignFile')
-							uploadDesignFile(item, 'sleeveDesignFile')
-						}
-						if(item.dressPics) {
-							item.dressPics = await uploadOrderImages('dress', item.dressPics);
-						}
-						if(item.patternPics) {
-							item.patternPics = await uploadOrderImages('pattern', item.patternPics);
-						}
-						if(item.measurementPics) {
-							item.measurementPics = await uploadOrderImages('measurements', item.measurementPics);
-						}
-						
-						//let finalDurationVal = summarizeExpressDuration(item.slots);
+  // ─── helper: unchanged ────────────────────────────────────────────────────────
+const calculateTotalAmount = (data) => {
+  return data.reduce((total, item) => {
+    const stitchingAmount = parseInt(item.stitchingAmt ? item.stitchingAmt : 0);
+    let extraOptionsSum = 0;
+    if (item.extraOptions && typeof item.extraOptions === 'object') {
+      extraOptionsSum = Object.values(item.extraOptions).reduce(
+        (sum, value) => sum + (parseInt(value) || 0), 0
+      );
+    }
+    return total + stitchingAmount + extraOptionsSum;
+  }, 0);
+};
 
-					const { data, error } = await supabase
-									  .from('DressItems')
-									  .insert({ orderNo: orderNo, dressType: item.dressType, dueDate: item.dueDate, dressSubType: item.dressSubType, stitchingAmt: parseInt(item.stitchingAmt ? item.stitchingAmt : 0), frontNeckType: item.frontNeckType, backNeckType: item.backNeckType, sleeveType: item.sleeveType, sleeveLength: item.sleeveLength, dressGiven: item.dressGiven, alterDressType: item.alterDressType, notes: item.notes, dressPics: item.dressPics, patternPics: item.patternPics, measurementPics: item.measurementPics, frontNeckDesignFile: item.frontNeckDesignFile, backNeckDesignFile: item.backNeckDesignFile, sleeveDesignFile: item.sleeveDesignFile, associateCustName: item.associateCustName?.trim(), extraOptions: item.extraOptions, slots: item.slots, slotDates: item.slotDates, expressDuration: item.expressDuration })
-									  .select().single();
-					if(error) {
-						console.log(error);
-						throw error;
-					}
-					
-					console.log('item.slots', item.slots);
-					const rowsToInsert = Object.entries(item.slots).map(([slot_date, { regular, express, total }]) => ({
-					  slot_date,
-					  regular_slots_booked: regular,
-					  express_slots_booked: express,
-					  total_slots_booked: total,
-					}));
-					console.log('rowsToInsert', rowsToInsert);
+// ─── helper: unchanged ────────────────────────────────────────────────────────
+const calcExpressCharges = (data) => {
+  return data.reduce((max, item) => {
+    const expressAmt = parseInt(item.expressDuration ? item.expressDuration.price : 0);
+    return Math.max(max, expressAmt);
+  }, 0);
+};
 
-					const { data: dataSlots, error: errorSlots } = await supabase
-					    .rpc('upsert_delivery_slots', { 
-							rows_data: rowsToInsert 
-						});
+// ─── file uploads (unchanged, must still happen before RPC) ──────────────────
+// ─── file uploads — must stay client-side (touches storage, not DB) ──────────
+const prepareItemFiles = async (item) => {
+  if (item.frontNeckDesignFile) uploadDesignFile(item, 'frontNeckDesignFile');
+  if (item.backNeckDesignFile)  uploadDesignFile(item, 'backNeckDesignFile');
+  if (item.sleeveDesignFile)    uploadDesignFile(item, 'sleeveDesignFile');
 
-					if (errorSlots) {
-					  console.error("Insert error:", errorSlots);
-					} else {
-					  console.log("Inserted slots:", dataSlots);
-					}
+  if (item.dressPics)       item.dressPics       = await uploadOrderImages('dress',        item.dressPics);
+  if (item.patternPics)     item.patternPics      = await uploadOrderImages('pattern',      item.patternPics);
+  if (item.measurementPics) item.measurementPics  = await uploadOrderImages('measurements', item.measurementPics);
 
-					dressItemIds.push(data.id)
-					let aa = {...item.measurementData, ...item.extraMeasurements};
-					item.measurementData = aa;
-					try {
-							const { data: data1, error: error1 } = await supabase
-								  .from('measurements_new')
-								  .insert({ dress_type: item.dressType, customer_id: customerId, measurement_data: aa, dress_item_id: data.id, other_cust: item.associateCustName ? true : false })
-								  .select();
-							if(error1) {
-								console.log(error1)
-								throw error1;
-							}
-							
-							if(item.nameValues) {
-									const rowsToInsert = item.nameValues.map(fieldKey => ({
-										dress_type: fieldKey.dressType,
-										field_key: fieldKey.value
-									  }));
+  return item;
+};
 
-									  const {error: error2} = await supabase
-										.from('dress_extra_measurement_fields')
-										.upsert(rowsToInsert);
-										
-									  await refresh();
-										
-									  if (error2) {
-										console.error('Error inserting extra measurements:', error2);
-									  }
-							}
-							
-							console.log("Measurement saved successfully:", data1);
-							const filteredObject = {dressType: item.dressType,
-								measurementData: aa
-							}
-							console.log(filteredObject);
-							if(!item.associateCustName) {
-								console.log('updating UPDATE_MEAS')
-								updateCache('UPDATE_MEAS', filteredObject, `${phNo}_${item.dressType}`);    
-								await notify(currentUser.id, 'UPDATE_MEAS', `${phNo}_${item.dressType}`, filteredObject);
-							}
-					} catch(error) {
-						console.error('Error saving Measurement:', error.message);
-						throw error;
-					}
-				
-				const key = (item.dressType === 'Alteration' ? item.alterDressType : (item.dressSubType ? item.dressSubType : '')) + " " + item.dressType;
-				if (grouped[key]) {
-				  grouped[key] += 1;
-				} else {
-				  grouped[key] = 1;
-				}
-			}
+// ─── createOrder ─────────────────────────────────────────────────────────────
+const createOrder = async () => {
+  if (!isConnected) {
+    showErrorMessage("No Internet Connection");
+    return;
+  }
+  if (!custDetails.custName?.trim() || !custDetails.phoneNo?.trim()) {
+    showErrorMessage("Empty customer name or phone number!");
+    return;
+  }
+  if (items.length === 0) {
+    showErrorMessage("Add at least one order item!");
+    return;
+  }
 
-			const details = Object.entries(grouped)
-			  .map(([key, count]) => `${count} ${key}`)
-			  .join(', ');
-			console.log('dressItemIds:')
-			console.log(dressItemIds)
-			return [details, dressItemIds];
-		} catch (error) {
-			  console.error('Error saving DressItem:', error.message);
-			  const response = await supabase
-				  .from('OrderItems')
-				  .delete()
-				  .eq('orderNo', orderNo);
-			  if (response.error) {
-				  console.error('Deletion failed:', response.error.message);
-				  throw error;
-			  }
-			  return null;
-		}
-	  };
-	  
-	  const accumulateSlots = (obj) => {
-		  let totalRegular = 0;
-		  let totalExpress = 0;
+  try {
+    setLoading(true);
 
-		  for (const val of Object.values(obj)) {
-			totalRegular += val.regular || 0;
-			totalExpress += val.express || 0;
-		  }
+    // 1. Fetch customer id
+    const { data: custData, error: custError } = await supabase
+      .from('Customer')
+      .select('*')
+      .eq('phoneNo', custDetails.phoneNo)
+      .maybeSingle();
+    if (custError) throw custError;
+    const custId = custData.id;
 
-		  return { totalRegular, totalExpress };
-		}
+    // 2. Attach expressDuration + upload files (client-side, before RPC)
+    const itemsWithExpress = await Promise.all(
+      items
+        .map(item => ({ ...item, expressDuration: summarizeExpressDuration(item.slots) }))
+        .map(item => prepareItemFiles(item))
+    );
 
-		const calculateTotalAmount = (data) => {
-		  return data.reduce((total, item) => {
-			// Add stitching amount
-			const stitchingAmount = parseInt(item.stitchingAmt ? item.stitchingAmt : 0);
-			
-			// Calculate sum of all extraOptions values
-			let extraOptionsSum = 0;
-			if (item.extraOptions && typeof item.extraOptions === 'object') {
-			  extraOptionsSum = Object.values(item.extraOptions).reduce((sum, value) => {
-				return sum + (parseInt(value) || 0);
-			  }, 0);
-			}
-			
-			return total + stitchingAmount + extraOptionsSum;
-		  }, 0);
-		};
-		
-		const calcExpressCharges = (data) => {
-			return data.reduce((max, item) => {
-			  const expressAmt = parseInt(item.expressDuration ? item.expressDuration.price : 0);
-			  return Math.max(max, expressAmt);
-			}, 0);
-		}
+    const expressCharges = itemsWithExpress.reduce((max, item) => {
+      const price = item.expressDuration?.price || 0;
+      return price > max ? price : max;
+    }, 0);
+	
+	console.log('itemsWithExpress', itemsWithExpress);
 
-	  const createOrder = async () => {
-		console.log('in createOrder')
-		if(!isConnected) {
-			 showErrorMessage("No Internet Connection");
-		} else {
-		  if(!custDetails.custName?.trim() || !custDetails.phoneNo?.trim()) {
-			  showErrorMessage("Empty customer name or phone number!")
-		  } else if (items.length===0) {
-			  showErrorMessage("Add atleast one order item!")
-		  } else {
-				try {
-						setLoading(true);
-						let grRes = [];
-							console.log(custDetails)
-							
-							  const { data, error, status } = await supabase
-								.from('Customer')
-								.select(`*`)
-								.eq('phoneNo', custDetails.phoneNo)
-								.maybeSingle();
-							  if (error) {
-								console.log(error)
-								throw error;
-							  }
-							    console.log('cust data:')
-								console.log(data)
-								const custId = data.id;
-								
-								const itemsWithExpress = items.map(item => ({
-								  ...item,
-								  expressDuration: summarizeExpressDuration(item.slots)
-								}));
-								console.log('itemsWithExpress', itemsWithExpress);
+    // 3. Single RPC call — all DB writes, fully atomic
+    const payload = {
+      username:       currentUser.username,
+      orderDate:      new Date().toISOString(),
+      orderStatus:    'New',
+      orderAmt:       calculateTotalAmount(items),
+      paymentStatus:  payStatus,
+      advance:        parseInt(advancePaid || 0),
+      customerId:     Number(custId),
+      occasion:       custDetails.occasion,
+      paymentMode:    paymentMode,
+      expressCharges: Number(expressCharges),
+      paymentNotes:   payNotes,
+      ...(custDetails.orderNo > 0 ? { orderNo: custDetails.orderNo } : {}),
+      items: itemsWithExpress,
+    };
 
-								// Then compute expressCharges as max expressDuration across items
-								const expressCharges = itemsWithExpress.reduce((max, item) => {
-								  const price = item.expressDuration?.price || 0;
-								  return price > max ? price : max;
-								}, 0);
-								
-								console.log('expressCharges', expressCharges)
+    const { data: rpcData, error: rpcError } = await supabase.rpc(
+      'create_order_with_items',
+      { payload }
+    );
+    if (rpcError) throw rpcError;
 
-								let insertJson = { username: currentUser.username, orderDate: new Date(), orderStatus: 'New', orderAmt: calculateTotalAmount(items), paymentStatus: payStatus, advance: parseInt(advancePaid ? advancePaid : 0), customerId: custId, occasion: custDetails.occasion, paymentMode: paymentMode, expressCharges: expressCharges, paymentNotes: payNotes };
-								
-								if (custDetails.orderNo && custDetails.orderNo > 0) {
-									insertJson.orderNo = custDetails.orderNo;
-								}								
-								console.log('insertJson:')
-								console.log(insertJson)
-								const { data: data1, error: error1 } = await supabase
-									  .from('OrderItems')
-									  .insert(insertJson)
-									  .select(`*`).maybeSingle();
-								if(error1) {
-									console.log(error1);
-									throw error1;
-								}
-									console.log(data1)
-									grRes = await addDressItemsToParse(data1.orderNo, custId, custDetails.custName, custDetails.phoneNo, itemsWithExpress);
-									console.log("grRes: " + grRes[0] + grRes[1])
-							
-								console.log(items)
-								const combinedObject = items.reduce((accumulator, currentObj) => {
-								  for (const key in currentObj) {
-									let value = currentObj[key];
+    // rpcData = { order: { orderNo, ... full OrderItems row }, dressIds: [...] }
+    const { order: createdOrder, dressIds } = rpcData;
 
-									if (['dressPics', 'patternPics', 'measurementPics'].includes(key) && typeof value === 'string') {
-									  value = value.split(',');
-									}
+    // 4. Post-success: local cache updates + notifications
+    const grouped = {};
 
-									if (accumulator[key]) {
-									  accumulator[key].push(value);
-									} else {
-									  accumulator[key] = [value];
-									}
-								  }
-								  if (accumulator['checkingDone']) {
-									accumulator['checkingDone'].push(false);
-								  } else {
-									accumulator['checkingDone'] = [false];
-								  }
-								  return accumulator;
-								}, {});
-								
-								console.log("combined dress items: ");
-								const selProps = ['associateCustName', 'dressType', 'dressSubType', 'alterDressType', 'frontNeckType', 'backNeckType', 'sleeveType', 'sleeveLength',  'frontNeckDesignFile', 'backNeckDesignFile', 'sleeveDesignFile', 'dressGiven', 'dueDate', 'stitchingAmt', 'notes', 'dressPics', 'patternPics', 'measurementPics', 'measurementData', 'extraOptions', 'slots', 'slotDates', 'expressDuration'];
-								const filteredObjectCombined = {};
-								selProps.forEach(prop => {
-								  filteredObjectCombined[prop] = combinedObject[prop];
-								});
-								const selComObj = JSON.stringify(filteredObjectCombined, (key, value) => {
-												  return value;
-												});
-								const selComObjJson = JSON.parse(selComObj)
-								console.log(selComObjJson)
-								console.log(data1);
-								const itemFinal = {...data1, ...selComObjJson, ...{ custName: custDetails.custName, phoneNo: custDetails.phoneNo, dressItemId: grRes[1], dressDetails: grRes[0]}}
-								console.log('itemFinal:')
-								console.log(itemFinal)
-										
-										updateCache('NEW_ORDER', itemFinal, 'Completed_false', null, custDetails.custInserted || false);    
-										await notify(currentUser.id, 'NEW_ORDER', 'Completed_false', itemFinal, null, custDetails.custInserted || false);
-										
-									showSuccessMessage('Order saved!');
-									eventEmitter.emit('storageUpdated');
-									eventEmitter.emit('newOrderAdded');
-									eventEmitter.emit('payStatusChanged');
-									if(!eventEmitted) {
-										eventEmitter.emit('transactionAdded');
-										setEventEmitted(true);
-									}
-								
-							  saveOrder([], {custName: '', phoneNo: '', occasion: '', custInserted: false, orderNo: 0});
-							  resetItemsForLabel();
-							  resetIdCounter();
-							  clearAllBookings();
-							  navigation.navigate('HomeMain', {screen: 'HomeNew'});
-						
-			} catch(error) {
-						console.error("Error calling Cloud Code function:", error.message);
-			} finally {
-				setPayStatusIndex(0);
-				setPayStatus('Pending');
-				setAdvancePaid(0);
-				setPaymentMode('Cash');
-				setPayModeIndex(0);
-				setLoading(false);
-			}
-		  }
-		}
-	}
+    for (const item of itemsWithExpress) {
+      // cache measurement per dress type (skip associate items)
+      if (!item.associateCustName?.trim()) {
+        const mergedMeas = { ...item.measurementData, ...item.extraMeasurements };
+        const filteredObject = { dressType: item.dressType, measurementData: mergedMeas };
+        updateCache('UPDATE_MEAS', filteredObject, `${custDetails.phoneNo}_${item.dressType}`);
+        await notify(currentUser.id, 'UPDATE_MEAS', `${custDetails.phoneNo}_${item.dressType}`, filteredObject);
+      }
+
+      // refresh local extra measurement field list
+      if (item.nameValues?.length) await refresh();
+
+      // build grouped summary  e.g. "2 Blouse, 1 Alteration Salwar"
+      const key =
+        (item.dressType === 'Alteration'
+          ? item.alterDressType
+          : item.dressSubType ?? '') +
+        ' ' + item.dressType;
+      grouped[key] = (grouped[key] || 0) + 1;
+    }
+
+    const dressDetails = Object.entries(grouped)
+      .map(([key, count]) => `${count} ${key}`)
+      .join(', ');
+
+    // 5. Build itemFinal in the same shape the rest of the app expects
+    const combinedObject = itemsWithExpress.reduce((acc, cur) => {
+      for (const key in cur) {
+        let value = cur[key];
+        if (
+          ['dressPics', 'patternPics', 'measurementPics'].includes(key) &&
+          typeof value === 'string'
+        ) {
+          value = value.split(',');
+        }
+        acc[key] = acc[key] ? [...acc[key], value] : [value];
+      }
+      acc['checkingDone'] = [...(acc['checkingDone'] || []), false];
+      return acc;
+    }, {});
+
+    const selProps = [
+      'associateCustName', 'dressType', 'dressSubType', 'alterDressType',
+      'frontNeckType', 'backNeckType', 'sleeveType', 'sleeveLength',
+      'frontNeckDesignFile', 'backNeckDesignFile', 'sleeveDesignFile',
+      'dressGiven', 'dueDate', 'stitchingAmt', 'notes',
+      'dressPics', 'patternPics', 'measurementPics', 'measurementData',
+      'extraOptions', 'slots', 'slotDates', 'expressDuration',
+    ];
+    const filteredCombined = Object.fromEntries(
+      selProps.map(p => [p, combinedObject[p]])
+    );
+
+    const itemFinal = {
+      ...createdOrder,               // full OrderItems row from DB
+      ...filteredCombined,
+      custName:    custDetails.custName,
+      phoneNo:     custDetails.phoneNo,
+      dressItemId: dressIds,
+      dressDetails,
+    };
+
+    updateCache('NEW_ORDER', itemFinal, 'Completed_false', null, custDetails.custInserted || false);
+    await notify(currentUser.id, 'NEW_ORDER', 'Completed_false', itemFinal, null, custDetails.custInserted || false);
+
+    // 6. Emit events + reset state
+    showSuccessMessage('Order saved!');
+    eventEmitter.emit('storageUpdated');
+    eventEmitter.emit('newOrderAdded');
+    eventEmitter.emit('payStatusChanged');
+    if (!eventEmitted) {
+      eventEmitter.emit('transactionAdded');
+      setEventEmitted(true);
+    }
+
+    saveOrder([], { custName: '', phoneNo: '', occasion: '', custInserted: false, orderNo: 0 });
+    resetItemsForLabel();
+    resetIdCounter();
+    clearAllBookings();
+    navigation.navigate('HomeMain', { screen: 'HomeNew' });
+
+  } catch (error) {
+    console.error("Error creating order:", error.message);
+    showErrorMessage("Failed to save order. Please try again.");
+  } finally {
+    setPayStatusIndex(0);
+    setPayStatus('Pending');
+    setAdvancePaid(0);
+    setPaymentMode('Cash');
+    setPayModeIndex(0);
+    setLoading(false);
+  }
+};
 
 	  const navigateToContacts = () => {
 		navigation.navigate('ImportCustomerScreen', {screenName: 'OrderBagScreen'});

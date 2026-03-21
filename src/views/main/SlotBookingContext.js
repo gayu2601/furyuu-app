@@ -62,29 +62,24 @@ export const SlotBookingProvider = ({ children }) => {
 	};
 
   // Remove bookings for multiple slot dates
-  const removeBooking = (slotsToRemove) => {
-    setSlotBookings(prev => {
-      const newBookings = { ...prev };
-      
-      slotsToRemove.forEach(slot => {
-        const { slot_date, regular_slots = 0, express_slots = 0 } = slot;
-        
-        if (newBookings[slot_date]) {
-          newBookings[slot_date] = {
-            regular: Math.max(0, (newBookings[slot_date].regular || 0) - regular_slots),
-            express: Math.max(0, (newBookings[slot_date].express || 0) - express_slots)
-          };
-          
-          // Remove the date if both counts are 0
-          if (newBookings[slot_date].regular === 0 && newBookings[slot_date].express === 0) {
-            delete newBookings[slot_date];
-          }
-        }
-      });
-      
-      return newBookings;
-    });
-  };
+  const removeBooking = (slotsToRemove, itemId) => {
+	  setSlotBookings(prev => {
+		const newBookings = { ...prev };
+
+		Object.entries(slotsToRemove).forEach(([slot_date, values]) => {
+		  if (newBookings[slot_date]?.[itemId]) {
+			delete newBookings[slot_date][itemId];
+
+			// remove date if empty
+			if (Object.keys(newBookings[slot_date]).length === 0) {
+			  delete newBookings[slot_date];
+			}
+		  }
+		});
+
+		return newBookings;
+	  });
+	};
   
   const removeItemBooking = (itemId, slotDates) => {
 	  console.log('removeBooking');

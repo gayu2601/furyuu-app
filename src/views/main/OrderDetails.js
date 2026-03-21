@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react';
 import { Image, ScrollView, Alert, View, TouchableOpacity, StyleSheet, BackHandler, Linking, InteractionManager } from 'react-native';
-import { Text, Layout, Button, Modal, Card, Icon, Divider, useTheme, Spinner, TopNavigationAction, List } from '@ui-kitten/components';
+import { Input, Text, Layout, Button, Modal, Card, Icon, Divider, useTheme, Spinner, TopNavigationAction, List } from '@ui-kitten/components';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system';
@@ -59,22 +59,32 @@ const CustomerDetails = memo(({ item, phone }) => (
   </View>
 ));
 
-const PaymentDetails = memo(({ item, selectedAddons }) => {
-	const expressVal = item.expressCharges || Math.max(
-	  0,
-	  ...(item.expressDuration || [])
-		.filter(Boolean)
-		.map(obj => obj.price)
-	);
-	console.log('Payment ', expressVal)
-	let totalAmt = expressVal + item.orderAmt;
+const PaymentDetails = memo(({ item, selectedAddons, expressCharges, onExpressChargesChange }) => {
+	let totalAmt = expressCharges + item.orderAmt;
 
 	return (
   <>
     <SectionHeader icon="credit-card-outline" title="Payment Details" />
     <MemoizedCard>
       <DetailRow label="Order Amount" value={`Rs. ${parseInt(item.orderAmt)}`} />
-	  <DetailRow label="Express Charges" value={`Rs. ${expressVal}`} />
+	  
+	    <View style={styles.detailRow}>
+          <Text category="label">Express Charges</Text>
+          <Input
+            keyboardType="numeric"
+            value={String(expressCharges)}
+            onChangeText={(val) => onExpressChargesChange(Number(val) || 0)}
+            style={{ width: 90, marginRight: -15 }}
+			textStyle={{ textAlign: 'right' }}
+            size="small"
+            accessoryLeft={() => (
+				<View style={{ justifyContent: 'center' }}>
+				  <Text category="s2">Rs.</Text>
+				</View>
+			  )}
+          />
+        </View>
+	  
 	  <DetailRow label="Total Amount" value={`Rs. ${totalAmt}`} />
       <DetailRow label="Payment Status" value={item.paymentStatus} />
 	  <DetailRow label="Payment Mode" value={item.paymentMode === 'Other' ? item.paymentNotes : item.paymentMode} />
@@ -116,6 +126,11 @@ const OrderDetails = ({ navigation }) => {
   const { notify, updateCache, eligible } = usePubSub();
   const [selectedAddons, setSelectedAddons] = useState([]);
   const orderDeliveryOptions = ['No Alteration', 'Loose or Tight', 'Shoulder mistake', 'Arm hole mistake', 'Measurement mistake (diff in taken vs stitched)', 'Design mismatch (diff in reference vs stitched)', 'Other'];
+  const initialExpressVal = item.expressCharges || Math.max(
+	  0,
+	  ...(item.expressDuration || []).filter(Boolean).map(obj => obj.price)
+	);
+	const [expressCharges, setExpressCharges] = useState(initialExpressVal);
 
    useEffect(() => {
 		if (route.params?.triggerShare) {
@@ -665,12 +680,7 @@ const OrderDetails = ({ navigation }) => {
 		return rows;
 	  };
 	  
-	  const expressVal = item.expressCharges || Math.max(
-		  0,
-		  ...(item.expressDuration || [])
-			.filter(Boolean)
-			.map(obj => obj.price)
-		);
+	  const expressVal = expressCharges; // ← now uses the editable state
 	  const totalAmt = expressVal + item.orderAmt;
 	  console.log('expressVal', expressVal)
 	  console.log('totalAmt', totalAmt)
@@ -905,7 +915,24 @@ const OrderDetails = ({ navigation }) => {
 	  console.log('in generateBill')
     try {
       setLoading(true);
-	  console.log(currentUser.upiQRCode_url)
+	  if (expressCharges !== initialExpressVal) {
+		  console.log('expressCharges changed', expressCharges, initialExpressVal)
+		  const { error } = await supabase
+			.from('OrderItems')
+			.update({ expressCharges })
+			.eq('orderNo', item.orderNo);
+
+		  if (error) {
+			showErrorMessage('Failed to save express charges: ' + error.message);
+			return;
+		  }
+
+		  // Update cache too
+		  const cacheKey = item.orderStatus === 'Completed' ? 'Completed_true' : 'Completed_false';
+		  const updVal = { ...item, expressCharges };
+		  updateCache('UPDATE_ORDER', updVal, cacheKey);
+		  await notify(currentUser.id, 'UPDATE_ORDER', cacheKey, updVal);
+	  }
 	  let qrCode = null;
 	  if(currentUser.upiQRCode_url) {
 		qrCode =  await downloadQrCode(currentUser.upiQRCode_url);
@@ -973,7 +1000,8 @@ const OrderDetails = ({ navigation }) => {
         ListHeaderComponent={<CustomerDetails item={item} phone={phone}/>}
         ListFooterComponent={
           <View style={styles.footer}>
-            <PaymentDetails item={item} selectedAddons={selectedAddons}/>
+            <PaymentDetails item={item} selectedAddons={selectedAddons} expressCharges={expressCharges}
+      onExpressChargesChange={setExpressCharges}/>
 			<Button 
                   status='info' 
                   onPress={() => setVisible(true)} 
