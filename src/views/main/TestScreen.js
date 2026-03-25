@@ -25,7 +25,7 @@ import { usePermissions } from './PermissionsContext';
 import { KeyboardAvoidingView } from '../extra/3rd-party';
 import MultiSelectOptions from './MultiSelectOptions';
 import moment from 'moment';
-import AppStateManager from '../../components/AppStateManager';
+import { CameraView, useCameraPermissions } from 'expo-camera/next'; // Note the /next
 
   const CameraIcon = (props) => <Icon {...props} name="camera-outline" />;
   const ImageIcon = (props) => <Icon {...props} name="image-outline" />;
@@ -35,11 +35,12 @@ import AppStateManager from '../../components/AppStateManager';
   const EditIcon = (props) => <Icon {...props} name="edit-outline" />;
 
 const TestScreen = ({ route }) => {
+	const logFile = FileSystem.documentDirectory + 'camera_debug.log';
   const { currentUser } = useUser();
-  const appStateManager = AppStateManager.getInstance();
   const { isConnected } = useNetwork();
   const navigation = useNavigation();
   const { cameraPermission, mediaPermission, requestCameraPermission, requestMediaPermission } = usePermissions();
+  const [permission, requestPermission] = useCameraPermissions();
   const [custName, setCustName] = useState('');
   const [phoneNo, setPhoneNo] = useState('');
   const [inputDisabled, setInputDisabled] = useState(false);
@@ -323,14 +324,6 @@ const TestScreen = ({ route }) => {
 			  phoneNo: phNo,
 			  occasion,
 			});
-		};
-		
-		// Register the callback when component mounts
-		appStateManager.registerBackgroundCallback(handleAppGoingToBackground);
-		
-		// Cleanup: Unregister when component unmounts
-		return () => {
-		  appStateManager.unregisterBackgroundCallback(handleAppGoingToBackground);
 		};
 	  }, []);
 	  
@@ -1336,6 +1329,7 @@ const TestScreen = ({ route }) => {
 	const [selectedIndexSubType, setSelectedIndexSubType] = useState(new IndexPath(0));
 	const [selectedIndexPants, setSelectedIndexPants] = useState(new IndexPath(0));
 	const [showMeasurements, setShowMeasurements] = useState(true);
+	const [showCamera, setShowCamera] = useState(false);
 	
 	  const handleCustomDesign = (customDesignFile, fieldName) => {
 		  updateLocalState(fieldName, customDesignFile);
@@ -1540,45 +1534,102 @@ const TestScreen = ({ route }) => {
 		setImgModalVisible(false);
 	  };
 	  
-	  const handleOptionPress = (option) => {
-		setIsModalVisible(false);
-		if (!cameraPermission || cameraPermission !== 'granted' ) {
-			  requestCameraPermission();
+	const persistLog = async (message, data = '') => {
+	  const timestamp = new Date().toISOString();
+	  const logLine = `[${timestamp}] ${message} ${data ? JSON.stringify(data) : ''}\n`;
+	  
+	  try {
+		const existing = await FileSystem.readAsStringAsync(logFile).catch(() => '');
+		await FileSystem.writeAsStringAsync(logFile, existing + logLine);
+	  } catch (e) {}
+	};
+	  
+	  const handleOptionPress = async (option) => {
+		  setIsModalVisible(false);
+
+		  if (option.title === 'Take Photo') {
+			  if (!permission?.granted) {
+				const res = await requestPermission();
+				if (!res.granted) {
+				  showErrorMessage('Camera permission is required');
+				  return;
+				}
+			  }
+			  setShowCamera(true);
 			}
-			if (!mediaPermission || mediaPermission.status === 'denied' ) {
-			  requestMediaPermission();
+		  else if (option.title === 'Choose from Gallery') {
+			if (!mediaPermission || mediaPermission.status === 'denied') {
+			  await requestMediaPermission();
 			}
-		if (option.title === 'Take Photo') {
-		  openCameraAsync();
-		} else if (option.title === 'Choose from Gallery') {
-		  openLibraryAsync();
-		}
-	  };
+			openLibraryAsync();    // 👈 unchanged
+		  }
+		};
+		
+	const onCapturePhoto = async (picUri) => {
+	  try {
+		console.log('in onCapturePhoto', picUri, picType);
+
+		const compressedSrc = await ImageManipulator.manipulateAsync(picUri, [], { compress: 0.5 });
+			  const uri = compressedSrc.uri;
+			  updateItemPicLocal(picType, uri);
+			  if(picType === 'measurementPics') {
+				const updItem = { ...selectedItem, measurementPics: [...(selectedItem.measurementPics || []), uri], };
+				setSelectedItem(updItem);
+				updateLocalState('savedMeas', true);
+			  }
+	  } catch (e) {
+		console.error('Camera error:', e);
+	  } finally {
+		setShowCamera(false);
+	  }
+	};
 
 	  
 	const openCameraAsync = async () => {
 		if (cameraPermission === 'granted') {
+			try {
+			      await persistLog('launching camera');
 		  const result = await ImagePicker.launchCameraAsync({
-			allowsEditing: true,
-			quality: 1,
-		  });
+			  allowsEditing: false,  // ← this is the entire fix
+			  quality: 0.7,
+			  exif: false,
+			  base64: false,
+			  mediaTypes: ImagePicker.MediaTypeOptions.Images,  // ← add this explicitly
+			});
+
 		  console.log(result);
+		        await persistLog('camera result', { canceled: result.canceled, hasAssets: !!result.assets });
 
 			if (result.canceled) {
+				        await persistLog('user cancelled');
 			  console.log('User cancelled image picker');
 			} else if (result.error) {
+				        await persistLog('camera error', result.error);
 			  console.log('ImagePicker Error: ', result.error);
 			} else {
+				        await persistLog('compressing image', { uri: result.assets[0].uri });
 			  const compressedSrc = await ImageManipulator.manipulateAsync(result.assets[0].uri, [], { compress: 0.5 });
+			          await persistLog('compression done', { uri: compressedSrc.uri });
 			  const source = { uri: compressedSrc.uri };
 			  console.log(source);
+			            await persistLog('updating Pics', { selectedItem: !!selectedItem });
 			  updateItemPicLocal(picType, source.uri);
+			            await persistLog('updated pics');
 			  if(picType === 'measurementPics') {
+				            await persistLog('updating measurementPics', { selectedItem: !!selectedItem });
 				const updItem = { ...selectedItem, measurementPics: [...(selectedItem.measurementPics || []), source.uri], };
 				setSelectedItem(updItem);
+				          await persistLog('updated measurementPics');
 				updateLocalState('savedMeas', true);
-				appStateManager.setImagePickerActive(false);
+				          await persistLog('updating localState savedMeas');
 			  }
+			          await persistLog('openCameraAsync DONE');
+			}
+			} catch (err) {
+			  await persistLog('CRASH in openCameraAsync', { 
+				message: err.message, 
+				stack: err.stack 
+			  });
 			}
 		} else {
 			showErrorMessage('Camera permission not granted! Grant permission in Settings')
@@ -1617,8 +1668,7 @@ const TestScreen = ({ route }) => {
 				console.log('updItem:')
 				console.log(updItem)
 				setSelectedItem(updItem);
-				updateLocalState('savedMeas', true);	
-				appStateManager.setImagePickerActive(false);				
+				updateLocalState('savedMeas', true);			
 			  }
 			}
 		} else {
@@ -2070,6 +2120,47 @@ const renderSlotSummary = (slots) => {
       </View>
     );
   };
+	  
+	const CameraModal = ({ visible, onClose, onCapture }) => {
+	  const cameraRef = useRef(null);
+
+	  if (!visible) return null;
+
+	  return (
+		<Modal visible transparent style={{width: '100%', height: '100%'}} >
+		  <CameraView
+			ref={cameraRef}
+			style={{ flex: 1 }}
+			facing="back"
+		  >
+		<View style={styles.cameraControls}>
+		  <Button
+			style={styles.captureBtn}
+			onPress={async () => {
+				const photo = await cameraRef.current.takePictureAsync({
+				  quality: 0.7,
+				});
+				console.log('photo async', photo)
+				await onCapture(photo.uri);
+				onClose();
+			}}
+
+		  >
+			Capture
+		  </Button>
+
+		  <Button
+			status='basic'
+			style={styles.cancelBtn}
+			onPress={onClose}
+		  >
+			Cancel
+		  </Button>
+		</View>
+		  </CameraView>
+		</Modal>
+	  );
+	};
 	  
 	  const renderMeasurementsModal = () => {
 		if (!selectedItem) return null;
@@ -2714,6 +2805,14 @@ const renderSlotSummary = (slots) => {
 											</View>
 										</Card>								
 						</Modal>
+		  {permission?.granted && (
+			  <CameraModal
+				visible={showCamera}
+				onClose={() => setShowCamera(false)}
+				onCapture={onCapturePhoto}
+			  />
+			)}
+		  
 		  
 			<Modal
 					visible={isModalVisible}
@@ -2772,6 +2871,17 @@ const renderSlotSummary = (slots) => {
 				  setAwarenessSourceIndex(null);
 				  setShowSuggestions(text.length > 0);
 	}
+	
+	const shareLog = async () => {
+	  const isAvailable = await Sharing.isAvailableAsync();
+	  if (isAvailable) {
+		await Sharing.shareAsync(logFile, {
+		  mimeType: 'text/plain',
+		  dialogTitle: 'Camera Debug Log'
+		});
+	  }
+	};
+
 	
   return (
 	<ScrollView ref={scrollViewRef} style={styles.container} keyboardShouldPersistTaps="handled">
@@ -2950,6 +3060,7 @@ const renderSlotSummary = (slots) => {
 				>
 					Confirm order
 				</Button>
+				<Button onPress={shareLog}>Share Log File</Button>
           </Layout>
 		  </>
 		)}
@@ -3868,7 +3979,27 @@ const styles = StyleSheet.create({
   },
   celebrationTitle: {marginBottom: 8},
   pantsTypeField: {marginTop: 10},
-  buttonGroup: {flexDirection: 'row', gap: 20, marginTop: 10, marginHorizontal: 60}
+  buttonGroup: {flexDirection: 'row', gap: 20, marginTop: 10, marginHorizontal: 60},
+  cameraControls: {
+    position: 'absolute',
+    bottom: 40,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-evenly',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+
+  captureBtn: {
+    flex: 1,
+    marginRight: 10,
+  },
+
+  cancelBtn: {
+    flex: 1,
+    marginLeft: 10,
+  },
 });
 
 export default TestScreen;

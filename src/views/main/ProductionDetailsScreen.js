@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Layout,
   Text,
@@ -34,38 +34,25 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase } from '../../constants/supabase'
 import { storage } from '../extra/storage';
 import eventEmitter from './eventEmitter';
+import { CameraView, useCameraPermissions } from 'expo-camera/next'; // Note the /next
 
 const ProductionDetailsScreen = () => {
   const route = useRoute();
   const navigation = useNavigation();
   //console.log(route.params?.order);
-  const { order } = route.params;
+  console.log(route.params)
+  const { order, allDataLocal } = route.params;
   console.log('route order', order);
+  console.log('allDataLocal', allDataLocal);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [imgModalVisible, setImgModalVisible] = useState(false);
   const { cameraPermission, mediaPermission, requestCameraPermission, requestMediaPermission } = usePermissions();
+  const [permission, requestPermission] = useCameraPermissions();
   const [deletedImages, setDeletedImages] = useState([]);
+  const [showCamera, setShowCamera] = useState(false);
 
   // Separate state for each production stage
-  const [allData, setAllData] = useState({
-    dressId: {
-		dressType: '',
-		dressSubType: '',
-		cuttingWorker: '',
-		cuttingDate: new Date(),
-		stitchingWorker: '',
-		stitchingDate: new Date(),
-		finishingWorker: '',
-		finishingDate: new Date(),
-		checkingWorker: '',
-		checkingDate: new Date(),
-		checkingPic: [],
-		cuttingDone: false,
-		stitchingDone: false,
-		finishingDone: false,
-		checkingDone: false
-	}
-  });
+  const [allData, setAllData] = useState(allDataLocal);
   
   const employeeJson = storage.getString('Employees');
   console.log('employeeJson', typeof(employeeJson), employeeJson);
@@ -129,89 +116,6 @@ const ProductionDetailsScreen = () => {
   const dressIds = order?.dressItemId;
   const [selectedDressId, setSelectedDressId] = useState(dressIds[0]);
   
-  useEffect(() => {
-	  const loadValues = async () => {
-		try {
-			console.log('in loadValues' + order)
-		  const { data, error } = await supabase
-			.from("ProdDetails")
-			.select(
-			  `dressItemNo, dressType, dressSubType, cuttingWorker, cuttingDate, stitchingWorker, stitchingDate, finishingWorker, finishingDate, checkingWorker, checkingDate, checkingPic, cuttingDone, stitchingDone, finishingDone, checkingDone`
-			)
-			.eq("orderNo", order.orderNo);
-
-		  if (error) {
-			throw error;
-		  }
-		  console.log("raw supabase data:", data);
-
-		  const dataMap = new Map(data?.map((item) => [item.dressItemNo, item]) || []);
-		  const currentDate = new Date();
-		  console.log('dataMap', dataMap);
-
-		  // build rows with public URLs for checkingPic
-		  const mappedEntries = await Promise.all(
-			order.dressItemId.map(async (id, idx) => {
-			  const existing = dataMap?.get(id);
-			  const dressType = existing?.dressType || order.dressType[idx] || "";
-			  const dressSubType = existing?.dressSubType || order.dressSubType[idx] || "";
-			  console.log('existing', existing);
-
-			  let checkingPicUrls = [];
-			  if (existing?.checkingPic && Array.isArray(existing.checkingPic)) {
-				checkingPicUrls = existing.checkingPic.map((imageUri) => {
-				  const { data: urlData } = supabase.storage
-					.from("order-images/prodDetails")
-					.getPublicUrl(imageUri);
-				  return urlData?.publicUrl || null;
-				});
-			  }
-			  console.log('workerNameOptions', workerNameOptions);
-
-			  return [
-				id,
-				{
-				  dressType,
-				  dressSubType,
-				  cuttingWorker: workerNameOptions?.[existing?.cuttingWorker] || "",
-				  cuttingDate: existing?.cuttingDate
-					? new Date(existing.cuttingDate)
-					: currentDate,
-				  stitchingWorker: workerNameOptions?.[existing?.stitchingWorker] || "",
-				  stitchingDate: existing?.stitchingDate
-					? new Date(existing.stitchingDate)
-					: currentDate,
-				  finishingWorker: workerNameOptions?.[existing?.finishingWorker] || "",
-				  finishingDate: existing?.finishingDate
-					? new Date(existing.finishingDate)
-					: currentDate,
-				  checkingWorker: workerNameOptions?.[existing?.checkingWorker] || "",
-				  checkingDate: existing?.checkingDate
-					? new Date(existing.checkingDate)
-					: currentDate,
-				  checkingPic: checkingPicUrls.filter(Boolean),
-				  cuttingDone: existing?.cuttingDone,
-				  stitchingDone: existing?.stitchingDone,
-				  finishingDone: existing?.finishingDone,
-				  checkingDone: existing?.checkingDone
-				},
-			  ];
-			})
-		  );
-
-		  const mapped = Object.fromEntries(mappedEntries);
-
-		  console.log("mapped:", mapped);
-		  setAllData(mapped);
-		} catch (error) {
-		  console.log(error);
-		  showErrorMessage("Error loading production details");
-		}
-	  };
-	  loadValues();
-	}, []);
-
-
   // Icons
   const PackageIcon = (props) => <Icon {...props} name='cube-outline' />;
   const ScissorsIcon = (props) => <Icon {...props} name='scissors-outline' />;
@@ -223,11 +127,15 @@ const ProductionDetailsScreen = () => {
   const CloseIcon = (props) => <Icon {...props} name="close-outline" style={styles.closeIcon}/>;
   const TrashIcon = (props) => <Icon {...props} name="trash-2-outline" style={styles.closeIcon}/>;
 
-  const handleOptionPress = (option) => {
+  const handleOptionPress = async(option) => {
 		setIsModalVisible(false);
-		if (!cameraPermission || cameraPermission !== 'granted' ) {
-			  requestCameraPermission();
-			}
+		if (!permission?.granted) {
+				const res = await requestPermission();
+				if (!res.granted) {
+				  showErrorMessage('Camera permission is required');
+				  return;
+				}
+		}
 			if (!mediaPermission || mediaPermission.status === 'denied' ) {
 			  requestMediaPermission();
 			}
@@ -238,6 +146,19 @@ const ProductionDetailsScreen = () => {
 		}
 	  };
 
+	const onCapturePhoto = async (picUri) => {
+	  try {
+		console.log('in onCapturePhoto', picUri, picType);
+
+		const compressedSrc = await ImageManipulator.manipulateAsync(picUri, [], { compress: 0.5 });
+			  const uri = compressedSrc.uri;
+			  updatePicData(uri);
+	  } catch (e) {
+		console.error('Camera error:', e);
+	  } finally {
+		setShowCamera(false);
+	  }
+	};  
 	  
 	const openCameraAsync = async () => {
 		if (cameraPermission === 'granted') {
@@ -304,6 +225,47 @@ const ProductionDetailsScreen = () => {
     setIsModalVisible(true);
   };
 
+	const CameraModal = ({ visible, onClose, onCapture }) => {
+	  const cameraRef = useRef(null);
+
+	  if (!visible) return null;
+
+	  return (
+		<Modal visible transparent style={{width: '100%', height: '100%'}} >
+		  <CameraView
+			ref={cameraRef}
+			style={{ flex: 1 }}
+			facing="back"
+		  >
+		<View style={styles.cameraControls}>
+		  <Button
+			style={styles.captureBtn}
+			onPress={async () => {
+				const photo = await cameraRef.current.takePictureAsync({
+				  quality: 0.7,
+				});
+				console.log('photo async', photo)
+				await onCapture(photo.uri);
+				onClose();
+			}}
+
+		  >
+			Capture
+		  </Button>
+
+		  <Button
+			status='basic'
+			style={styles.cancelBtn}
+			onPress={onClose}
+		  >
+			Cancel
+		  </Button>
+		</View>
+		  </CameraView>
+		</Modal>
+	  );
+	};
+
   const renderStatusButton = (stage, status) => (
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 5}}>
       <CheckBox
@@ -322,112 +284,116 @@ const ProductionDetailsScreen = () => {
 	}
 
   const saveOrder = async() => {
-    let cuttingDateFinal = moment(allData.cuttingDate).format('YYYY-MM-DD');
-	let stitchingDateFinal = moment(allData.stitchingDate).format('YYYY-MM-DD');
-	let finishingDateFinal = moment(allData.finishingDate).format('YYYY-MM-DD');
-	let checkingDateFinal = moment(allData.checkingDate).format('YYYY-MM-DD');
-	
-	console.log(allData)
-	// prepare rows with checkingPic uploads
-	const rows = await Promise.all(
-	  Object.entries(allData).map(async ([dressItemNo, details]) => {
-		let picsArr = [];
-		let picsArrLocal = [];
-		console.log('in saveOrder', details)
-		if(details.checkingDone) {
-			console.log('calling markCheckingDone')
-			markCheckingDone(dressItemNo);
-		} else {
-			console.log('calling unmarkCheckingDone')
-			unmarkCheckingDone(dressItemNo);
-		}
-		if (details?.checkingPic && Array.isArray(details?.checkingPic)) {
-		  for (const pic of details.checkingPic) {
-			if(startsWithFile(pic)) {
-				const arraybuffer = await fetch(pic).then((res) => res.arrayBuffer());
+    try {
+		let cuttingDateFinal = moment(allData.cuttingDate).format('YYYY-MM-DD');
+		let stitchingDateFinal = moment(allData.stitchingDate).format('YYYY-MM-DD');
+		let finishingDateFinal = moment(allData.finishingDate).format('YYYY-MM-DD');
+		let checkingDateFinal = moment(allData.checkingDate).format('YYYY-MM-DD');
+		
+		console.log(allData)
+		// prepare rows with checkingPic uploads
+		const rows = await Promise.all(
+		  Object.entries(allData).map(async ([dressItemNo, details]) => {
+			let picsArr = [];
+			let picsArrLocal = [];
+			console.log('in saveOrder', details)
+			if(details.checkingDone) {
+				console.log('calling markCheckingDone')
+				markCheckingDone(dressItemNo);
+			} else {
+				console.log('calling unmarkCheckingDone')
+				unmarkCheckingDone(dressItemNo);
+			}
+			if (details?.checkingPic && Array.isArray(details?.checkingPic)) {
+			  for (const pic of details.checkingPic) {
+				if(startsWithFile(pic)) {
+					const arraybuffer = await fetch(pic).then((res) => res.arrayBuffer());
 
-				// derive file extension
-				const fileExt = pic?.split('.').pop()?.toLowerCase() ?? 'jpeg';
-				const path = `${Date.now()}.${fileExt}`;
+					// derive file extension
+					const fileExt = pic?.split('.').pop()?.toLowerCase() ?? 'jpeg';
+					const path = `${Date.now()}.${fileExt}`;
 
-				// upload to Supabase Storage
-				const { error: uploadError } = await supabase.storage
-				  .from('order-images/prodDetails')
-				  .upload(path, arraybuffer, {
-					contentType: `image/${fileExt}`,
-				  });
+					// upload to Supabase Storage
+					const { error: uploadError } = await supabase.storage
+					  .from('order-images/prodDetails')
+					  .upload(path, arraybuffer, {
+						contentType: `image/${fileExt}`,
+					  });
 
-				if (uploadError) {
-				  throw uploadError;
+					if (uploadError) {
+					  throw uploadError;
+					}
+
+					picsArr.push(path);
+					picsArrLocal.push(pic);
+				} else if(pic){
+					picsArrLocal.push(pic);
+					picsArr.push(pic.split('/').pop());
 				}
-
-				picsArr.push(path);
-				picsArrLocal.push(pic);
-			} else if(pic){
-				picsArrLocal.push(pic);
-				picsArr.push(pic.split('/').pop());
+			  }
 			}
-		  }
-		}
-		console.log('picsArr', picsArr)
-		console.log('picsArrLocal', picsArrLocal);
-		if(deletedImages) {
-			const { dataRemove, errorRemove } = await supabase
-								  .storage
-								  .from('order-images')
-								  .remove(deletedImages.flat().map(filename => `prodDetails/${filename}`))
-			if(errorRemove) {
-				throw errorRemove;
+			console.log('picsArr', picsArr)
+			console.log('picsArrLocal', picsArrLocal);
+			if(deletedImages) {
+				const { dataRemove, errorRemove } = await supabase
+									  .storage
+									  .from('order-images')
+									  .remove(deletedImages.flat().map(filename => `prodDetails/${filename}`))
+				if(errorRemove) {
+					throw errorRemove;
+				}
 			}
+
+			return {
+			  dbRow: {
+				orderNo: order.orderNo,
+				dressItemNo,
+				dressType: details.dressType,
+				dressSubType: details.dressSubType,
+				cuttingWorker: details.cuttingWorkerId,
+				cuttingDate: details.cuttingDate,
+				stitchingWorker: details.stitchingWorkerId,
+				stitchingDate: details.stitchingDate,
+				finishingWorker: details.finishingWorkerId,
+				finishingDate: details.finishingDate,
+				checkingWorker: details.checkingWorkerId,
+				checkingDate: details.checkingDate,
+				checkingPic: picsArr,
+				cuttingDone: details.cuttingDone,
+				stitchingDone: details.stitchingDone,
+				finishingDone: details.finishingDone,
+				checkingDone: details.checkingDone,
+			  },
+			  localRow: {
+				...details,
+				orderNo: order.orderNo,
+				dressItemNo,
+				checkingPic: picsArrLocal,
+			  }
+			};
+		  })
+		);
+
+		const dbRows = rows.map(r => r.dbRow);
+		const localRows = rows.map(r => r.localRow);
+
+		// finally upsert
+		const { error } = await supabase
+		  .from('ProdDetails')
+		  .upsert(dbRows, { onConflict: ['dressItemNo'] });
+
+		if(error) {
+			throw error;
+		} else {
+			showSuccessMessage('Production details assigned successfully!');
+			eventEmitter.emit('transactionAdded', { onlyEmployeeData: true });
+			route.params?.onEditComplete?.(localRows);
+			navigation.goBack()
 		}
-
-		return {
-		  dbRow: {
-			orderNo: order.orderNo,
-			dressItemNo,
-			dressType: details.dressType,
-			dressSubType: details.dressSubType,
-			cuttingWorker: details.cuttingWorkerId,
-			cuttingDate: details.cuttingDate,
-			stitchingWorker: details.stitchingWorkerId,
-			stitchingDate: details.stitchingDate,
-			finishingWorker: details.finishingWorkerId,
-			finishingDate: details.finishingDate,
-			checkingWorker: details.checkingWorkerId,
-			checkingDate: details.checkingDate,
-			checkingPic: picsArr,
-			cuttingDone: details.cuttingDone,
-			stitchingDone: details.stitchingDone,
-			finishingDone: details.finishingDone,
-			checkingDone: details.checkingDone,
-		  },
-		  localRow: {
-			...details,
-			orderNo: order.orderNo,
-			dressItemNo,
-			checkingPic: picsArrLocal,
-		  }
-		};
-	  })
-	);
-
-	const dbRows = rows.map(r => r.dbRow);
-	const localRows = rows.map(r => r.localRow);
-
-	// finally upsert
-	const { error } = await supabase
-	  .from('ProdDetails')
-	  .upsert(dbRows, { onConflict: ['dressItemNo'] });
-
-    if(error) {
-		console.log('Error updating production details: ', error);
-		return;
+	} catch(error) {
+		showErrorMessage('Error updating production details ', error);
+		console.error('Error updating production details: ', error);
 	}
-	
-    showSuccessMessage('Production details assigned successfully!');
-	eventEmitter.emit('transactionAdded', { onlyEmployeeData: true });
-	route.params?.onEditComplete?.(localRows);
-	navigation.goBack()
   };
   
   const handleUploadPress = () => {
@@ -682,6 +648,15 @@ const ProductionDetailsScreen = () => {
           Save
         </Button>
       </ScrollView>
+	  
+	  {permission?.granted && (
+			  <CameraModal
+				visible={showCamera}
+				onClose={() => setShowCamera(false)}
+				onCapture={onCapturePhoto}
+			  />
+			)}
+			
 	  <Modal
 					visible={isModalVisible}
 					backdropStyle={styles.backdrop}
@@ -725,7 +700,7 @@ const ProductionDetailsScreen = () => {
               pagingEnabled
               showsHorizontalScrollIndicator={false}
             >
-              {allData[selectedDressId]?.checkingPic.map((imageUri, index) => (
+              {allData[selectedDressId]?.checkingPic?.map((imageUri, index) => (
                 <View key={index} style={styles.imageContainer}> 
                   <Image 
                     source={{ uri: imageUri }} 

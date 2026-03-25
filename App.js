@@ -71,8 +71,7 @@ import { supabase } from './src/constants/supabase';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { usePubSub } from './src/views/main/SimplePubSub';
 import useDressConfig from './src/views/main/useDressConfig';
-import AppStateManager from './src/components/AppStateManager'; // Adjust path as needed
-import * as ImagePicker from 'expo-image-picker';
+import moment from 'moment';
 
 const Stack = createStackNavigator()
 
@@ -275,33 +274,7 @@ const DrawerNavigator = ({ route }) => {
 	let currentUserLocal = currentUser;
 	const { fetchNotifications } = useNotification();
   const [initialRoute, setInitialRoute] = useState(null);
-    const appStateManager = useRef(AppStateManager.getInstance());
-	  
-	const _originalLaunchImageLibrary = ImagePicker.launchImageLibraryAsync;
-	const _originalLaunchCamera = ImagePicker.launchCameraAsync;
-
-	ImagePicker.launchImageLibraryAsync = async function(options) {
-	  console.log('Image picker wrapper called'); // Debug log
-	  try {
-		appStateManager.current.setImagePickerActive(true);
-		const result = await _originalLaunchImageLibrary(options);
-		return result;
-	  } catch (error) {
-		console.error('Image picker error:', error);
-		throw error;
-	  }
-	};
-
-	ImagePicker.launchCameraAsync = async function(options) {
-	  try {
-		appStateManager.current.setImagePickerActive(true);
-		const result = await _originalLaunchCamera(options);
-		return result;
-	  } catch (error) {
-		console.error('Camera picker error:', error);
-		throw error;
-	  }
-	};
+    
   console.log("DrawerNavigator route.params: ", route?.params);
   
   // Handle current user setup once on mount
@@ -316,34 +289,36 @@ const DrawerNavigator = ({ route }) => {
     }
   }, [route?.params?.data1]);
   
-	const activatePubSubCallback = useCallback(async(isActive) => {
-				  console.log('Starting PubSub for user:', currentUserLocal.id);
-				  const subscription = startListening(currentUserLocal.id, isActive);
-	}, [currentUserLocal?.id]);
-	
-	  useEffect(() => {
-		if (!currentUserLocal) return;
+	useEffect(() => {
+	  if (!currentUserLocal?.id) return;
 
-		console.log('Setting up AppState listener for instance:', instanceId.current);
+	  // Start PubSub once on mount
+	  startListening();
+
+	  // Run billing reminder on mount and on foreground
+	  const runBillingReminderIfDue = () => {
+		console.log('in runBillingReminderIfDue')
+		const lastChecked = storage.getString('lastBillingReminderCheck');
+		const shouldCheck = !lastChecked || 
+		  moment().diff(moment(lastChecked), 'hours') >= 24;
 		
-		// Define callbacks for the AppState manager
-		const callbacks = {
-		  activatePubSub: activatePubSubCallback,
-		  checkBillingReminders: checkBillingReminders
-		};
+		if (shouldCheck) {
+		  storage.set('lastBillingReminderCheck', moment().toISOString());
+		  checkBillingReminders();
+		}
+	  };
 
-		appStateManager.current.updateUser(currentUserLocal, callbacks);
+	  runBillingReminderIfDue(); // run on mount
 
-		// Start listening (will only actually start if not already listening)
-		appStateManager.current.startListening(currentUserLocal, callbacks);
+	  const subscription = AppState.addEventListener('change', (nextAppState) => {
+		if (nextAppState === 'active') {
+		  runBillingReminderIfDue();
+		}
+	  });
 
-		// Cleanup function
-		return () => {
-		  console.log('DrawerNavigator unmounting, instance:', instanceId.current);
-		  // Note: We don't stop listening here because other instances might still need it
-		  // The singleton will handle this automatically
-		};
-	  }, [currentUserLocal?.id]);
+	  return () => subscription.remove(); // PubSub cleanup not needed since startListening handles its own subscription internally
+
+	}, [currentUserLocal?.id]);
 
 
   // Handle notifications fetch

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, useCallback, forwardRef, useImperativeHandle, useRef } from 'react';
 import { StyleSheet, View, Image, TouchableOpacity, ScrollView, TextInput, Dimensions } from 'react-native';
 import { Layout, List, ListItem, Modal, Card, Text, Button, Icon, Input, RadioGroup, Radio, CheckBox, useTheme, Divider } from '@ui-kitten/components';
 import moment from 'moment';
@@ -9,6 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from "@react-navigation/native";
+import { CameraView, useCameraPermissions } from 'expo-camera/next'; // Note the /next
 
 const ShareIcon = (props) => <Icon {...props} name='share-outline' />;
 const ChevronDownIcon = (props) => <Icon {...props} name='chevron-down-outline' />;
@@ -59,7 +60,9 @@ const EditOrderItemComponent = (props, ref) => {
   const [sleeveImg, setSleeveImg] = useState(null);
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [imgModalVisible, setImgModalVisible] = useState(false);
-  
+  const [showCamera, setShowCamera] = useState(false);
+  const [hasPermission, setHasPermission] = useState(null);
+
   const [neckModalField, setNeckModalField] = useState('');
   const [neckModalVisible, setNeckModalVisible] = useState(false);
   const [changedFields, setChangedFields] = useState({});
@@ -112,7 +115,8 @@ const EditOrderItemComponent = (props, ref) => {
 	const [sleeveType, setSleeveType] = useState(item.sleeveType);
 	  
     const { cameraPermission, mediaPermission, requestCameraPermission, requestMediaPermission } = usePermissions();
-
+    const [permission, requestPermission] = useCameraPermissions();
+  
   const options = [
     { title: 'Take Photo', iconName: 'camera' },
     { title: 'Choose from Gallery', iconName: 'image' },
@@ -250,21 +254,47 @@ const EditOrderItemComponent = (props, ref) => {
 	  updateItemField(picType, newImages);
 	};
 	
-	const handleOptionPress = (option) => {
+	const handleOptionPress = async (option) => {
 		setIsModalVisible(false);
-		if (!cameraPermission || cameraPermission !== 'granted' ) {
-		  requestCameraPermission();
+		if (!permission?.granted) {
+				const res = await requestPermission();
+				if (!res.granted) {
+				  showErrorMessage('Camera permission is required');
+				  return;
+				}
 		}
 		if (!mediaPermission || mediaPermission === 'denied' ) {
 		  requestMediaPermission();
 		}
 		if (option.title === 'Take Photo') {
-		  openCameraAsync();
+		  setShowCamera(true);
 		} else if (option.title === 'Choose from Gallery') {
 		  openLibraryAsync();
 		}
 	  };
 
+	const onCapturePhoto = async (picUri) => {
+	  try {
+		console.log('in onCapturePhoto', picUri, picType);
+
+		const compressedSrc = await ImageManipulator.manipulateAsync(picUri, [], { compress: 0.5 });
+			  const uri = compressedSrc.uri;
+			  const currentImgs = imagesMap[picType];
+				const currentRaw = rawMap[picType] || [];
+
+				setImagesMap[picType]([...currentImgs, uri]);
+				setRawMap[picType]([...currentRaw, uri]);
+				updateItemField(picType, [...currentImgs, uri]);
+				
+				if(picType === 'dressPics') {
+				  setCurrentImages([...currentImages, uri]);
+				}
+	  } catch (e) {
+		console.error('Camera error:', e);
+	  } finally {
+		setShowCamera(false);
+	  }
+	};
 	  
 	const openCameraAsync = async () => {
 		if (cameraPermission === 'granted') {
@@ -646,6 +676,47 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
       </View>
     );
   };
+  
+  const CameraModal = ({ visible, onClose, onCapture }) => {
+	  const cameraRef = useRef(null);
+
+	  if (!visible) return null;
+
+	  return (
+		<Modal visible transparent style={{width: '100%', height: '100%'}} >
+		  <CameraView
+			ref={cameraRef}
+			style={{ flex: 1 }}
+			facing="back"
+		  >
+		<View style={styles.cameraControls}>
+		  <Button
+			style={styles.captureBtn}
+			onPress={async () => {
+				const photo = await cameraRef.current.takePictureAsync({
+				  quality: 0.7,
+				});
+				console.log('photo async', photo)
+				await onCapture(photo.uri);
+				onClose();
+			}}
+
+		  >
+			Capture
+		  </Button>
+
+		  <Button
+			status='basic'
+			style={styles.cancelBtn}
+			onPress={onClose}
+		  >
+			Cancel
+		  </Button>
+		</View>
+		  </CameraView>
+		</Modal>
+	  );
+	};
 
   const RenderExtraOptions = ({
 	  extraOptions,
@@ -1405,6 +1476,14 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
           )}
         </Card>
       </Modal>
+	  
+	  {permission?.granted && (
+			  <CameraModal
+				visible={showCamera}
+				onClose={() => setShowCamera(false)}
+				onCapture={onCapturePhoto}
+			  />
+			)}
       
       {/* Image Picker Modal */}
       <Modal
@@ -2136,6 +2215,26 @@ const styles = StyleSheet.create({
 	  height: 32,
 	  fontSize: 12,
 	},
+	cameraControls: {
+		position: 'absolute',
+		bottom: 40,
+		left: 0,
+		right: 0,
+		flexDirection: 'row',
+		justifyContent: 'space-evenly',
+		alignItems: 'center',
+		paddingHorizontal: 20,
+	  },
+
+	  captureBtn: {
+		flex: 1,
+		marginRight: 10,
+	  },
+
+	  cancelBtn: {
+		flex: 1,
+		marginLeft: 10,
+	  },
 });
 
 export default forwardRef(EditOrderItemComponent);

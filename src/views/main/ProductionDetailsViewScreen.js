@@ -105,7 +105,9 @@ const ProductionDetailsViewScreen = () => {
 				  cuttingDate: existing?.cuttingDate
 					? new Date(existing.cuttingDate)
 					: null,
+				  cuttingWorkerId: existing?.cuttingWorker,
 				  stitchingWorker: employeeCache?.[existing?.stitchingWorker] || "",
+				  stitchingWorkerId: existing?.stitchingWorker,
 				  stitchingDate: existing?.stitchingDate
 					? new Date(existing.stitchingDate)
 					: null,
@@ -113,10 +115,12 @@ const ProductionDetailsViewScreen = () => {
 				  finishingDate: existing?.finishingDate
 					? new Date(existing.finishingDate)
 					: null,
+				  finishingWorkerId: existing?.finishingWorker,
 				  checkingWorker: employeeCache?.[existing?.checkingWorker] || "",
 				  checkingDate: existing?.checkingDate
 					? new Date(existing.checkingDate)
 					: null,
+				  checkingWorkerId: existing?.checkingWorker,
 				  checkingPic: checkingPicUrls.filter(Boolean),
 				  cuttingDone: existing?.cuttingDone,
 				  stitchingDone: existing?.stitchingDone,
@@ -133,7 +137,7 @@ const ProductionDetailsViewScreen = () => {
 		  setAllData(mapped);
 		} catch (error) {
 		  console.log(error);
-		  showErrorMessage("Error loading production details");
+		  showErrorMessage("Error loading production details", error);
 		}
 	  };
 	  loadValues();
@@ -478,7 +482,7 @@ const ProductionDetailsViewScreen = () => {
 			)}
 			  <TouchableOpacity 
                 style={styles.markCompletionButton}
-                onPress={() => navigation.navigate('ProductionDetails', { ...route.params, onEditComplete: handleEditComplete })}
+                onPress={() => navigation.navigate('ProductionDetails', { ...route.params, onEditComplete: handleEditComplete, allDataLocal: allData })}
               >
                 <Text style={styles.markCompletionButtonText}>Edit Details</Text>
               </TouchableOpacity>

@@ -374,20 +374,6 @@ const EditOrderDetails = ({ navigation }) => {
 								await supabase.storage.from('design-files').remove([`sleeveDesignFile/${slFile}`]);
 							}
 
-							// 3. Delete measurements_new row
-							const { error: measError } = await supabase
-								.from('measurements_new')
-								.delete()
-								.eq('dress_item_id', dressItemId);
-							if (measError) throw measError;
-
-							// 4. Delete DressItems row
-							const { error: dressError } = await supabase
-								.from('DressItems')
-								.delete()
-								.eq('id', dressItemId);
-							if (dressError) throw dressError;
-
 							// 5. If this was the last dress item, prompt to cancel the order instead of deleting
 							if (itemState.dressItemId.length === 1) {
 								Alert.alert(
