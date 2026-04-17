@@ -385,10 +385,6 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
   const filteredOrders = filterOrders();
 
   const renderSearchFilters = () => {
-	  const filtersToRender = statusCheckType 
-		? searchFilters 
-		: searchFilters.filter(f => f.id === 'name' || f.id === 'orderNo');
-
 	  return (
 		<ScrollView
 		  horizontal
@@ -396,7 +392,7 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
 		  style={styles.filterScrollView}
 		  contentContainerStyle={styles.filterContainer}
 		>
-		  {filtersToRender.map(renderFilterButton)}
+		  {searchFilters.map(renderFilterButton)}
 		</ScrollView>
 	  );
 	};

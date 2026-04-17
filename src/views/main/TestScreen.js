@@ -25,7 +25,8 @@ import { usePermissions } from './PermissionsContext';
 import { KeyboardAvoidingView } from '../extra/3rd-party';
 import MultiSelectOptions from './MultiSelectOptions';
 import moment from 'moment';
-import { CameraView, useCameraPermissions } from 'expo-camera/next'; // Note the /next
+import { useCameraPermissions } from 'expo-camera/next'; // Note the /next
+import CameraModal from './CameraModal';
 
   const CameraIcon = (props) => <Icon {...props} name="camera-outline" />;
   const ImageIcon = (props) => <Icon {...props} name="image-outline" />;
@@ -2121,47 +2122,6 @@ const renderSlotSummary = (slots) => {
     );
   };
 	  
-	const CameraModal = ({ visible, onClose, onCapture }) => {
-	  const cameraRef = useRef(null);
-
-	  if (!visible) return null;
-
-	  return (
-		<Modal visible transparent style={{width: '100%', height: '100%'}} >
-		  <CameraView
-			ref={cameraRef}
-			style={{ flex: 1 }}
-			facing="back"
-		  >
-		<View style={styles.cameraControls}>
-		  <Button
-			style={styles.captureBtn}
-			onPress={async () => {
-				const photo = await cameraRef.current.takePictureAsync({
-				  quality: 0.7,
-				});
-				console.log('photo async', photo)
-				await onCapture(photo.uri);
-				onClose();
-			}}
-
-		  >
-			Capture
-		  </Button>
-
-		  <Button
-			status='basic'
-			style={styles.cancelBtn}
-			onPress={onClose}
-		  >
-			Cancel
-		  </Button>
-		</View>
-		  </CameraView>
-		</Modal>
-	  );
-	};
-	  
 	  const renderMeasurementsModal = () => {
 		if (!selectedItem) return null;
   
@@ -2872,16 +2832,6 @@ const renderSlotSummary = (slots) => {
 				  setShowSuggestions(text.length > 0);
 	}
 	
-	const shareLog = async () => {
-	  const isAvailable = await Sharing.isAvailableAsync();
-	  if (isAvailable) {
-		await Sharing.shareAsync(logFile, {
-		  mimeType: 'text/plain',
-		  dialogTitle: 'Camera Debug Log'
-		});
-	  }
-	};
-
 	
   return (
 	<ScrollView ref={scrollViewRef} style={styles.container} keyboardShouldPersistTaps="handled">
@@ -3060,7 +3010,6 @@ const renderSlotSummary = (slots) => {
 				>
 					Confirm order
 				</Button>
-				<Button onPress={shareLog}>Share Log File</Button>
           </Layout>
 		  </>
 		)}

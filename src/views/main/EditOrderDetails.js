@@ -33,7 +33,7 @@ const EditOrderDetails = ({ navigation }) => {
 	const [formData, setFormData] = useState({
 		dressItems: [],
 	});
-	const { clearAllBookings } = useSlotBooking();
+	const { clearAllBookings, addBooking } = useSlotBooking();
 	const { measurementFields } = useDressConfig();
 	const [expandedItems, setExpandedItems] = useState(new Set());
 	let aroute = {...route?.params};
@@ -419,6 +419,11 @@ const EditOrderDetails = ({ navigation }) => {
 								);
 								setLoading(false); // stop spinner while user decides
 								return;
+							} else {
+								console.log('dressItemId', dressItemId);
+								const { error: deleteError } = await supabase
+								  .rpc('safe_delete_dress_item', { p_dress_item_id: dressItemId });
+								if (deleteError) throw deleteError;
 							}
 
 							// 6. Remove the deleted index from all array fields
@@ -585,7 +590,6 @@ const EditOrderDetails = ({ navigation }) => {
 			showErrorMessage("No Internet Connection");
 		} else {
 			try {
-				clearAllBookings();
 				setLoading(true);
 				console.log(itemRefs);
 				const dressItemIds = Object.keys(itemRefs.current);
@@ -654,6 +658,10 @@ const EditOrderDetails = ({ navigation }) => {
 				});
 				let updVal = egVal[0];
 				console.log(updVal);
+				updVal['custName'] = custName;
+				updVal['phoneNo'] = phoneNo.includes('+91') ? phoneNo : '+91' + phoneNo;
+				updVal['customerId'] = customerId;
+
 				updVal['orderAmt'] = parseInt(totalAmt);
 				updVal['paymentStatus'] = payStatusLocal;
 				updVal['advance'] = parseInt(adv);
@@ -728,6 +736,7 @@ const EditOrderDetails = ({ navigation }) => {
 									express_slots_booked: express,
 									total_slots_booked: total,
 								}));
+								addBooking(ditem[key], undefined);
 								console.log('rowsToInsert', rowsToInsert);
 								const { data: dataSlots, error: errorSlots } = await supabase
 									.rpc('upsert_delivery_slots', {
@@ -815,6 +824,7 @@ const EditOrderDetails = ({ navigation }) => {
 				console.error('Error while updating dress items:', error);
 				showErrorMessage('Error while updating dress items:' + error);
 			} finally {
+				//clearAllBookings();
 				setLoading(false);
 			}
 		}
@@ -851,6 +861,16 @@ const EditOrderDetails = ({ navigation }) => {
 				custId = dataUser.id;
 			} else {
 				custId = data.id;
+				
+				if (custName && custName !== item.custName) {
+					const { error: nameError } = await supabase
+						.from('Customer')
+						.update({ custName: custName })
+						.eq('id', custId);
+
+					if (nameError) throw nameError;
+					console.log('updated custName for existing customer');
+				}
 			}
 
 			const orderItemsUpdate = { customerId: custId };

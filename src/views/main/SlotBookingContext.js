@@ -80,6 +80,31 @@ export const SlotBookingProvider = ({ children }) => {
 		return newBookings;
 	  });
 	};
+	
+	const adjustBooking = (date, delta) => {
+	  setSlotBookings(prev => {
+		const newBookings = { ...prev };
+		
+		if (!newBookings[date]) {
+		  newBookings[date] = {};
+		}
+
+		const existing = newBookings[date]['__move_adj__'] || { regular: 0, express: 0, total: 0 };
+
+		newBookings[date] = {
+		  ...newBookings[date],
+		  ['__move_adj__']: {
+			regular: existing.regular + delta.regular,
+			express: existing.express + delta.express,
+			total: existing.total + delta.total,
+		  }
+		};
+
+		console.log('adjustBooking result:', newBookings);
+		return newBookings;
+	  });
+	};
+
   
   const removeItemBooking = (itemId, slotDates) => {
 	  console.log('removeBooking');
@@ -116,6 +141,7 @@ export const SlotBookingProvider = ({ children }) => {
 
   // Clear all bookings (when order is placed)
   const clearAllBookings = () => {
+	console.log('in clearAllBookings')
     setSlotBookings({});
   };
 
@@ -123,6 +149,7 @@ export const SlotBookingProvider = ({ children }) => {
     <SlotBookingContext.Provider value={{
       slotBookings,
       addBooking,
+	  adjustBooking,
       removeBooking,
       getAllBookings,
       getBookingsForDate,

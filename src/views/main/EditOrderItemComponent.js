@@ -9,7 +9,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from "@react-navigation/native";
-import { CameraView, useCameraPermissions } from 'expo-camera/next'; // Note the /next
+import { useCameraPermissions } from 'expo-camera/next'; // Note the /next
+import CameraModal from './CameraModal';
 
 const ShareIcon = (props) => <Icon {...props} name='share-outline' />;
 const ChevronDownIcon = (props) => <Icon {...props} name='chevron-down-outline' />;
@@ -84,15 +85,11 @@ const EditOrderItemComponent = (props, ref) => {
   const ADDON_OPTIONS = [
 	  "Lining",
 	  "Piping",
-	  "Embroidery",
-	  "Hemming",
+	  "Aari Embroidery",
+	  "Machine Embroidery",
 	  "Lace",
 	  "Falls",
-	  "Elastic",
-	  "Pocket",
 	  "Zipper",
-	  "Hook/Button",
-	  "Patch Work",
 	  "Other",
 	];
   
@@ -677,47 +674,6 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
     );
   };
   
-  const CameraModal = ({ visible, onClose, onCapture }) => {
-	  const cameraRef = useRef(null);
-
-	  if (!visible) return null;
-
-	  return (
-		<Modal visible transparent style={{width: '100%', height: '100%'}} >
-		  <CameraView
-			ref={cameraRef}
-			style={{ flex: 1 }}
-			facing="back"
-		  >
-		<View style={styles.cameraControls}>
-		  <Button
-			style={styles.captureBtn}
-			onPress={async () => {
-				const photo = await cameraRef.current.takePictureAsync({
-				  quality: 0.7,
-				});
-				console.log('photo async', photo)
-				await onCapture(photo.uri);
-				onClose();
-			}}
-
-		  >
-			Capture
-		  </Button>
-
-		  <Button
-			status='basic'
-			style={styles.cancelBtn}
-			onPress={onClose}
-		  >
-			Cancel
-		  </Button>
-		</View>
-		  </CameraView>
-		</Modal>
-	  );
-	};
-
   const RenderExtraOptions = ({
 	  extraOptions,
 	  expandedSections,

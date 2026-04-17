@@ -61,7 +61,7 @@ const SlotBookingScreen = () => {
   const [loading, setLoading] = useState(false);
   const [tempChanges, setTempChanges] = useState({regular: 0, express: 0, total: 0, regularSlots: 0, expressSlots: 0});
   const navigation = useNavigation();
-  const { getAllBookings, addBooking, getBookingsForDate } = useSlotBooking();
+  const { getAllBookings, adjustBooking, addBooking, getBookingsForDate, slotBookings } = useSlotBooking();
   const todayDate = moment().format("YYYY-MM-DD");
   const [tempSlots, setTempSlots] = useState({});
   const [movedOrders, setMovedOrders] = useState([]);
@@ -115,72 +115,104 @@ const SlotBookingScreen = () => {
 
 		return () => backHandler.remove(); // Clean up the back handler
 	}, [navigation, prevScreen, editRouteParams]);   
-  
+
+	// State to hold the raw DB slots separately
+	const [dbSlots, setDbSlots] = useState({});
+
+	// Effect 1: Fetch DB data ONCE on mount only
 	useEffect(() => {
-		const getBookedSlots = async() => {
-		  try {
-			  console.log('in getBookedSlots')
-			  console.log(slotDate)
-			setLoading(true);
-			  const { data, error } = await supabase
-							  .from('v_daily_slot_summary')
-							  .select(`*`);
-			  if (error) {
-				throw error;
-			  } 
-			  console.log(data);
-			  
-			  const dbSlots = data.reduce((acc, slot) => {
-				  acc[slot.slot_date] = {
-					regular: slot.regular_slots_booked,
-					express: slot.express_slots_booked,
-					total: slot.total_slots_booked
-				  };
-				  return acc;
-				}, {});
-				
-			console.log(slotsForDress);
-			let contextData = getAllBookings();
-			if(prevScreen === 'Edit') {
-				contextData = slotsForDress;
-			}
-			console.log('contextData', contextData);
-			setCurrentSlots(slotsForDress);
-			
-			setConfirmedSlotDate(slotDate);
-			
-			const allDates = new Set([
-			  ...Object.keys(dbSlots),
-			  ...Object.keys(contextData)
-			]);
-			
-			const bookedSlots = {};
+	  const fetchDbSlots = async () => {
+		try {
+		  setLoading(true);
+		  const { data, error } = await supabase
+			.from('v_daily_slot_summary')
+			.select(`*`);
 
-			allDates.forEach(date => {
-			  const db = dbSlots[date] || { regular: 0, express: 0, total: 0 };
-			  let ctx = { regular: 0, express: 0, total: 0 };
-			  if(prevScreen === 'Edit') {
-				ctx = slotsDiff?.[date] || { regular: 0, express: 0, total: 0 };
-			  } else {
-				ctx = contextData[date] || { regular: 0, express: 0, total: 0 };
-			  }
-			  bookedSlots[date] = {
-				regular: db.regular + ctx.regular,
-				express: db.express + ctx.express,
-				total: db.total + ctx.total
-			  };
-			});
+		  if (error) throw error;
+		  
+		  console.log('fetched from db', data);
 
-			setBookedSlotsState(bookedSlots);
-		  } catch(error) {
-			console.error('Error fetching daily slots:', error);
-		  } finally {
-			setLoading(false);
-		  }
+		  const fetchedDbSlots = data.reduce((acc, slot) => {
+			acc[slot.slot_date] = {
+			  regular: slot.regular_slots_booked,
+			  express: slot.express_slots_booked,
+			  total: slot.total_slots_booked
+			};
+			return acc;
+		  }, {});
+
+		  setDbSlots(fetchedDbSlots);
+		} catch (error) {
+		  console.error('Error fetching daily slots:', error);
+		} finally {
+		  setLoading(false);
 		}
-		getBookedSlots();
-	}, [slotDate, slotsForDress]);
+	  };
 
+	  fetchDbSlots();
+	}, []); // <-- empty deps: runs once on mount
+
+	// Effect 2: Merge DB slots + context/slotsForDress whenever inputs change
+	useEffect(() => {
+	  // Don't run until DB slots are loaded
+	  if (Object.keys(dbSlots).length === 0) return;
+
+	  console.log('Merging slots. slotDate:', slotDate);
+	  console.log('slotsForDress:', slotsForDress);
+
+	  let contextData;
+	  if (prevScreen === 'Edit') {
+		contextData = slotsForDress;
+	  } else {
+		contextData = getAllBookings();
+	  }
+
+	  console.log('contextData in useEffect:', contextData);
+
+	  setCurrentSlots(slotsForDress);
+	  setConfirmedSlotDate(slotDate);
+
+	  // Extract only __move_adj__ entries from slotBookings (for Edit screen move adjustments)
+	  const moveAdjustments = {};
+	  Object.entries(slotBookings).forEach(([date, itemBookings]) => {
+		if (itemBookings['__move_adj__']) {
+		  moveAdjustments[date] = itemBookings['__move_adj__'];
+		}
+	  });
+
+	  const allDates = new Set([
+		...Object.keys(dbSlots),
+		...Object.keys(contextData),
+		...Object.keys(moveAdjustments) // include move adj dates
+	  ]);
+
+	  const bookedSlots = {};
+
+	  allDates.forEach(date => {
+		const db = dbSlots[date] || { regular: 0, express: 0, total: 0 };
+		const adj = moveAdjustments[date] || { regular: 0, express: 0, total: 0 }; // always apply move adj
+
+		let ctx;
+		if (prevScreen === 'Edit') {
+		  ctx = slotsDiff?.[date] || { regular: 0, express: 0, total: 0 };
+		} else {
+		  ctx = contextData[date] || { regular: 0, express: 0, total: 0 };
+		}
+
+		bookedSlots[date] = {
+		  regular: db.regular + ctx.regular + adj.regular,
+		  express: db.express + ctx.express + adj.express,
+		  total: db.total + ctx.total + adj.total
+		};
+	  });
+
+
+	  setBookedSlotsState(bookedSlots);
+
+	}, [dbSlots, slotDate, slotsForDress, slotBookings]); 
+	// slotBookings triggers re-merge when context changes (non-Edit flow)
+	// dbSlots triggers initial merge once DB load completes
+	
   const expressOptions = [
     { days: '5-3', label: '5 to 3 Days', price: 500 },
     { days: '3', label: '3 Days', price: 800 },
@@ -290,10 +322,13 @@ const SlotBookingScreen = () => {
 	setOrdersForDate(data);
 	let contextItemData = getBookingsForDate(dateKey);
 	console.log('contextItemData', contextItemData);
-	if(contextItemData) {
-		const { [itemId]: _, ...filtered } = contextItemData;
-		console.log('filtered', filtered);
-		setCurrentOrderData(filtered);
+	if (contextItemData) {
+	  console.log("itemId", itemId);
+	  
+	  // Always remove the "undefined" key, then also remove itemId if valid
+	  const { ["undefined"]: _u, ["__move_adj__"]: _m, [itemId]: _i, ...filtered } = contextItemData;
+	  console.log('filtered', filtered);
+	  setCurrentOrderData(filtered);
 	}
 	console.log('movedOrders', movedOrders)
 	console.log('dateKey', dateKey);
@@ -447,7 +482,7 @@ const SlotBookingScreen = () => {
 	  });
   };
 
-  const moveOrderToDate = (targetDate) => {
+  const moveOrderToDate = async(targetDate) => {
 	console.log('in moveOrderToDate ', targetDate)
     const sourceDate = selectedSlotDate;
     let srcCurrent = currentSlots[selectedSlotDate] || {regular: 0, express: 0, total: 0};
@@ -483,35 +518,45 @@ const SlotBookingScreen = () => {
 	setOrdersForDate(prev => prev.filter(order => order.dressItemId !== orderToMove.dressItemId));
 	let mv = {source_date: sourceDate, target_date: targetDate, dressItemId: orderToMove.dressItemId, regular: mvVal.regular, express: mvVal.express, total: mvVal.total, orderNo: orderToMove.orderNo, dressType: orderToMove.dressType, dressSubType: orderToMove.dressSubType, custName: orderToMove.custName, orderStatus: orderToMove.orderStatus}
 	console.log('mv', mv)
-	setMovedOrders(prev => [...prev, mv]);
+	
+	// Update slotBookings context - remove from source, add to target
+    const dressItemId = orderToMove.dressItemId;
+
+    adjustBooking(sourceDate, {
+	  regular: -mvVal.regular,
+	  express: -mvVal.express,
+	  total: -mvVal.total
+	});
+
+	// Add to target date
+	adjustBooking(targetDate, {
+	  regular: mvVal.regular,
+	  express: mvVal.express,
+	  total: mvVal.total
+	});
+
+			  const { error } = await supabase.rpc("move_slot_key", {
+				record_id: orderToMove.dressItemId,
+				source_key: sourceDate,
+				target_key: targetDate,
+				reg: mvVal.regular,
+				exp: mvVal.express,
+				tot: mvVal.total
+			  });
+
+			  if (error) console.error(error);
+			  console.log('updating movedOrders in db')
+			  console.log(sourceDate, targetDate, orderToMove.dressItemId, mvVal.regular, mvVal.express, mvVal.total);
+			  const cacheKey = orderToMove.orderStatus === 'Completed' ? 'Completed_true' : 'Completed_false';
+			  updateCache('UPDATE_SLOTS', mv, cacheKey);    
+			  await notify(currentUser.id, 'UPDATE_SLOTS', cacheKey, mv);
+			  eventEmitter.emit('newOrderAdded');
   };
   
   const saveAllSlots = async() => {
 		console.log('in saveAllSlots')
 		console.log(currentSlots);
 	  console.log(tempSlots);
-	  if(movedOrders?.length > 0) {
-		  console.log(movedOrders)
-		  for (const mo of movedOrders) {
-			  const { source_date, target_date, dressItemId, regular, express, total, orderStatus } = mo;
-			  const { error } = await supabase.rpc("move_slot_key", {
-				record_id: dressItemId,
-				source_key: source_date,
-				target_key: target_date,
-				reg: regular,
-				exp: express,
-				tot: total
-			  });
-
-			  if (error) console.error(error);
-			  console.log('updating movedOrders in db')
-			  console.log(source_date, target_date, dressItemId, regular, express, total);
-			  const cacheKey = orderStatus === 'Completed' ? 'Completed_true' : 'Completed_false';
-			  updateCache('UPDATE_SLOTS', mo, cacheKey);    
-			  await notify(currentUser.id, 'UPDATE_SLOTS', cacheKey, mo);
-			  eventEmitter.emit('newOrderAdded');
-		  }
-		}
 	  	  const { onSave } = route.params
 		  if (onSave) {
 			onSave(currentSlots);

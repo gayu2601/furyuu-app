@@ -126,6 +126,15 @@ const WelcomeLoginScreen = ({ navigation }) => {
 	const [tempCurrentDevice, setTempCurrentDevice] = useState(null);
 	const [isNewUser, setIsNewUser] = useState(false);
 	const [secureTextEntry, setSecureTextEntry] = useState(true);
+
+	// Reset password states
+	const [showResetModal, setShowResetModal] = useState(false);
+	const [resetRole, setResetRole] = useState('');
+	const [newPassword, setNewPassword] = useState('');
+	const [confirmPassword, setConfirmPassword] = useState('');
+	const [newPasswordSecure, setNewPasswordSecure] = useState(true);
+	const [confirmPasswordSecure, setConfirmPasswordSecure] = useState(true);
+	const [resetLoading, setResetLoading] = useState(false);
 	
 	const flatListRef = useRef(null);
 	const { updateNewDeviceLogin, updateCurrentUser } = useUser();
@@ -170,7 +179,6 @@ const WelcomeLoginScreen = ({ navigation }) => {
 		  (device) => device.device_id === currentDevice.deviceId
 		);
 
-		// Store temporary data and show password modal
 		setTempSession(session);
 		setTempUserData(data1);
 		setTempCurrentDevice(currentDevice);
@@ -185,7 +193,6 @@ const WelcomeLoginScreen = ({ navigation }) => {
 
 	const validatePasswordAndAssignRole = async (password) => {
 	  try {
-		// Fetch all role passwords from database
 		const { data, error } = await supabase
 		  .from('role_passwords_config')
 		  .select('role, password');
@@ -193,12 +200,10 @@ const WelcomeLoginScreen = ({ navigation }) => {
 
 		if (error && error.code !== 'PGRST116') {
 		  console.error('Error fetching role passwords:', error);
-		  // Fallback to hardcoded passwords if database fetch fails
 		  const role = ROLE_PASSWORDS[password];
 		  return role || null;
 		}
 
-		// Check if entered password matches any role password
 		if (data && data.length > 0) {
 		  const matchedRole = data.find(item => item.password === password);
 		  if (matchedRole) {
@@ -231,17 +236,14 @@ const WelcomeLoginScreen = ({ navigation }) => {
 		  return;
 		}
 		
-		// Assign the role dynamically
 		tempUserData.userType = assignedRole;
 		
-		// Continue with login
 		if (!isNewUser) {
 		  await DeviceManager.insertUserDevice(tempSession.user.id, tempCurrentDevice);
 		}
 		
 		await handleUserLogin(tempSession, tempUserData, tempCurrentDevice);
 		
-		// Close modal and reset
 		setShowPasswordModal(false);
 		setPassword('');
 		setTempSession(null);
@@ -263,14 +265,12 @@ const WelcomeLoginScreen = ({ navigation }) => {
 		
 		await updatePushTokenIfNeeded(session.user.id, data1, currentDevice.pushToken);
 		
-		// Store the dynamically assigned userType in local storage
 		storage.set('userType', data1.userType);
 		console.log('Stored userType in local storage:', data1.userType);
 		
 		updateCurrentUser(data1);
 		updateNewDeviceLogin(true);
 		
-		// Load additional data and navigate
 		await getNames(data1);
 		await getWorkers();
 		await loadDressConfig(data1);
@@ -294,6 +294,76 @@ const WelcomeLoginScreen = ({ navigation }) => {
 		data1.pushToken = currentPushToken;
 	  }
 	};
+
+	// ─── Reset Password Handlers ─────────────────────────────────────────────────
+
+	const openResetModal = () => {
+	  setResetRole('');
+	  setNewPassword('');
+	  setConfirmPassword('');
+	  setShowResetModal(true);
+	};
+
+	const closeResetModal = () => {
+	  setShowResetModal(false);
+	  setResetRole('');
+	  setNewPassword('');
+	  setConfirmPassword('');
+	};
+
+	const handleResetPassword = async () => {
+	  if (!resetRole.trim()) {
+		showErrorMessage('Please enter the role name');
+		return;
+	  }
+	  if (!newPassword.trim()) {
+		showErrorMessage('Please enter a new password');
+		return;
+	  }
+	  if (newPassword.length < 6) {
+		showErrorMessage('Password must be at least 6 characters');
+		return;
+	  }
+	  if (newPassword !== confirmPassword) {
+		showErrorMessage('Passwords do not match');
+		return;
+	  }
+
+	  try {
+		setResetLoading(true);
+
+		// Verify the role exists
+		const { data, error } = await supabase
+		  .from('role_passwords_config')
+		  .select('role')
+		  .eq('role', resetRole.trim().toLowerCase());
+
+		if (error) throw error;
+
+		if (!data || data.length === 0) {
+		  showErrorMessage('Role not found. Please check the role name.');
+		  return;
+		}
+
+		// Update the password for the matched role
+		const { error: updateError } = await supabase
+		  .from('role_passwords_config')
+		  .update({ password: newPassword })
+		  .eq('role', resetRole.trim().toLowerCase());
+
+		if (updateError) throw updateError;
+
+		showSuccessMessage('Password updated successfully!');
+		closeResetModal();
+	  } catch (error) {
+		console.error('Reset password error:', error);
+		showErrorMessage('Failed to reset password. Please try again.');
+	  } finally {
+		setResetLoading(false);
+	  }
+	};
+
+	// ─────────────────────────────────────────────────────────────────────────────
 	
 	const generateUniqueUsername = (email) => {
 		const baseName = email.split("@")[0];  
@@ -487,7 +557,7 @@ const WelcomeLoginScreen = ({ navigation }) => {
 		  </View>
 		</View>
 
-		{/* Password Modal */}
+		{/* ── Role Password Modal ── */}
 		<Modal
 		  visible={showPasswordModal}
 		  backdropStyle={styles.backdrop}
@@ -516,6 +586,14 @@ const WelcomeLoginScreen = ({ navigation }) => {
 			  autoCapitalize="none"
 			  onSubmitEditing={handlePasswordSubmit}
 			/>
+
+			{/* Forgot Password link */}
+			<TouchableOpacity onPress={openResetModal} style={styles.forgotPasswordLink}>
+			  <Text category="c1" style={styles.forgotPasswordText}>
+				Forgot Password?
+			  </Text>
+			</TouchableOpacity>
+
 			<View style={styles.passwordButtonContainer}>
 			  <Button
 				style={styles.passwordButton}
@@ -538,6 +616,97 @@ const WelcomeLoginScreen = ({ navigation }) => {
 				Continue
 			  </Button>
 			</View>
+		  </Card>
+		</Modal>
+
+		{/* ── Reset Password Modal ── */}
+		<Modal
+		  visible={showResetModal}
+		  backdropStyle={styles.backdrop}
+		  onBackdropPress={closeResetModal}
+		>
+		  <Card disabled={true} style={styles.passwordCard}>
+
+			<TouchableOpacity onPress={closeResetModal} style={styles.backButton}>
+			  <Icon name="arrow-back-outline" style={styles.backIcon} fill="#8F9BB3" />
+			</TouchableOpacity>
+
+			<Text category="h6" style={styles.passwordTitle}>
+			  Reset Password
+			</Text>
+			<Text category="s2" style={styles.passwordSubtext}>
+			  Enter your role name and set a new password
+			</Text>
+
+			{/* Role name input */}
+			<Input
+			  style={styles.passwordInput}
+			  placeholder="Role (e.g. admin, designer)"
+			  value={resetRole}
+			  onChangeText={setResetRole}
+			  autoCapitalize="none"
+			  accessoryLeft={(props) => <Icon {...props} name="person-outline" />}
+			/>
+
+			{/* New password input */}
+			<Input
+			  style={styles.passwordInput}
+			  placeholder="New Password"
+			  value={newPassword}
+			  onChangeText={setNewPassword}
+			  secureTextEntry={newPasswordSecure}
+			  autoCapitalize="none"
+			  accessoryLeft={(props) => <Icon {...props} name="lock-outline" />}
+			  accessoryRight={(props) => (
+				<TouchableOpacity onPress={() => setNewPasswordSecure(!newPasswordSecure)}>
+				  <Icon {...props} name={newPasswordSecure ? 'eye-off' : 'eye'} />
+				</TouchableOpacity>
+			  )}
+			/>
+
+			{/* Confirm password input */}
+			<Input
+			  style={styles.passwordInput}
+			  placeholder="Confirm Password"
+			  value={confirmPassword}
+			  onChangeText={setConfirmPassword}
+			  secureTextEntry={confirmPasswordSecure}
+			  autoCapitalize="none"
+			  accessoryLeft={(props) => <Icon {...props} name="lock-outline" />}
+			  accessoryRight={(props) => (
+				<TouchableOpacity onPress={() => setConfirmPasswordSecure(!confirmPasswordSecure)}>
+				  <Icon {...props} name={confirmPasswordSecure ? 'eye-off' : 'eye'} />
+				</TouchableOpacity>
+			  )}
+			/>
+
+			<View style={styles.passwordButtonContainer}>
+			  <Button
+				style={styles.passwordButton}
+				appearance="outline"
+				onPress={closeResetModal}
+			  >
+				Cancel
+			  </Button>
+			  <Button
+				style={styles.passwordButton}
+				onPress={handleResetPassword}
+				disabled={
+				  !resetRole.trim() ||
+				  !newPassword.trim() ||
+				  !confirmPassword.trim() ||
+				  resetLoading
+				}
+				accessoryLeft={
+				  resetLoading
+					? () => <Spinner size="small" status="control" />
+					: undefined
+				}
+			  >
+				{resetLoading ? 'Saving...' : 'Reset'}
+			  </Button>
+			</View>
+
 		  </Card>
 		</Modal>
 
@@ -618,7 +787,7 @@ const styles = StyleSheet.create({
 	color: '#8F9BB3',
   },
   passwordInput: {
-	marginBottom: 20,
+	marginBottom: 16,
   },
   passwordButtonContainer: {
 	flexDirection: 'row',
@@ -627,6 +796,26 @@ const styles = StyleSheet.create({
   },
   passwordButton: {
 	flex: 1,
+  },
+  forgotPasswordLink: {
+	alignSelf: 'flex-end',
+	marginTop: -8,
+	marginBottom: 16,
+  },
+  forgotPasswordText: {
+	color: '#3366FF',
+	textDecorationLine: 'underline',
+  },
+  backButton: {
+	position: 'absolute',
+	top: 16,
+	left: 16,
+	zIndex: 1,
+	padding: 4,
+  },
+  backIcon: {
+	width: 22,
+	height: 22,
   },
 });
 

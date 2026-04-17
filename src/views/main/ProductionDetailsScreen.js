@@ -34,7 +34,8 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase } from '../../constants/supabase'
 import { storage } from '../extra/storage';
 import eventEmitter from './eventEmitter';
-import { CameraView, useCameraPermissions } from 'expo-camera/next'; // Note the /next
+import { useCameraPermissions } from 'expo-camera/next'; // Note the /next
+import CameraModal from './CameraModal';
 
 const ProductionDetailsScreen = () => {
   const route = useRoute();
@@ -224,47 +225,6 @@ const ProductionDetailsScreen = () => {
   const pickImage = async () => {
     setIsModalVisible(true);
   };
-
-	const CameraModal = ({ visible, onClose, onCapture }) => {
-	  const cameraRef = useRef(null);
-
-	  if (!visible) return null;
-
-	  return (
-		<Modal visible transparent style={{width: '100%', height: '100%'}} >
-		  <CameraView
-			ref={cameraRef}
-			style={{ flex: 1 }}
-			facing="back"
-		  >
-		<View style={styles.cameraControls}>
-		  <Button
-			style={styles.captureBtn}
-			onPress={async () => {
-				const photo = await cameraRef.current.takePictureAsync({
-				  quality: 0.7,
-				});
-				console.log('photo async', photo)
-				await onCapture(photo.uri);
-				onClose();
-			}}
-
-		  >
-			Capture
-		  </Button>
-
-		  <Button
-			status='basic'
-			style={styles.cancelBtn}
-			onPress={onClose}
-		  >
-			Cancel
-		  </Button>
-		</View>
-		  </CameraView>
-		</Modal>
-	  );
-	};
 
   const renderStatusButton = (stage, status) => (
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 5}}>
