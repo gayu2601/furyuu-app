@@ -15,7 +15,7 @@ import KeyholeNeck from '../../components/necktypes/KeyholeNeckComponent.js';
 import PlusIcon from '../extra/icons';
 import { useNavigation } from "@react-navigation/native";
 
-const NeckTypesModal = ({ visible, onClose, fieldName, updateSelectedItemDesign, setShowDesign, prevScreen, editRouteParams = null, saveAllLocalStates = () => {} }) => {
+const NeckTypesModal = ({ visible, onClose, fieldName, updateSelectedItemDesign, setShowDesign, prevScreen, editRouteParams = null, saveAllLocalStates = () => {}, itemId }) => {
   const neckTypes = [
     { id: '1', name: 'VNeck', Component: VNeck },
     { id: '2', name: 'Round', Component: RoundNeck },
@@ -58,7 +58,7 @@ const NeckTypesModal = ({ visible, onClose, fieldName, updateSelectedItemDesign,
 				}
 			},
 			prevScreen: prevScreen,
-			editRouteParams: editRouteParams
+			editRouteParams: { ...editRouteParams, reopenId: itemId, reopenDesignModal: true }
 		});
   };
 

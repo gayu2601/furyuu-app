@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, StyleSheet, Image, Dimensions } from 'react-native';
+import { View, StyleSheet, Image, Dimensions, BackHandler } from 'react-native';
 import { Button, TopNavigationAction } from "@ui-kitten/components";
 import SignatureScreen from 'react-native-signature-canvas';
 import * as FileSystem from 'expo-file-system';
@@ -16,52 +16,46 @@ const CustomDesign = () => {
 	const [uriC, setUriC] = useState(null);
 	const { width, height } = Dimensions.get('window');
 	
+	const goBackWithParams = () => {
+        navigation.navigate({
+            name: prevScreen,
+            params: { ...editRouteParams } // This carries the 'reopenDesignModal' flag
+        });
+    };
+	
 	useEffect(() => {
 		navigation.setOptions({
 		  headerLeft: () => (
-			<TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon} onPress={() => {
-				console.log('in custom design top nav action')
-				navigation.navigate({
-				 name: prevScreen,
-				 params: {
-				   ...editRouteParams
-				 }
-				});
-			}}/>
-		  ),
-		});
-	  }, [navigation, prevScreen]);
+			<TopNavigationAction style={styles.navButton} icon={ArrowIosBackIcon} onPress={goBackWithParams}
+			/>)
+		})
+	}, [navigation, prevScreen]);
+	  
+	useEffect(() => {
+        const backAction = () => {
+            goBackWithParams(); // Use helper
+            return true; // Prevents the app from closing
+        };
+
+        const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
+        return () => backHandler.remove();
+    }, [navigation, prevScreen, editRouteParams]);
 	
   const handleOK = (signature) => {
-    //console.log(signature);
-	console.log('in handleOK')
-	const uniqueName = `sign_${Date.now()}.png`; 
-		const path = FileSystem.cacheDirectory + uniqueName;
-		  FileSystem.writeAsStringAsync(
-			path,
-			signature.replace("data:image/png;base64,", ""),
-			{ encoding: FileSystem.EncodingType.Base64 }
-		  )
-			.then(() => {
-			  FileSystem.getInfoAsync(path).then((fileInfo) => {
-				console.log('File Info:', fileInfo);
-				setUriC(path); // Set uriC here
-			  });
-			})
-			.catch(console.error);
-		console.log('uriC: ' + uriC)
-		  if (returnFile) {
-			console.log(path)
-            returnFile(path);
-          }
-		navigation.navigate({
-          name: prevScreen,
-          params: {
-            ...editRouteParams
-          }
-        });
-	//onOK(signature); // Callback from Component props
-  };
+        const uniqueName = `sign_${Date.now()}.png`;
+        const path = FileSystem.cacheDirectory + uniqueName;
+        
+        FileSystem.writeAsStringAsync(
+            path,
+            signature.replace("data:image/png;base64,", ""),
+            { encoding: FileSystem.EncodingType.Base64 }
+        ).then(() => {
+            if (returnFile) {
+                returnFile(path);
+            }
+            goBackWithParams(); // Use helper after saving[cite: 3]
+        }).catch(console.error);
+    };
   
   const handleConfirm = () => {
     console.log("end");

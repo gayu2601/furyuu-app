@@ -123,6 +123,7 @@ const ProductionDetailsScreen = () => {
   const ZapIcon = (props) => <Icon {...props} name='flash-outline' />;
   const CheckCircleIcon = (props) => <Icon {...props} name='checkmark-circle-outline' />;
   const EyeIcon = (props) => <Icon {...props} name='eye-outline' />;
+  const AariIcon = (props) => <Icon {...props} name='star-outline' />;
   const CalendarIcon = (props) => <Icon {...props} name='calendar' />;
   const CameraIcon = (props) => <Icon {...props} name='camera-outline' />;  
   const CloseIcon = (props) => <Icon {...props} name="close-outline" style={styles.closeIcon}/>;
@@ -248,6 +249,7 @@ const ProductionDetailsScreen = () => {
 		let cuttingDateFinal = moment(allData.cuttingDate).format('YYYY-MM-DD');
 		let stitchingDateFinal = moment(allData.stitchingDate).format('YYYY-MM-DD');
 		let finishingDateFinal = moment(allData.finishingDate).format('YYYY-MM-DD');
+		let aariDateFinal = moment(allData.aariDate).format('YYYY-MM-DD');
 		let checkingDateFinal = moment(allData.checkingDate).format('YYYY-MM-DD');
 		
 		console.log(allData)
@@ -316,12 +318,15 @@ const ProductionDetailsScreen = () => {
 				stitchingDate: details.stitchingDate,
 				finishingWorker: details.finishingWorkerId,
 				finishingDate: details.finishingDate,
+				aariWorker: details.aariWorkerId,
+				aariDate: details.aariDate,
 				checkingWorker: details.checkingWorkerId,
 				checkingDate: details.checkingDate,
 				checkingPic: picsArr,
 				cuttingDone: details.cuttingDone,
 				stitchingDone: details.stitchingDone,
 				finishingDone: details.finishingDone,
+				aariDone: details.aariDone,
 				checkingDone: details.checkingDone,
 			  },
 			  localRow: {
@@ -540,6 +545,39 @@ const ProductionDetailsScreen = () => {
             style={styles.datepicker}
           />
           {renderStatusButton('finishingDone', allData[selectedDressId]?.finishingDone)}
+        </Card>
+
+        {/* Aari Embroidery Section */}
+        <Card style={styles.card}>
+          <View style={styles.sectionHeader}>
+            <AariIcon style={styles.sectionIcon} fill='#E91E8C' />
+            <Text category='h6'>Aari Embroidery</Text>
+          </View>
+
+          <Text style={styles.label}>Aari Work By</Text>
+          <Select
+			  placeholder='Select worker name'
+			  value={allData[selectedDressId]?.aariWorker || ''}
+			  onSelect={(index) => {
+				const workerId = workerIds[index.row];
+				updateData('aariWorkerId', workerId);
+				updateData('aariWorker', workerNameOptions[workerId]);
+			  }}
+			  style={styles.input}
+			>
+			  {workerNames.map((worker, index) => (
+				<SelectItem key={index} title={worker} />
+			  ))}
+			</Select>
+
+          <Text style={styles.label}>Date & Time</Text>
+          <Datepicker
+            date={allData[selectedDressId]?.aariDate}
+            onSelect={date => updateData('aariDate', date)}
+            accessoryRight={CalendarIcon}
+            style={styles.datepicker}
+          />
+          {renderStatusButton('aariDone', allData[selectedDressId]?.aariDone)}
         </Card>
 
         {/* Checking Section */}

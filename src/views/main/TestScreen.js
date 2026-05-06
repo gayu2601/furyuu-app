@@ -76,7 +76,7 @@ const TestScreen = ({ route }) => {
     'Previous Customer',
     'Other'
   ];
-	
+  
   const theme = useTheme();
   const breadcrumbRoutes = [
     { name: 'Home', screen: 'HomeMain' },
@@ -292,6 +292,7 @@ const TestScreen = ({ route }) => {
 			return true;
 		  } else if (step > 1) {
 			console.log('calling addItemBatchContext:')
+			navigation.setParams({ fromCustomDesign: false });
 			saveAllLocalStates();
 			console.log(localItems);
 			addItemBatchContext(itemKey, localItems); 
@@ -316,6 +317,7 @@ const TestScreen = ({ route }) => {
 		// Define your background callback function
 		const handleAppGoingToBackground = async () => {
 		  console.log('App is going to background from TestScreen');
+		  navigation.setParams({ fromCustomDesign: false });
 		  saveAllLocalStates();
 			addItemBatchContext(itemKey, localItems);
 
@@ -332,6 +334,7 @@ const TestScreen = ({ route }) => {
 	  const unsubscribe = navigation.addListener('blur', () => {
 		console.log('🔴 Screen left (navigation)');
 
+		navigation.setParams({ fromCustomDesign: false });
 		saveAllLocalStates();
 		addItemBatchContext(itemKey, localItems);
 
@@ -380,6 +383,7 @@ const TestScreen = ({ route }) => {
 					navigation.navigate('HomeMain', {screen: 'HomeNew'});
 				  } else if (step > 1) {
 					console.log('in step2 back')
+					navigation.setParams({ fromCustomDesign: false });
 					saveAllLocalStates();
 					addItemBatchContext(itemKey, localItems);
 					setNewOrderCust({custName: custName, phoneNo: phNo, occasion: occasion, custInserted: custInserted})
@@ -949,6 +953,7 @@ const TestScreen = ({ route }) => {
 	  
 	  const deleteItem = (id, indexToRemove) => {
 		console.log('deleted item id: ' + id);
+		navigation.setParams({ fromCustomDesign: false });
 		setLocalItems(prevItems => prevItems.filter(item => item.id !== id));
 		setLocalCount(prevCount => prevCount - 1);
 		setExpandedItems(prev => {
@@ -1168,6 +1173,7 @@ const TestScreen = ({ route }) => {
 	}
 	
 	const handleIncrement = () => {
+		navigation.setParams({ fromCustomDesign: false });
 		saveAllLocalStates();
 		addItem()
 	  };
@@ -1271,6 +1277,7 @@ const TestScreen = ({ route }) => {
 	  const toggleExpand = (index) => {
 		console.log('in toggleExpand: ' + index);
 		console.log(expandedItems);
+		navigation.setParams({ fromCustomDesign: false });
 		const ref = itemRefs.current[index];
 		if (ref && ref.saveLocalState) {
 			ref.saveLocalState(); // this already calls updateItemMultiple internally which updates localItems
@@ -1376,6 +1383,19 @@ const TestScreen = ({ route }) => {
 		  savedMeas: item.savedMeas
 		});
 	  }, [item.id]); // Only update when item ID changes, not on every item change
+	  
+	  useFocusEffect(
+		  useCallback(() => {
+			  console.log('in useFocusEffect renderitem', routeParams)
+			if (routeParams?.fromCustomDesign && routeParams?.itemId === item.id) {
+				console.warn('setting showDesign')
+				setSelectedItemDesign({...item, ...localState});
+			  setShowDesign(true);
+			  
+			  //navigation.setParams({ fromCustomDesign: false }); dont do this as this resets fromCustomDesign to false before the showDesign modal is rendered
+			}
+		  }, [routeParams?.fromCustomDesign])
+		);
 
 	  // Generic function to update local state
 	  const updateLocalState = useCallback((field, value) => {
@@ -1861,7 +1881,7 @@ const TestScreen = ({ route }) => {
 										navigation.navigate('CustomDesign', {
 										field: 'sleeve',
 										prevScreen: 'Test',
-										editRouteParams: {...routeParams}, 
+										editRouteParams: {...routeParams, fromCustomDesign: true, itemId: selectedItemDesign.id}, 
 										returnFile: (selectedFile) => {
 										  const updatedItemDesign = { ...selectedItemDesign, sleeveDesignFile: selectedFile };
 										  setSelectedItemDesign(updatedItemDesign);
@@ -2040,7 +2060,7 @@ const TestScreen = ({ route }) => {
 						onClose={() => setNeckModalVisible(false)}
 						fieldName={neckModalField}
 						prevScreen='Test'
-						editRouteParams={{...route?.params}}
+						editRouteParams={{...route?.params, fromCustomDesign: true, itemId: selectedItemDesign.id}}
 						updateSelectedItemDesign={updateSelectedItemDesign}
 						setShowDesign={setShowDesign}
 						saveAllLocalStates = {saveAllLocalStates}
@@ -2356,6 +2376,7 @@ const renderSlotSummary = (slots) => {
 	)}
 	
 	const navigateToSlotScreen = () => {
+		navigation.setParams({ fromCustomDesign: false });
 		saveAllLocalStates();
 		console.log('in navigateToSlotScreen')
 		console.log(item)

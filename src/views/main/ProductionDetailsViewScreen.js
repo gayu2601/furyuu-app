@@ -46,13 +46,17 @@ const ProductionDetailsViewScreen = () => {
 		stitchingDate: null,
 		finishingWorker: '',
 		finishingDate: null,
+		aariWorker: '',
+		aariDate: null,
 		checkingWorker: '',
 		checkingDate: null,
 		checkingPic: [],
 		cuttingDone: false,
 		stitchingDone: false,
 		finishingDone: false,
-		checkingDone: false
+		aariDone: false,
+		checkingDone: false,
+		hasAari: false
 	}
   });
 
@@ -60,10 +64,8 @@ const ProductionDetailsViewScreen = () => {
 	  const loadValues = async () => {
 		try {
 		  const { data, error } = await supabase
-			.from("ProdDetails")
-			.select(
-			  `dressItemNo, dressType, dressSubType, cuttingWorker, cuttingDate, stitchingWorker, stitchingDate, finishingWorker, finishingDate, checkingWorker, checkingDate, checkingPic, cuttingDone, stitchingDone, finishingDone, checkingDone`
-			)
+			.from("prod_details_with_aari")
+			.select("*")
 			.eq("orderNo", order.orderNo);
 
 		  if (error) {
@@ -80,6 +82,7 @@ const ProductionDetailsViewScreen = () => {
 			  const existing = dataMap?.get(id);
 			  const dressType = existing?.dressType || order.dressType[idx] || "";
 			  const dressSubType = existing?.dressSubType || order.dressSubType[idx] || "";
+			  const hasAari = existing?.hasAari;
 
 			  let checkingPicUrls = [];
 			  if (existing?.checkingPic && Array.isArray(existing.checkingPic)) {
@@ -116,6 +119,11 @@ const ProductionDetailsViewScreen = () => {
 					? new Date(existing.finishingDate)
 					: null,
 				  finishingWorkerId: existing?.finishingWorker,
+				  aariWorker: employeeCache?.[existing?.aariWorker] || "",
+				  aariDate: existing?.aariDate
+					? new Date(existing.aariDate)
+					: null,
+				  aariWorkerId: existing?.aariWorker,
 				  checkingWorker: employeeCache?.[existing?.checkingWorker] || "",
 				  checkingDate: existing?.checkingDate
 					? new Date(existing.checkingDate)
@@ -125,7 +133,9 @@ const ProductionDetailsViewScreen = () => {
 				  cuttingDone: existing?.cuttingDone,
 				  stitchingDone: existing?.stitchingDone,
 				  finishingDone: existing?.finishingDone,
-				  checkingDone: existing?.checkingDone
+				  aariDone: existing?.aariDone,
+				  checkingDone: existing?.checkingDone,
+				  hasAari
 				},
 			  ];
 			})
@@ -177,6 +187,7 @@ const ProductionDetailsViewScreen = () => {
         cuttingDone: data.cuttingDone || false,
         stitchingDone: data.stitchingDone || false,
         finishingDone: data.finishingDone || false,
+        aariDone: data.aariDone || false,
         checkingDone: data.checkingDone || false,
 		dressType: data.dressType,
 		dressSubType: data.dressSubType
@@ -237,6 +248,7 @@ const ProductionDetailsViewScreen = () => {
 			  cuttingDone: update.cuttingDone,
 			  stitchingDone: update.stitchingDone,
 			  finishingDone: update.finishingDone,
+			  aariDone: update.aariDone,
 			  checkingDone: update.checkingDone,
 			  dressType: update.dressType,
 			  dressSubType: update.dressSubType
@@ -524,6 +536,20 @@ const ProductionDetailsViewScreen = () => {
             statusText: currentData.finishingDone ? 'Completed' : 'Pending'
           }}
         />
+		{currentData?.hasAari && (
+			<SectionCard
+			  title="Aari Embroidery"
+			  iconName="star"
+			  iconType="MaterialIcons"
+			  iconColor="#E91E8C"
+			  stage="aariDone"
+			  data={{
+				worker: currentData.aariWorker,
+				date: currentData.aariDate,
+				statusText: currentData.aariDone ? 'Completed' : 'Pending'
+			  }}
+			/>
+		)}
 
         {/* Quality Checking Section with Images */}
         <View style={styles.card}>
