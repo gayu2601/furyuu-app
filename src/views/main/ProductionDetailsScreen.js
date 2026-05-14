@@ -42,7 +42,9 @@ const ProductionDetailsScreen = () => {
   const navigation = useNavigation();
   //console.log(route.params?.order);
   console.log(route.params)
-  const { order, allDataLocal } = route.params;
+  const { order, allDataLocal, selectedDressId: initialDressId } = route.params;
+  const dressIds = order?.dressItemId;
+  const [selectedDressId, setSelectedDressId] = useState(initialDressId ?? dressIds[0]);
   console.log('route order', order);
   console.log('allDataLocal', allDataLocal);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -101,22 +103,15 @@ const ProductionDetailsScreen = () => {
 		}));
 	}
 
-  const [selectedModelIndex, setSelectedModelIndex] = useState(new IndexPath(0));
+  const initialModelIndex = dressIds.indexOf(initialDressId ?? dressIds[0]);
+	const [selectedModelIndex, setSelectedModelIndex] = useState(
+	  new IndexPath(initialModelIndex >= 0 ? initialModelIndex : 0)
+	);
   
   const options = [
 			{ title: 'Take Photo', iconName: 'camera' },
 			{ title: 'Choose from Gallery',iconName: 'image' },
 		  ];
-
-  const dressType = order?.dressType || [];
-  const dressSubType = order?.dressSubType || [];
-  const dressTypes = dressSubType.length > 0 
-	  ? dressType.map((type, i) => `${dressSubType[i] ?? ''} ${type}`)
-	  : dressType;
-
-  const dressIds = order?.dressItemId;
-  const [selectedDressId, setSelectedDressId] = useState(dressIds[0]);
-  
   // Icons
   const PackageIcon = (props) => <Icon {...props} name='cube-outline' />;
   const ScissorsIcon = (props) => <Icon {...props} name='scissors-outline' />;
@@ -189,7 +184,7 @@ const ProductionDetailsScreen = () => {
 		if (mediaPermission !== 'denied') {
 		  const result = await ImagePicker.launchImageLibraryAsync({
 			mediaTypes: ImagePicker.MediaTypeOptions.Images,
-			allowsMultipleSelection: true,
+			allowsEditing: true,
 			quality: 1,
 		  });
 			
@@ -212,16 +207,6 @@ const ProductionDetailsScreen = () => {
 			showErrorMessage('Media permission not granted! Grant permission in Settings')
 		}
 	};
-
-  const updateModelSelection = (index) => {
-    setSelectedModelIndex(index);
-    
-    if (index.row >= 0) {
-      setSelectedDressId(dressIds[index.row]);
-    }
-	console.log(dressIds[index.row]);
-	console.log(allData)
-  };
 
   const pickImage = async () => {
     setIsModalVisible(true);
@@ -428,24 +413,6 @@ const ProductionDetailsScreen = () => {
               />
             </View>
           </View>
-
-          <Text style={styles.label}>Model/Item</Text>
-          <Select
-            placeholder='Select garment item'
-            value={selectedModelIndex.row >= 0 ? capitalize(dressTypes[selectedModelIndex.row]) : ''}
-            selectedIndex={selectedModelIndex}
-            onSelect={index => updateModelSelection(index)}
-            style={styles.select}
-          >
-            {dressTypes.map((item, index) => (
-              <SelectItem key={index} title={() => (
-				  <Text style={styles.selectItem}>
-					{item}
-				  </Text>
-				)}
-			  />
-            ))}
-          </Select>
         </Card>
 
         {/* Cutting Section */}

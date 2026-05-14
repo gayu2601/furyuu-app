@@ -62,6 +62,7 @@ const EditOrderDetails = ({ navigation }) => {
 	const [orderNoLocal, setOrderNoLocal] = useState(item.orderNo);
 	const [orderNoChanged, setOrderNoChanged] = useState(false);
 	const [custName, setCustName] = useState(item.custName);
+	const [assCustName, setAssCustName] = useState(item.associateCustName);
 	const [phoneNo, setPhoneNo] = useState(item.phoneNo);
 	const [customerId, setCustomerId] = useState(item.customerId);
 	const cacheKey = item.orderStatus === 'Completed' ? 'Completed_true' : 'Completed_false';
@@ -429,7 +430,7 @@ const EditOrderDetails = ({ navigation }) => {
 							// 6. Remove the deleted index from all array fields
 							const arrayFields = [
 								'dressItemId', 'dressType', 'dressSubType', 'alterDressType',
-								'associateCustName', 'backNeckDesignFile', 'backNeckType',
+								'backNeckDesignFile', 'backNeckType',
 								'dressGiven', 'dressPics', 'dueDate', 'expressDuration',
 								'extraOptions', 'frontNeckDesignFile', 'frontNeckType',
 								'measurementData', 'measurementPics', 'notes', 'patternPics',
@@ -507,7 +508,7 @@ const EditOrderDetails = ({ navigation }) => {
 			notes: itemState.notes?.[index] || '',
 			measurementsObj: itemState.measurementData?.[index] || {},
 			defaultSource: require('../../../assets/empty_dress.png'),
-			orderFor: itemState.associateCustName?.[index] || itemState.custName,
+			orderFor: itemState.associateCustName || itemState.custName,
 			oldData: itemState.oldData,
 			extraOptions: itemState.extraOptions?.[index] || {},
 			slots: itemState.slots?.[index] || {},
@@ -659,6 +660,7 @@ const EditOrderDetails = ({ navigation }) => {
 				let updVal = egVal[0];
 				console.log(updVal);
 				updVal['custName'] = custName;
+				updVal['associateCustName'] = assCustName;
 				updVal['phoneNo'] = phoneNo.includes('+91') ? phoneNo : '+91' + phoneNo;
 				updVal['customerId'] = customerId;
 
@@ -962,6 +964,17 @@ const EditOrderDetails = ({ navigation }) => {
 								setCustName(text);
 							}}
 						/> : <Text category="s2">{custName}</Text>}
+					</View>
+					<View style={styles.detailRow}>
+						<Text category="label">
+							Order For
+						</Text>
+						{editCust ? <Input
+							value={assCustName}
+							onChangeText={(text) => {
+								setAssCustName(text);
+							}}
+						/> : <Text category="s2">{assCustName}</Text>}
 					</View>
 					<View style={styles.detailRow}>
 						<Text category="label">

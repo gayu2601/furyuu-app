@@ -494,7 +494,12 @@ const ProductionDetailsViewScreen = () => {
 			)}
 			  <TouchableOpacity 
                 style={styles.markCompletionButton}
-                onPress={() => navigation.navigate('ProductionDetails', { ...route.params, onEditComplete: handleEditComplete, allDataLocal: allData })}
+				onPress={() => navigation.navigate('ProductionDetails', { 
+				  ...route.params, 
+				  onEditComplete: handleEditComplete, 
+				  allDataLocal: allData,
+				  selectedDressId: selectedDressId  // pass the currently selected dress ID
+				})}
               >
                 <Text style={styles.markCompletionButtonText}>Edit Details</Text>
               </TouchableOpacity>

@@ -61,9 +61,8 @@ const OrderBagScreen = ({ navigation }) => {
 
   const userType = currentUser.userType;
   const items = getNewOrder();
-  //const items = [{"alterDressType": "", "associateCustName": "", "backNeckDesignFile": null, "backNeckType": "Pentagon", "dressGiven": false, "dressPics": ["file:///data/user/0/com.furyuu.app/cache/ImageManipulator/830c5917-b078-41a0-b171-350008db4772.jpg", "file:///data/user/0/com.furyuu.app/cache/ImageManipulator/5d7868f8-0181-41ba-920a-49e7e3c17464.jpg"], "dressSubType": undefined, "dressType": "partywear", "dueDate": "2026-04-02", "editable": false, "extraMeasurements": {}, "extraOptions": {"Lace": "80", "Piping": "50"}, "frontNeckDesignFile": "file:///data/user/0/com.furyuu.app/cache/sign_1773998764925.png", "frontNeckType": "", "id": 0, "localId": 1, "measurementData": {"APEX_PT": "", "ARM_R": "", "BN": "", "BR": "", "C1": "", "C2": "", "CO_L": "", "FL": "5", "FN": "", "KL_R": "", "OTHER": "", "P_FL": "", "SEAT": "", "SH": "", "SH_W": "", "SL": "", "SW": "", "S_MID": "", "TH_LR": "", "W1_HR": "", "W2_HR": "", "hsns": ""}, "measurementPics": ["file:///data/user/0/com.furyuu.app/cache/ImageManipulator/b55edd0d-dc57-4036-9952-110c301670dc.jpg", "file:///data/user/0/com.furyuu.app/cache/ImageManipulator/6f3882a4-88b7-4868-80f0-dd3cb34bbf6f.jpg"], "notes": "Ttt", "patternPics": ["file:///data/user/0/com.furyuu.app/cache/ImageManipulator/77347407-e343-4b64-9300-795f672df78c.jpg"], "repeatDesign": true, "repeatMeas": true, "savedDesign": true, "savedMeas": true, "sleeveDesignFile": "file:///data/user/0/com.furyuu.app/cache/sign_1773998777073.png", "sleeveLength": "Half", "sleeveType": "Custom", "slotDates": ["2026-03-26", "2026-03-27"], "slots": {"2026-03-26": [Object], "2026-03-27": [Object]}, "stitchingAmt": "500"}, {"alterDressType": "", "associateCustName": "", "backNeckDesignFile": null, "backNeckType": "Pentagon", "dressGiven": false, "dressPics": [], "dressSubType": undefined, "dressType": "partywear", "dueDate": "2026-04-02", "editable": true, "extraMeasurements": {}, "extraOptions": {}, "frontNeckDesignFile": "file:///data/user/0/com.furyuu.app/cache/sign_1773998764925.png", "frontNeckType": "", "id": 1, "localId": 2, "measurementData": {"APEX_PT": "", "ARM_R": "", "BN": "", "BR": "", "C1": "", "C2": "", "CO_L": "", "FL": "", "FN": "", "KL_R": "", "OTHER": "", "P_FL": "", "SEAT": "", "SH": "", "SH_W": "", "SL": "", "SW": "", "S_MID": "", "TH_LR": "", "W1_HR": "", "W2_HR": "", "hsns": ""}, "measurementPics": [], "notes": "", "patternPics": [], "repeatDesign": true, "repeatMeas": true, "savedDesign": false, "savedMeas": false, "sleeveDesignFile": "file:///data/user/0/com.furyuu.app/cache/sign_1773998777073.png", "sleeveLength": "Half", "sleeveType": "Custom", "slotDates": [], "slots": {}, "stitchingAmt": "600"}, {"alterDressType": "", "associateCustName": "", "backNeckDesignFile": "file:///data/user/0/com.furyuu.app/cache/sign_1773998917449.png", "backNeckType": "", "dressGiven": true, "dressPics": ["file:///data/user/0/com.furyuu.app/cache/ImageManipulator/747ae46f-332b-473c-a2e8-a253d557c061.jpg"], "dressSubType": undefined, "dressType": "tops", "dueDate": "2026-03-31", "editable": true, "extraMeasurements": {}, "extraOptions": {"Lace": ""}, "frontNeckDesignFile": null, "frontNeckType": "Teardrop", "id": 2, "localId": 1, "measurementData": {"APEX_PT": "", "ARM_R": "", "BN": "", "C1": "", "C2": "", "FL": "", "FN": "", "SH": "6", "SH_W": "", "SL": "", "SW": "", "S_MID": ""}, "measurementPics": ["file:///data/user/0/com.furyuu.app/cache/ImageManipulator/f5b9a7af-b4ea-4982-9d5b-76b3d3381aa4.jpg"], "notes": "", "patternPics": ["file:///data/user/0/com.furyuu.app/cache/ImageManipulator/36551ceb-b6c2-43d1-b91d-b6d27942651a.jpg", "file:///data/user/0/com.furyuu.app/cache/ImageManipulator/73b48396-dd7f-4a00-a87c-3b41b798cb1f.jpg"], "repeatDesign": false, "repeatMeas": false, "savedDesign": true, "savedMeas": true, "sleeveDesignFile": null, "sleeveLength": "Elbow", "sleeveType": "Ordinary", "slotDates": ["2026-03-26", "2026-03-28"], "slots": {"2026-03-26": [Object], "2026-03-28": [Object]}, "stitchingAmt": "600"}]
-  //const custDetails = {"custInserted": false, "custName": "Raabi.T", "occasion": " ", "orderNo": 254, "phoneNo": "+916381982688"};
   const custDetails = getNewOrderCust();
+  console.log('custDetails', custDetails);
   const payStatuses = ['Pending', 'Fully paid', 'Partially paid'];
   const breadcrumbRoutes = [
     { name: 'Order Details', screen: 'OrderBagItems' },
@@ -284,6 +283,11 @@ const OrderBagScreen = ({ navigation }) => {
         <Text category='s1'>{custDetails.custName}</Text>
       </View>
       <Divider style={styles.divider} />
+	  {custDetails.associateCustName && <View style={styles.detailRow}>
+        <Text category='s1' appearance='hint'>Order For</Text>
+        <Text category='s1'>{custDetails.associateCustName}</Text>
+      </View>}
+      <Divider style={styles.divider} />
       <View style={styles.detailRow}>
         <Text category='s1' appearance='hint'>Phone No</Text>
         <Text category='s1'>{custDetails.phoneNo}</Text>
@@ -352,9 +356,9 @@ const calcExpressCharges = (data) => {
 // ─── file uploads (unchanged, must still happen before RPC) ──────────────────
 // ─── file uploads — must stay client-side (touches storage, not DB) ──────────
 const prepareItemFiles = async (item) => {
-  if (item.frontNeckDesignFile) uploadDesignFile(item, 'frontNeckDesignFile');
-  if (item.backNeckDesignFile)  uploadDesignFile(item, 'backNeckDesignFile');
-  if (item.sleeveDesignFile)    uploadDesignFile(item, 'sleeveDesignFile');
+  if (item.frontNeckDesignFile) await uploadDesignFile(item, 'frontNeckDesignFile');
+  if (item.backNeckDesignFile)  await uploadDesignFile(item, 'backNeckDesignFile');
+  if (item.sleeveDesignFile)    await uploadDesignFile(item, 'sleeveDesignFile');
 
   if (item.dressPics)       item.dressPics       = await uploadOrderImages('dress',        item.dressPics);
   if (item.patternPics)     item.patternPics      = await uploadOrderImages('pattern',      item.patternPics);
@@ -417,25 +421,64 @@ const createOrder = async () => {
       paymentMode:    paymentMode,
       expressCharges: Number(expressCharges),
       paymentNotes:   payNotes,
+	  associateCustName: custDetails.associateCustName || null,
       ...(custDetails.orderNo > 0 ? { orderNo: custDetails.orderNo } : {}),
       items: itemsWithExpress,
     };
+	console.log('payload', payload);
 
     const { data: rpcData, error: rpcError } = await supabase.rpc(
       'create_order_with_items',
       { payload }
     );
     if (rpcError) throw rpcError;
-
+	
+	if (!rpcData || !rpcData.order || !rpcData.order.orderNo || !rpcData.dressIds?.length) {
+	  throw new Error(`RPC returned invalid data: ${JSON.stringify(rpcData)}`);
+	}
+	
+	console.log('rpcData', rpcData);
+	
     // rpcData = { order: { orderNo, ... full OrderItems row }, dressIds: [...] }
     const { order: createdOrder, dressIds } = rpcData;
+	
+	const { data: verifyData, error: verifyError } = await supabase
+	  .from('OrderItems')
+	  .select('orderNo')
+	  .eq('orderNo', createdOrder.orderNo)
+	  .maybeSingle();
+
+	if (verifyError || !verifyData) {
+		try {
+			await supabase.functions.invoke('send-alert-email', {
+			  body: {
+				to: 'thaiyalapp@gmail.com',
+				subject: `Order Verification Failed — orderNo: ${createdOrder.orderNo}`,
+				text: [
+				  `Order verification failed after RPC call.`,
+				  ``,
+				  `orderNo: ${createdOrder.orderNo}`,
+				  `verifyError: ${verifyError ? JSON.stringify(verifyError) : 'null'}`,
+				  `verifyData: ${verifyData ? JSON.stringify(verifyData) : 'null'}`,
+				  ``,
+				  `Payload snapshot:`,
+				  JSON.stringify(payload, null, 2),
+				].join('\n'),
+			  },
+			});
+		  } catch (mailErr) {
+			console.warn('Failed to send alert email:', mailErr.message);
+			// Non-fatal — don't let mail failure swallow the real error
+		  }
+	  throw new Error(`Order not found in DB after RPC: orderNo=${createdOrder.orderNo}`);
+	}
 
     // 4. Post-success: local cache updates + notifications
     const grouped = {};
 
     for (const item of itemsWithExpress) {
       // cache measurement per dress type (skip associate items)
-      if (!item.associateCustName?.trim()) {
+      if (!custDetails.associateCustName?.trim()) {
         const mergedMeas = { ...item.measurementData, ...item.extraMeasurements };
         const filteredObject = { dressType: item.dressType, measurementData: mergedMeas };
         updateCache('UPDATE_MEAS', filteredObject, `${custDetails.phoneNo}_${item.dressType}`);
@@ -473,9 +516,11 @@ const createOrder = async () => {
       acc['checkingDone'] = [...(acc['checkingDone'] || []), false];
       return acc;
     }, {});
+	
+	console.log('combinedObject', combinedObject);
 
     const selProps = [
-      'associateCustName', 'dressType', 'dressSubType', 'alterDressType',
+      'dressType', 'dressSubType', 'alterDressType',
       'frontNeckType', 'backNeckType', 'sleeveType', 'sleeveLength',
       'frontNeckDesignFile', 'backNeckDesignFile', 'sleeveDesignFile',
       'dressGiven', 'dueDate', 'stitchingAmt', 'notes',
@@ -491,15 +536,17 @@ const createOrder = async () => {
       ...filteredCombined,
       custName:    custDetails.custName,
       phoneNo:     custDetails.phoneNo,
+	  associateCustName: custDetails.associateCustName,
       dressItemId: dressIds,
       dressDetails,
     };
 
-    updateCache('NEW_ORDER', itemFinal, 'Completed_false', null, custDetails.custInserted || false);
+    console.log(itemFinal);
+	updateCache('NEW_ORDER', itemFinal, 'Completed_false', null, custDetails.custInserted || false);
     await notify(currentUser.id, 'NEW_ORDER', 'Completed_false', itemFinal, null, custDetails.custInserted || false);
-
+	
     // 6. Emit events + reset state
-    showSuccessMessage('Order saved!');
+    showSuccessMessage('Order saved! Order no: ' + createdOrder.orderNo);
     eventEmitter.emit('storageUpdated');
     eventEmitter.emit('newOrderAdded');
     eventEmitter.emit('payStatusChanged');
@@ -513,10 +560,9 @@ const createOrder = async () => {
     resetIdCounter();
     clearAllBookings();
     navigation.navigate('HomeMain', { screen: 'HomeNew' });
-
   } catch (error) {
     console.error("Error creating order:", error.message);
-    showErrorMessage("Failed to save order. Please try again.");
+    showErrorMessage("Failed to save order. Please try again. Error: " + error.message);
   } finally {
     setPayStatusIndex(0);
     setPayStatus('Pending');

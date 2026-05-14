@@ -721,7 +721,10 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
         {/* Customer Info */}
         <View style={[styles.infoRow, bulkMode && styles.infoRowWithCheckbox]}>
           <PersonIcon style={styles.infoIcon} />
-          <Text style={styles.infoText}>{order.custName}</Text>
+		  <Text style={styles.infoText}>
+			  {order.custName}
+			  {order.associateCustName ? ` (${order.associateCustName})` : ""}
+			</Text>
         </View>
 
         {/* Dress Item */}

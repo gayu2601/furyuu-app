@@ -186,7 +186,7 @@ const EmployeeOnboardingForm = () => {
 		if (mediaPermission !== 'denied') {
 		  const result = await ImagePicker.launchImageLibraryAsync({
 			mediaTypes: ImagePicker.MediaTypeOptions.Images,
-			allowsMultipleSelection: true,
+			allowsEditing: true,
 			quality: 1,
 		  });
 			

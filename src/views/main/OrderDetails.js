@@ -47,6 +47,7 @@ const CustomerDetails = memo(({ item, phone }) => (
     <MemoizedCard>
       <DetailRow label="Order No" value={item.orderNo} />
 	  <DetailRow label="Name" value={item.custName} />
+	  {item.associateCustName && <DetailRow label="Order For" value={item.associateCustName} />}
       <DetailRow 
         label="Phone No" 
         value={item.phoneNo} 
@@ -214,8 +215,6 @@ const OrderDetails = ({ navigation }) => {
 		  const subTailorDueDate = item.subTailorDueDate?.[index]
 			? moment(item.subTailorDueDate[index]).format('DD-MM-YYYY')
 			: null;
-		  const orderFor = item.associateCustName?.[index] || item.custName;
-
 		  // Add-ons rows
 		  const addonsRows = Object.entries(extraOptions).length > 0
 			? `
@@ -267,7 +266,6 @@ const OrderDetails = ({ navigation }) => {
 			  <div class="dress-header">
 				<span class="dress-number">Dress ${index + 1}</span>
 				<span class="dress-title">${subType} ${dress}</span>
-				${orderFor !== item.custName ? `<span class="order-for">For: ${orderFor}</span>` : ''}
 			  </div>
 
 			  <div class="dress-meta">
@@ -498,6 +496,7 @@ const OrderDetails = ({ navigation }) => {
 			  <div class="customer-row">
 				<div>
 				  <strong>Customer:</strong> ${item.custName}<br/>
+				  <strong>Order For:</strong> ${item.associateCustName}<br/>
 				  <strong>Order Date:</strong> ${item.orderDate}
 				</div>
 			  </div>
@@ -578,7 +577,7 @@ const OrderDetails = ({ navigation }) => {
 		notes: item.notes?.[index] || '',
         measurementData: item.measurementData?.[index] || {},
 		defaultSource: require('../../../assets/empty_dress.png'),
-		orderFor: item.associateCustName?.[index] || item.custName,
+		orderFor: item.associateCustName,
 		oldData: item.oldData,
 		extraOptions: item.extraOptions?.[index] || {},
 		slots: item.slots?.[index] || {}
@@ -792,6 +791,7 @@ const OrderDetails = ({ navigation }) => {
 			
 			<div class="customer-details">
 			  <p>Customer Name: ${item.custName}</p>
+			  <p>Order For: ${item.associateCustName}</p>
 			  <p>Phone No: ${item.phoneNo}</p>
 			  <p>Order Date: ${orderDate}</p>
 			</div>

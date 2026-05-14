@@ -151,7 +151,7 @@ const TestScreen = ({ route }) => {
 			  let ph = routeParams.phoneNo.includes('+91') ? routeParams.phoneNo.substring(3) : routeParams.phoneNo
 			  setPhoneNo(ph)
 			  //setInputDisabled(false)
-			  saveOrder([], {custName: '', phoneNo: '', occasion: '', custInserted: false, orderNo: 0})
+			  saveOrder([], {custName: '', phoneNo: '', occasion: '', custInserted: false, orderNo: 0, associateCustName: ''})
 			  resetItemsForLabel()
 			  resetIdCounter()
 		  }
@@ -980,13 +980,12 @@ const TestScreen = ({ route }) => {
 					console.log('in save order else')
 					const phNo = phoneNo.includes('+91') ? phoneNo : '+91' + phoneNo
 					const updatedItems = allItemsSaved?.map(item => ({
-						  ...item,
-						  associateCustName: associateCustName.trim()
+						  ...item
 					}));
 					console.log('itemKey: ' + itemKey)
 					addItemBatchContext(itemKey, updatedItems);
 					resetItemsForLabel(itemKey)
-					saveOrder(updatedItems, {custName: custName, phoneNo: phNo, occasion: occasion, custInserted: custInserted, orderNo: localOrderNo});
+					saveOrder(updatedItems, {custName: custName, phoneNo: phNo, occasion: occasion, custInserted: custInserted, orderNo: localOrderNo, associateCustName: associateCustName});
 					showSuccessMessage("Item added!");
 					setLocalItems([]);
 					setLocalCount(1)
@@ -1661,7 +1660,7 @@ const TestScreen = ({ route }) => {
 		if (mediaPermission !== 'denied') {
 		  const result = await ImagePicker.launchImageLibraryAsync({
 			mediaTypes: ImagePicker.MediaTypeOptions.Images,
-			allowsMultipleSelection: true,
+			allowsEditing: true,
 			quality: 1,
 		  });
 			
@@ -2391,14 +2390,21 @@ const renderSlotSummary = (slots) => {
 			console.log('inside val')
 			let dueDates = Object.keys(val);
 			console.log(dueDates)
+			const maxDate = dueDates.length > 0
+				? dueDates.reduce((a, b) => (a > b ? a : b))
+				: null;
 			const newState = {
-			  ...localState,
-			  slotDates: dueDates,
-			  slots: val
+				...localState,
+				slotDates: dueDates,
+				slots: val,
+				...(maxDate && { dueDate: maxDate }),
 			};
 			setLocalState(newState);
-			saveAllLocalStates(index, {slotDates: dueDates,
-			  slots: val}); 
+			saveAllLocalStates(index, {
+				slotDates: dueDates,
+				slots: val,
+				...(maxDate && { dueDate: maxDate }),
+			}); 
 		}
 	}
 
@@ -2483,21 +2489,6 @@ const renderSlotSummary = (slots) => {
 			</Layout>}
 			{Object.keys(item.slots).length > 0 && renderSlotSummary(item.slots)}
 			
-			{/* Date Container */}
-			<Layout style={styles.dateContainer}>
-			  <Layout style={styles.innerLayout}>
-				<Ionicons name='calendar-number-outline' size={22} color={theme['color-primary-500']}/>
-				<Text category='s1' style={{marginLeft: 15}}>Due date</Text>
-			  </Layout>
-			  <Datepicker
-				date={new Date(localState.dueDate) || new Date()}
-				min={new Date()}
-				status='basic'
-				placement='top end'
-				onSelect={handleDateSelect}
-				boundingElementRect={{ width: 310 }}
-			  />
-			</Layout>
 			{/* Repeat Design Checkbox */}
 			{index > 0 && showSubDropdown && (
 			  <View style={styles.switchContainer}>

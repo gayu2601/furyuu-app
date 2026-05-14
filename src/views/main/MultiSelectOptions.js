@@ -16,7 +16,7 @@ const MultiSelectOptions = ({ onSelectionChange, initialItems = []}) => {
   const [selectedItems, setSelectedItems] = useState(initialItems);
   const [hasChanged, setHasChanged] = useState(false);
   const theme = useTheme();
-  const options = ['Lining', 'Piping', 'Aari Embroidery', 'Machine Embroidery', 'Lace', 'Falls', 'Zipper', 'Other']
+  const options = ['Lining', 'Piping', 'Aari Embroidery', 'Machine Embroidery', 'Lace', 'Hand Falls', 'Machine Falls', 'Zipper', 'Other']
 
   useEffect(() => {
     if (hasChanged) {

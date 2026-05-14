@@ -88,7 +88,8 @@ const EditOrderItemComponent = (props, ref) => {
 	  "Aari Embroidery",
 	  "Machine Embroidery",
 	  "Lace",
-	  "Falls",
+	  "Hand Falls",
+	  "Machine Falls",
 	  "Zipper",
 	  "Other",
 	];
@@ -327,7 +328,7 @@ const EditOrderItemComponent = (props, ref) => {
 		if (mediaPermission !== 'denied') {
 		  const result = await ImagePicker.launchImageLibraryAsync({
 			mediaTypes: ImagePicker.MediaTypeOptions.Images,
-			allowsMultipleSelection: true,
+			allowsEditing: true,
 			quality: 1,
 		  });
 
