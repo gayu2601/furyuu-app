@@ -3,6 +3,7 @@ import { StyleSheet, View, Image, TouchableOpacity, ScrollView, TextInput, Dimen
 import { Layout, List, ListItem, Modal, Card, Text, Button, Icon, Input, RadioGroup, Radio, CheckBox, useTheme, Divider } from '@ui-kitten/components';
 import moment from 'moment';
 import { supabase } from '../../constants/supabase';
+import { getFileUrl } from '../extra/fileUrl';
 import NeckTypesModal from './NeckTypesModal';
 import { usePermissions } from './PermissionsContext';
 import * as ImagePicker from 'expo-image-picker';
@@ -368,11 +369,8 @@ const EditOrderItemComponent = (props, ref) => {
     try {
         const downloadPromises = picsDb.map(async (img) => {
             try {
-                const { data, error } = await supabase.storage
-                  .from('order-images')
-                  .getPublicUrl(`${picsType}/${img}`);
-                if (error) throw error;
-                return data.publicUrl;
+				let uri = getFileUrl(img, 'order-images', picsType) ?? undefined;
+                return uri;
             } catch (error) {
               console.log('Error downloading image: ', error?.message || error);
               return null;
@@ -391,11 +389,8 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
     if (!picsDb) return null;
     console.log('in downloadDesignPics ' + picsDb)
     try {
-                const { data, error } = await supabase.storage
-                  .from('design-files')
-                  .getPublicUrl(`${picsType}/${picsDb}`);
-                if (error) throw error;
-                return data.publicUrl;
+				let uri = getFileUrl(picsDb, 'design-files', picsType) ?? undefined;
+                return uri;
         } catch (error) {
 			console.log('Error downloading design image:', error?.message || error);
 			return null;
@@ -1220,18 +1215,6 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
               })}
             </View>
 
-            {/* Editable Notes Section */}
-            <View style={styles.notesContainer}>
-              <Text category='label' style={styles.notesLabel}>Notes:</Text>
-              <Input
-                style={styles.notesInput}
-                multiline={true}
-                numberOfLines={3}
-                value={editableItem.notes || ''}
-                placeholder="Add notes here..."
-                onChangeText={(text) => updateItemField('notes', text)}
-              />
-            </View>
           </View>
         )}
       </View>
@@ -1359,7 +1342,7 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
 			{renderSlotSummary(editableItem.slots)}
             {renderDesignPictures(patternImages)}
             {renderNeckSleeveDetails(editableItem)}
-            {renderMeasurements(editableItem.measurementsObj, measImages, editableItem.notes, editableItem.dressType)}
+            {renderMeasurements(editableItem.measurementsObj, measImages, editableItem.dressType)}
 			<View style={styles.notesContainer}>
 				<Text category='label' style={styles.notesLabel}>Notes:</Text>
 				<Input

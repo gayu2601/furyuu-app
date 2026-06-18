@@ -18,6 +18,7 @@ import { useRoute, useNavigation } from "@react-navigation/native";
 import { showSuccessMessage, showErrorMessage } from './showAlerts';
 import { supabase } from '../../constants/supabase';
 import { storage } from '../extra/storage';
+import { getFileUrl } from '../extra/fileUrl';
 import moment from 'moment';
 import {
   TopNavigationAction
@@ -87,10 +88,8 @@ const ProductionDetailsViewScreen = () => {
 			  let checkingPicUrls = [];
 			  if (existing?.checkingPic && Array.isArray(existing.checkingPic)) {
 				checkingPicUrls = existing.checkingPic.map((imageUri) => {
-				  const { data: urlData } = supabase.storage
-					.from("order-images/prodDetails")
-					.getPublicUrl(imageUri);
-				  return urlData?.publicUrl || null;
+					let uri = getFileUrl(imageUri, 'order-images', 'prodDetails') ?? undefined;
+					return uri || null;
 				});
 			  }
 			  console.log('existing', existing);
@@ -433,13 +432,13 @@ const ProductionDetailsViewScreen = () => {
   )};
 
   const renderImageItem = ({ item, index }) => (
-    <View style={styles.imageContainer}>
-      <Image 
-        source={{ uri: item }} 
-        style={styles.carouselImage}
-        resizeMode="contain"
-      />
-    </View>
+		<View style={styles.imageContainer}>
+		  <Image 
+			source={{ uri: item }} 
+			style={styles.carouselImage}
+			resizeMode="contain"
+		  />
+		</View>
   );
   console.log('currentData', currentData)
   
@@ -498,7 +497,8 @@ const ProductionDetailsViewScreen = () => {
 				  ...route.params, 
 				  onEditComplete: handleEditComplete, 
 				  allDataLocal: allData,
-				  selectedDressId: selectedDressId  // pass the currently selected dress ID
+				  selectedDressId: selectedDressId,
+				  hasAari: currentData.hasAari
 				})}
               >
                 <Text style={styles.markCompletionButtonText}>Edit Details</Text>

@@ -19,7 +19,7 @@ import OrderItemComponent from './OrderItemComponent';
 import DeliveryOptionsModal from './DeliveryOptionsModal';
 import eventEmitter from './eventEmitter';
 import { saveSupabaseDataToFile } from '../extra/supabaseUtils';
-import { usePubSub } from './SimplePubSub';
+import { useReadOrderItems } from './ReadOrderItemsContext';
 import moment from 'moment';
 
 const MemoizedCard = memo(Card);
@@ -116,6 +116,7 @@ const OrderDetails = ({ navigation }) => {
   const { isConnected } = useNetwork();
   const theme = useTheme();
   const viewRef = useRef(null);
+  const {patchOrderInCache} = useReadOrderItems();
   const { item, orderDate, isShareIntent } = route.params;
   console.log(item)
   const [phone, setPhone] = useState(item.phoneNo);
@@ -124,7 +125,6 @@ const OrderDetails = ({ navigation }) => {
   const [expandedItems, setExpandedItems] = useState(new Set());
   const { measurementFields } = useDressConfig();
   const [visible, setVisible] = useState(false);
-  const { notify, updateCache, eligible } = usePubSub();
   const [selectedAddons, setSelectedAddons] = useState([]);
   const orderDeliveryOptions = ['No Alteration', 'Loose or Tight', 'Shoulder mistake', 'Arm hole mistake', 'Measurement mistake (diff in taken vs stitched)', 'Design mismatch (diff in reference vs stitched)', 'Other'];
   const initialExpressVal = item.expressCharges || Math.max(
@@ -930,8 +930,7 @@ const OrderDetails = ({ navigation }) => {
 		  // Update cache too
 		  const cacheKey = item.orderStatus === 'Completed' ? 'Completed_true' : 'Completed_false';
 		  const updVal = { ...item, expressCharges };
-		  updateCache('UPDATE_ORDER', updVal, cacheKey);
-		  await notify(currentUser.id, 'UPDATE_ORDER', cacheKey, updVal);
+		  patchOrderInCache(updVal);
 	  }
 	  let qrCode = null;
 	  if(currentUser.upiQRCode_url) {
@@ -979,9 +978,7 @@ const OrderDetails = ({ navigation }) => {
 			setVisible(false);
 			let cacheKey = item.orderStatus === 'Completed' ? 'Completed_true' : 'Completed_false';
 			let updVal = {...item, deliveryOptions: selectedAddons};
-			updateCache('UPDATE_ORDER', updVal, cacheKey);
-			await notify(currentUser.id, 'UPDATE_ORDER', cacheKey, updVal);
-			eventEmitter.emit('newOrderAdded');
+			patchOrderInCache(updVal);
 			generateBill();
 		}
 	}

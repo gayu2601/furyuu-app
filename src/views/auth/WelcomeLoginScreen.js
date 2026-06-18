@@ -238,9 +238,9 @@ const WelcomeLoginScreen = ({ navigation }) => {
 		
 		tempUserData.userType = assignedRole;
 		
-		if (!isNewUser) {
+		//if (!isNewUser) {
 		  await DeviceManager.insertUserDevice(tempSession.user.id, tempCurrentDevice);
-		}
+		//}
 		
 		await handleUserLogin(tempSession, tempUserData, tempCurrentDevice);
 		

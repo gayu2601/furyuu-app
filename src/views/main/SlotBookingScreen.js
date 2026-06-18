@@ -32,11 +32,10 @@ import { useSlotBooking } from './SlotBookingContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import moment from 'moment';
 import { ArrowIosBackIcon, SettingsIcon } from "../extra/icons";
-import { usePubSub } from './SimplePubSub';
 import { useUser } from './UserContext';
 import eventEmitter from './eventEmitter';
 import { storage } from '../extra/storage';
-
+import { useReadOrderItems } from './ReadOrderItemsContext';
 const { width } = Dimensions.get('window');
 
 const SlotBookingScreen = () => {
@@ -65,7 +64,7 @@ const SlotBookingScreen = () => {
   const todayDate = moment().format("YYYY-MM-DD");
   const [tempSlots, setTempSlots] = useState({});
   const [movedOrders, setMovedOrders] = useState([]);
-  const {notify, updateCache} = usePubSub();
+  const {patchOrderInCache} = useReadOrderItems();
   const { currentUser } = useUser();
   const [settingsVisible, setSettingsVisible] = useState(false);
   let regCached = storage.getString('maxRegularSlots');
@@ -548,9 +547,10 @@ const SlotBookingScreen = () => {
 			  console.log('updating movedOrders in db')
 			  console.log(sourceDate, targetDate, orderToMove.dressItemId, mvVal.regular, mvVal.express, mvVal.total);
 			  const cacheKey = orderToMove.orderStatus === 'Completed' ? 'Completed_true' : 'Completed_false';
-			  updateCache('UPDATE_SLOTS', mv, cacheKey);    
-			  await notify(currentUser.id, 'UPDATE_SLOTS', cacheKey, mv);
-			  eventEmitter.emit('newOrderAdded');
+			  patchOrderInCache({
+				  orderNo: mv.orderNo,
+				  slots: { regular: mv.regular, express: mv.express, total: mv.total }
+				});
   };
   
   const saveAllSlots = async() => {

@@ -8,7 +8,7 @@ import IncomeExpenseHistoryScreen from './src/views/main/IncomeExpenseHistoryScr
 import AddExpenseScreen from './src/views/main/AddExpenseScreen';
 import CustomerPaymentPending from './src/views/main/CustomerPaymentPending';
 import { NetworkProvider } from './src/views/main/NetworkContext';
-import { PubSubProvider } from './src/views/main/SimplePubSub';
+import { RealtimeSyncProvider } from './src/views/main/RealtimeSync';
 import * as Network from 'expo-network';
 import ProfileScreen from './src/views/auth/ProfileScreen';
 import OrderBagScreen from './src/views/main/OrderBagScreen';
@@ -69,9 +69,9 @@ import { Session } from '@supabase/supabase-js'
 import FlashMessage from 'react-native-flash-message';
 import { supabase } from './src/constants/supabase';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { usePubSub } from './src/views/main/SimplePubSub';
 import useDressConfig from './src/views/main/useDressConfig';
 import moment from 'moment';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 const Stack = createStackNavigator()
 
@@ -270,7 +270,6 @@ const DrawerNavigator = ({ route }) => {
 	const { currentUser, updateCurrentUser } = useUser();
 	const { readOrdersGlobal } = useReadOrderItems();
 	const { requestCameraPermission, requestMediaPermission } = usePermissions();
-	const { startListening } = usePubSub();
 	let currentUserLocal = currentUser;
 	const { fetchNotifications } = useNotification();
   const [initialRoute, setInitialRoute] = useState(null);
@@ -291,9 +290,6 @@ const DrawerNavigator = ({ route }) => {
   
 	useEffect(() => {
 	  if (!currentUserLocal?.id) return;
-
-	  // Start PubSub once on mount
-	  startListening();
 
 	  // Run billing reminder on mount and on foreground
 	  const runBillingReminderIfDue = () => {
@@ -316,7 +312,7 @@ const DrawerNavigator = ({ route }) => {
 		}
 	  });
 
-	  return () => subscription.remove(); // PubSub cleanup not needed since startListening handles its own subscription internally
+	  return () => subscription.remove();
 
 	}, [currentUserLocal?.id]);
 
@@ -904,7 +900,7 @@ export default function App() {
         <PermissionsProvider>
           <NetworkProvider>
               <NotificationProvider>
-                  <PubSubProvider>
+                  <RealtimeSyncProvider>
                     <ReadOrderItemsProvider>
                       <OrderItemsProvider>
 					    <SlotBookingProvider>
@@ -912,7 +908,7 @@ export default function App() {
 						</SlotBookingProvider>
                       </OrderItemsProvider>
                     </ReadOrderItemsProvider>
-                  </PubSubProvider>
+                  </RealtimeSyncProvider>
               </NotificationProvider>
           </NetworkProvider>
         </PermissionsProvider>
@@ -925,6 +921,7 @@ export default function App() {
   }
 
     return (
+	  <GestureHandlerRootView style={{ flex: 1 }}>
 		<ShareIntentProvider
 		  options={{
 			debug: true,
@@ -955,6 +952,7 @@ export default function App() {
 				</ApplicationProvider>
 			<FlashMessage position="bottom"/>
         </ShareIntentProvider>
+	  </GestureHandlerRootView>
     )
 }
 

@@ -9,6 +9,7 @@ import { usePermissions } from './PermissionsContext';
 import * as MediaLibrary from 'expo-media-library';
 import { showSuccessMessage, showErrorMessage } from './showAlerts';
 import ImageViewComponent from './ImageViewComponent';
+import { getFileUrl } from '../extra/fileUrl';
 
 const ShareIcon = (props) => <Icon {...props} name='share-outline' />;
 const DownloadIcon = (props) => <Icon {...props} name='download-outline' color='#fff' style={styles.downloadIcon}/>;
@@ -26,6 +27,7 @@ const OrderItemComponent = ({
   expandedItems, 
   toggleItemExpansion,
   measurementFields,
+  orderDate,
   isBag,
   handleEdit,
   deleteAlert
@@ -98,12 +100,8 @@ const OrderItemComponent = ({
         const downloadPromises = picsDb.map(async (img) => {
             try {
                 let folderName = getPicFolder(picsType);
-                
-                const { data, error } = await supabase.storage
-                  .from('order-images')
-                  .getPublicUrl(`${folderName}/${img}`);
-                if (error) throw error;
-                return data.publicUrl;
+				let uri = getFileUrl(img, 'order-images', folderName) ?? undefined;
+                return uri;
             } catch (error) {
               console.log('Error downloading image: ', error?.message || error);
               return null;
@@ -122,11 +120,8 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
     if (!picsDb) return null;
     console.log('in downloadDesignPics ' + picsDb)
     try {
-                const { data, error } = await supabase.storage
-                  .from('design-files')
-                  .getPublicUrl(`${picsType}/${picsDb}`);
-                if (error) throw error;
-                return data.publicUrl;
+            let uri = getFileUrl(picsDb, 'design-files', picsType) ?? undefined;
+            return uri;
         } catch (error) {
 			console.log('Error downloading design image:', error?.message || error);
 			return null;

@@ -36,13 +36,14 @@ import { storage } from '../extra/storage';
 import eventEmitter from './eventEmitter';
 import { useCameraPermissions } from 'expo-camera/next'; // Note the /next
 import CameraModal from './CameraModal';
+import { useEmployees } from '../extra/useEmployees';
 
 const ProductionDetailsScreen = () => {
   const route = useRoute();
   const navigation = useNavigation();
   //console.log(route.params?.order);
   console.log(route.params)
-  const { order, allDataLocal, selectedDressId: initialDressId } = route.params;
+  const { order, allDataLocal, selectedDressId: initialDressId, hasAari } = route.params;
   const dressIds = order?.dressItemId;
   const [selectedDressId, setSelectedDressId] = useState(initialDressId ?? dressIds[0]);
   console.log('route order', order);
@@ -55,15 +56,9 @@ const ProductionDetailsScreen = () => {
   const [showCamera, setShowCamera] = useState(false);
 
   // Separate state for each production stage
-  const [allData, setAllData] = useState(allDataLocal);
+  const [allData, setAllData] = useState(allDataLocal);	
   
-  const employeeJson = storage.getString('Employees');
-  console.log('employeeJson', typeof(employeeJson), employeeJson);
-  let workerNameOptions = employeeJson && employeeJson !== 'null' ? JSON.parse(employeeJson) : {0: ''};
-  console.log('workerNameOptions', workerNameOptions);
-  const workerIds = workerNameOptions ? Object.keys(workerNameOptions) : []; // ["1", "2", ...]
-  const workerNames = Object.values(workerNameOptions); // ["Vsns", "Sff", ...]
-  console.log('workerNameOptions', workerNameOptions, workerIds, workerNames);
+  const { workerNameOptions, workerIds, workerNames, loading } = useEmployees();
   
   const updateData = (field, value) => {
 	  setAllData(prev => ({
@@ -515,37 +510,39 @@ const ProductionDetailsScreen = () => {
         </Card>
 
         {/* Aari Embroidery Section */}
-        <Card style={styles.card}>
-          <View style={styles.sectionHeader}>
-            <AariIcon style={styles.sectionIcon} fill='#E91E8C' />
-            <Text category='h6'>Aari Embroidery</Text>
-          </View>
+		{hasAari && (
+			<Card style={styles.card}>
+			  <View style={styles.sectionHeader}>
+				<AariIcon style={styles.sectionIcon} fill='#E91E8C' />
+				<Text category='h6'>Aari Embroidery</Text>
+			  </View>
 
-          <Text style={styles.label}>Aari Work By</Text>
-          <Select
-			  placeholder='Select worker name'
-			  value={allData[selectedDressId]?.aariWorker || ''}
-			  onSelect={(index) => {
-				const workerId = workerIds[index.row];
-				updateData('aariWorkerId', workerId);
-				updateData('aariWorker', workerNameOptions[workerId]);
-			  }}
-			  style={styles.input}
-			>
-			  {workerNames.map((worker, index) => (
-				<SelectItem key={index} title={worker} />
-			  ))}
-			</Select>
+			  <Text style={styles.label}>Aari Work By</Text>
+			  <Select
+				  placeholder='Select worker name'
+				  value={allData[selectedDressId]?.aariWorker || ''}
+				  onSelect={(index) => {
+					const workerId = workerIds[index.row];
+					updateData('aariWorkerId', workerId);
+					updateData('aariWorker', workerNameOptions[workerId]);
+				  }}
+				  style={styles.input}
+				>
+				  {workerNames.map((worker, index) => (
+					<SelectItem key={index} title={worker} />
+				  ))}
+				</Select>
 
-          <Text style={styles.label}>Date & Time</Text>
-          <Datepicker
-            date={allData[selectedDressId]?.aariDate}
-            onSelect={date => updateData('aariDate', date)}
-            accessoryRight={CalendarIcon}
-            style={styles.datepicker}
-          />
-          {renderStatusButton('aariDone', allData[selectedDressId]?.aariDone)}
-        </Card>
+			  <Text style={styles.label}>Date & Time</Text>
+			  <Datepicker
+				date={allData[selectedDressId]?.aariDate}
+				onSelect={date => updateData('aariDate', date)}
+				accessoryRight={CalendarIcon}
+				style={styles.datepicker}
+			  />
+			  {renderStatusButton('aariDone', allData[selectedDressId]?.aariDone)}
+			</Card>
+		)}
 
         {/* Checking Section */}
         <Card style={styles.card}>

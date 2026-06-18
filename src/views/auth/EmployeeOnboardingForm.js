@@ -225,6 +225,7 @@ const EmployeeOnboardingForm = () => {
 		console.log('formData in handleSubmit', formData);
 		const requiredFields = [
 		  { field: formData.name, name: 'Name' },
+		  { field: formData.phoneNo, name: 'Phone Number' },
 		  { field: formData.salary, name: 'Salary' }
 		];
 		const emptyFields = requiredFields.filter(item => !item.field);
@@ -285,10 +286,7 @@ const EmployeeOnboardingForm = () => {
 		let finalData = {...data, idProofPic: picsArrLocal};
 		route.params?.onEditComplete?.(finalData);
 
-		const cached = storage.getString('Employees');
-		const employeeCache = cached && cached !== 'null' ? JSON.parse(cached) : {};
-		employeeCache[data.id] = data.name;
-		storage.set('Employees', JSON.stringify(employeeCache));
+		storage.delete('Employees_fetchedAt'); // marks cache as stale
 		eventEmitter.emit('employeeUpdated');
 		//eventEmitter.emit('transactionAdded', { onlyEmployeeData: true });
 		showSuccessMessage('Employee Details Saved!');
@@ -387,7 +385,7 @@ const EmployeeOnboardingForm = () => {
 
           <Input
             placeholder="+91 "
-            label="Phone Number"
+            label="Phone Number *"
             value={formData.phoneNo}
             onChangeText={(text) => setFormData(prev => ({ ...prev, phoneNo: text }))}
             keyboardType="phone-pad"

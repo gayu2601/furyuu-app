@@ -33,7 +33,7 @@ import {
 } from '../extra/icons';
 import * as Contacts from 'expo-contacts';
 import eventEmitter from './eventEmitter';
-import { usePubSub } from './SimplePubSub';
+import { useReadOrderItems } from './ReadOrderItemsContext';
 
 const OrderBagScreen = ({ navigation }) => {
   const [expandedItems, setExpandedItems] = useState(new Set([0])); // First item expanded by default
@@ -43,7 +43,7 @@ const OrderBagScreen = ({ navigation }) => {
   const {currentUser} = useUser();
   const { isConnected } = useNetwork();
   const { getNewOrder, getNewOrderCust, saveOrder, resetItemsForLabel } = useOrderItems();
-  const { notify, updateCache, eligible } = usePubSub();
+  const { prependOrderToCache } = useReadOrderItems();
   const [customerType, setCustomerType] = useState('');
   const [orderScreenDets, setOrderScreenDets] = useState(new Map());
   
@@ -452,18 +452,8 @@ const createOrder = async () => {
 		try {
 			await supabase.functions.invoke('send-alert-email', {
 			  body: {
-				to: 'thaiyalapp@gmail.com',
 				subject: `Order Verification Failed — orderNo: ${createdOrder.orderNo}`,
-				text: [
-				  `Order verification failed after RPC call.`,
-				  ``,
-				  `orderNo: ${createdOrder.orderNo}`,
-				  `verifyError: ${verifyError ? JSON.stringify(verifyError) : 'null'}`,
-				  `verifyData: ${verifyData ? JSON.stringify(verifyData) : 'null'}`,
-				  ``,
-				  `Payload snapshot:`,
-				  JSON.stringify(payload, null, 2),
-				].join('\n'),
+				text: `Order verification failed after RPC call.\n\norderNo: ${createdOrder.orderNo}\nverifyError: ${verifyError ? JSON.stringify(verifyError) : 'null'}\nverifyData: ${verifyData ? JSON.stringify(verifyData) : 'null'}\n\nPayload snapshot:\n${JSON.stringify(payload, null, 2)}`,
 			  },
 			});
 		  } catch (mailErr) {
@@ -481,8 +471,6 @@ const createOrder = async () => {
       if (!custDetails.associateCustName?.trim()) {
         const mergedMeas = { ...item.measurementData, ...item.extraMeasurements };
         const filteredObject = { dressType: item.dressType, measurementData: mergedMeas };
-        updateCache('UPDATE_MEAS', filteredObject, `${custDetails.phoneNo}_${item.dressType}`);
-        await notify(currentUser.id, 'UPDATE_MEAS', `${custDetails.phoneNo}_${item.dressType}`, filteredObject);
       }
 
       // refresh local extra measurement field list
@@ -542,13 +530,17 @@ const createOrder = async () => {
     };
 
     console.log(itemFinal);
-	updateCache('NEW_ORDER', itemFinal, 'Completed_false', null, custDetails.custInserted || false);
-    await notify(currentUser.id, 'NEW_ORDER', 'Completed_false', itemFinal, null, custDetails.custInserted || false);
-	
+	prependOrderToCache(itemFinal);
+	if (custDetails.custInserted) {
+		const customers = storage.getString('Customers');
+		let customersArray = customers ? JSON.parse(customers) : [];
+		customersArray.push({ custName: itemFinal.custName, phoneNo: itemFinal.phoneNo });
+		storage.set('Customers', JSON.stringify(customersArray, ['custName', 'phoneNo']));
+	}
+
     // 6. Emit events + reset state
     showSuccessMessage('Order saved! Order no: ' + createdOrder.orderNo);
     eventEmitter.emit('storageUpdated');
-    eventEmitter.emit('newOrderAdded');
     eventEmitter.emit('payStatusChanged');
     if (!eventEmitted) {
       eventEmitter.emit('transactionAdded');

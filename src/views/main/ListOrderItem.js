@@ -12,70 +12,12 @@ import * as Linking from 'expo-linking';
 import { useReadOrderItems } from './ReadOrderItemsContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { showSuccessMessage, showErrorMessage } from './showAlerts';
-import { usePubSub } from './SimplePubSub';
 import eventEmitter from './eventEmitter';
-
-const MoreIcon = (props) => (
-	  <Icon {...props} name='more-vertical' />
-	);
+import { getFileUrl } from '../extra/fileUrl';
 
   const CalendarIcon = (props) => (
     <Icon {...props} name='calendar-outline' style={[props.style, { marginRight: 3, marginLeft: -2 }]}/>
   );
-
-
-const OrderMenu = memo(({ orderType, menuVisible, toggleMenu, onMenuItemSelect }) => {
-  return (
-    <OverflowMenu
-      anchor={() => (
-        <Button
-          style={styles.moreButton}
-          appearance='ghost'
-          status='basic'
-          accessoryLeft={MoreIcon}
-          onPress={toggleMenu}
-        />
-      )}
-      visible={menuVisible}
-      onBackdropPress={toggleMenu}
-      onSelect={onMenuItemSelect}
-    >
-      <MenuItem title='Update payment' />
-	  <MenuItem title='Edit' />
-      <MenuItem title='Delete' />
-      <MenuItem title='Call customer' />
-      {orderType !== "Created" && (
-        <MenuItem
-          title={
-            orderType === "Completed"
-              ? "Move to In Progress"
-              : "Move to New"
-          }
-        />
-      )}
-    </OverflowMenu>
-  );
-});
-
-// Memoized button components
-const ActionButton = memo(({ orderType, workStarted, onCheckedChange, item, setModalVisible }) => {
-	return (
-  <Button
-    size='small'
-    status={orderType === 'Created' ? 'primary' : 'success'}
-    style={styles.actionButton}
-    onPress={() => orderType === 'InProgress' ? setModalVisible(true) : onCheckedChange(!workStarted, item)}>
-    {evaProps => (
-      <Text 
-        {...evaProps} 
-        status='control' 
-        style={{fontSize: 12, fontWeight: 'bold', marginTop: -1}}
-      >
-        {orderType === 'Created' ? 'Start work' : 'Mark Completed'}
-      </Text>
-    )}
-  </Button>
-)});
 
 const DateButton = memo(({ overdueOrder, formattedDate, style }) => (
   <Button
@@ -98,38 +40,15 @@ const DateButton = memo(({ overdueOrder, formattedDate, style }) => (
 
 // Main optimized card footer component
 const OptimizedCardFooter = memo(({ 
-  item, 
-  orderType, 
-  workStarted, 
-  onCheckedChange, 
-  formattedDate, 
-  overdueOrder,
-  setModalVisible
+  formattedDate
 }) => {
   return (
       <View style={styles.cardFooter}>
-        {orderType !== 'Completed' ? (
-          <>
-            <ActionButton 
-              orderType={orderType}
-              workStarted={workStarted}
-              onCheckedChange={onCheckedChange}
-              item={item}
-			  setModalVisible={setModalVisible}
-            />
-            <DateButton 
-              overdueOrder={overdueOrder}
-              formattedDate={formattedDate}
-              style={styles.dateButton}
-            />
-          </>
-        ) : (
           <DateButton 
             overdueOrder={false}
             formattedDate={formattedDate}
             style={styles.dateButtonEnd}
           />
-        )}
       </View>
   );
 });
@@ -157,28 +76,14 @@ const ListOrderItem = (props) => {
 	  const [selectedItems, setSelectedItems] = useState({});
   const [selectAll, setSelectAll] = useState(false);
   const navigation = useNavigation()
-  const [menuVisible, setMenuVisible] = useState(false);
-		const { notify, updateCache} = usePubSub();
 	
-  const isOrderOverdue = (date) => {
-	  if (!date) return false;
-	  const orderDate = new Date(date);
-	  const today = new Date();
-	  return orderDate < today;
-	};  
-
-  const overdueOrder = orderType !== 'Completed' && isOrderOverdue(item.dueDate);
-  
   useEffect(() => {
 		const downloadTitlePic = async() => {
 			//console.log(imageUri)
 			  try {
-					  const { data, error } = await supabase.storage.from('order-images').getPublicUrl('dressImages/' + imageUri)
-
-					  if (error) {
-						throw error
-					  }
-					setTitleImg(data.publicUrl);
+					let uri = getFileUrl(imageUri, 'order-images', 'dressImages') ?? undefined;
+					  
+					setTitleImg(uri);
 					return true;
 				} catch (error) {
 					console.error('Error downloading image: ', error.message)
@@ -248,120 +153,6 @@ const ListOrderItem = (props) => {
   
   
 
-  const toggleMenu = () => {
-    setMenuVisible(!menuVisible);
-  };
-  
-  const handleCall = (phoneNumber) => {
-	const url = `tel:${phoneNumber}`;
-	console.log(url);
-	Linking.openURL(url).catch(() => alert("Unable to make the call."));
-  }
-
-  const onMenuItemSelect = (index) => {
-    setMenuVisible(false);
-    switch (index.row) {
-      case 0:
-		setModalVisible(true);
-		setClickPayment(true);
-        break;
-	  case 1:
-		navigation.navigate('OrderDetailsMain', {screen: 'EditOrderDetails',
-					params: {
-						item: item,
-						userType: userType,
-						orderDate: formattedDate,
-						shopName: item.shopName,
-						shopAddress: item.shopAddress,
-						shopPhNo: item.shopPhNo,
-						isShareIntent: false
-					}
-		});
-		break;
-	  case 2:
-		deleteOrderAlert();
-		break;
-      case 3:
-        handleCall(item.phoneNo);
-        break;
-	  case 4:
-		markCompletedAlert(index)
-		break;
-      default:
-        console.log('Invalid option selected');
-    }
-  };
-
-  const deleteOrderAlert = () => {
-        Alert.alert(
-            "Confirmation", "Do you want to delete this order?",
-            [
-                {
-                    text: 'Cancel',
-                    onPress: () => console.log("Cancel"),
-                    style: "cancel",
-                },
-                {
-                    text: 'OK',
-                    onPress: () => handleDeleteOrder(item.orderNo, item.dressPics, item.patternPics)
-                }
-            ],
-            {cancelable: true}
-        )
-    }
-	
-	const getOrderStatusUpd = () => {
-		switch(orderType) {
-			case 'Created':
-				return 'Completed';
-			  case 'InProgress':
-				return 'Created';
-			  case 'Completed':
-				return 'InProgress';
-			  default:
-				return 'Created';
-		}
-	}
-	
-	const markCompletedAlert = (index) => {
-        Alert.alert(
-            "Confirmation", orderType === 'Created' ? "Do you want to mark this order as completed?" : (orderType === 'InProgress' ? "Do you want to move this order to New?" : "Do you want to move this order to In Progress?"),
-            [
-                {
-                    text: 'Cancel',
-                    onPress: () => console.log("Cancel"),
-                    style: "cancel",
-                },
-                {
-                    text: 'OK',
-                    onPress: () => changeOrderStatus(item, getOrderStatusUpd())
-                }
-            ],
-            {cancelable: true}
-        )
-    }
-	
-	const savePaymentData = async(updatedPaymentData) => {
-		  updateOrderPayment(orderType, item.orderNo, updatedPaymentData);
-		  const updItem = {
-				...item,
-				paymentStatus: updatedPaymentData.paymentStatus,
-				advance: updatedPaymentData.advance,
-				paymentMode: updatedPaymentData.paymentMode,
-				paymentNotes: updatedPaymentData.paymentNotes
-		  }
-		  const cacheKey = item.orderStatus === 'Completed' ? 'Completed_true' : 'Completed_false';
-		  //updateCache('UPDATE_ORDER', updItem, currentUser.username, item.orderStatus);    
-		  //await notify(currentUser.id, 'UPDATE_ORDER', currentUser.username, item.orderStatus, updItem);
-		  updateCache('UPDATE_ORDER', updItem, cacheKey);    
-		  await notify(currentUser.id, 'UPDATE_ORDER', cacheKey, updItem);
-		  eventEmitter.emit('payStatusChanged');
-          setModalVisible(false);
-		  if(orderType === 'InProgress' && !clickPayment) {
-			await onCheckedChange(!workStarted, item, updatedPaymentData);
-		  }
-	}
-	
   return (
 	<>
 	<Card
@@ -380,14 +171,6 @@ const ListOrderItem = (props) => {
               </Text>
               <View style={styles.orderIdContainer}>
                 <Text category='s1'>#{item.orderNo}</Text>
-                {!isShareIntent && (
-					<OrderMenu 
-					  orderType={orderType}
-					  menuVisible={menuVisible}
-					  toggleMenu={toggleMenu}
-					  onMenuItemSelect={onMenuItemSelect}
-					/>
-				  )}
               </View>
             </View>
             
@@ -398,30 +181,12 @@ const ListOrderItem = (props) => {
             )}
 
 			<OptimizedCardFooter
-			  item={item}
-			  orderType={orderType}
-			  workStarted={workStarted}
-			  onCheckedChange={onCheckedChange}
 			  formattedDate={earliestDueDate}
-			  overdueOrder={overdueOrder}
-			  setModalVisible={setModalVisible}
 			/>
           </View>
         </View>
       </Card>
 
-	  <PaymentModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-		orderNo={item.orderNo}
-		orderAmt={item.orderAmt}
-		paymentStatus={item.paymentStatus}
-		advance={item.advance}
-		paymentMode={item.paymentMode}
-		paymentNotes={item.paymentNotes}
-		onSave={(updatedPaymentData) => savePaymentData(updatedPaymentData)}
-		noCache={orderType === 'InProgress' ? true : false}
-      />
 	
 				<Modal
 					visible={loading}

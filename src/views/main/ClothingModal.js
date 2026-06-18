@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Modal, Card, Text, Button, List, ListItem, Layout } from '@ui-kitten/components';
 import { StyleSheet, View, TouchableOpacity, Image } from 'react-native';
 import { Icon } from '@ui-kitten/components';
+import { getFileUrl } from '../extra/fileUrl';
 
 const CloseIcon = (props) => (
   <Icon {...props} name='close-outline'/>
@@ -21,24 +22,15 @@ const ClothingModal = ({
   const [imageURIs, setImageURIs] = useState({});
 
   const downloadTitlePic = async(picUri) => {
-    let ddImg = null;
     try {
-      const { data, error } = await supabase.storage
-        .from('order-images')
-        .getPublicUrl('dressImages/' + picUri);
-        
-      if (error) {
-        throw error;
-      }
-      
-      ddImg = data.publicUrl;
+      let ddImg = getFileUrl(picUri, 'order-images', 'dressImages') ?? undefined;
+      return ddImg;
     } catch (error) {
       if (error instanceof Error) {
         console.log('Error downloading image: ', error.message);
         return null;
       }
     }
-    return ddImg;
   };
 
   const handleCardItemPress = (item, dressTypeShared, dressSubTypeShared, index) => {

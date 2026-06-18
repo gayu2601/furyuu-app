@@ -24,12 +24,12 @@ import {
 } from '../extra/icons';
 import { ArrowIosBackIcon } from "../extra/icons";
 import eventEmitter from './eventEmitter';
-import { usePubSub } from './SimplePubSub';
+import { useReadOrderItems } from './ReadOrderItemsContext';
 
 const EditOrderDetails = ({ navigation }) => {
 	const route = useRoute();
 	const theme = useTheme();
-	const { notify, updateCache, eligible } = usePubSub();
+	const { patchOrderInCache } = useReadOrderItems();
 	const [formData, setFormData] = useState({
 		dressItems: [],
 	});
@@ -403,9 +403,7 @@ const EditOrderDetails = ({ navigation }) => {
 														dressType: [],
 													};
 
-													updateCache('UPDATE_ORDER', updatedItem, cacheKey);
-													await notify(currentUser.id, 'UPDATE_ORDER', cacheKey, updatedItem);
-													eventEmitter.emit('newOrderAdded');
+													patchOrderInCache(updatedItem);
 													showSuccessMessage('Order marked as Cancelled!');
 													navigation.navigate('Home'); // adjust route name as needed
 												} catch (error) {
@@ -459,9 +457,7 @@ const EditOrderDetails = ({ navigation }) => {
 							if (amtError) throw amtError;
 
 							// 9. Update cache and notify
-							updateCache('UPDATE_ORDER', updatedItem, cacheKey);
-							await notify(currentUser.id, 'UPDATE_ORDER', cacheKey, updatedItem);
-							eventEmitter.emit('newOrderAdded');
+							patchOrderInCache(updatedItem);
 
 							// 10. Clean up ref for deleted item and update local state
 							delete itemRefs.current[dressItemId];
@@ -800,12 +796,10 @@ const EditOrderDetails = ({ navigation }) => {
 				console.log('updVal:');
 				console.log(updVal);
 
-				updateCache('UPDATE_ORDER', updVal, cacheKey);
-				await notify(currentUser.id, 'UPDATE_ORDER', cacheKey, updVal);
+				patchOrderInCache(updVal);
 
 				console.log('All updates complete.');
 				showSuccessMessage('Order saved!');
-				eventEmitter.emit('newOrderAdded');
 				if(dueDateChanged) {
 					console.log('firing event emitter');
 					eventEmitter.emit('storageUpdated');
@@ -907,9 +901,7 @@ const EditOrderDetails = ({ navigation }) => {
 			);
 			setCustomerId(custId);
 			let updVal = {...itemState, custName: custName, phoneNo: ph, customerId: custId, ...(orderNoChanged && { orderNo: orderNoLocal })};
-			updateCache('UPDATE_ORDER', updVal, cacheKey);
-			await notify(currentUser.id, 'UPDATE_ORDER', cacheKey, updVal);
-			eventEmitter.emit('newOrderAdded');
+			patchOrderInCache(updVal);
 
 			showSuccessMessage('Saved customer details successfully!');
 			setEditCust(false);

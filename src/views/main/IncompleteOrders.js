@@ -41,7 +41,8 @@ import { useNavigation } from "@react-navigation/native";
 import { showSuccessMessage, showErrorMessage } from './showAlerts';
 import { supabase } from '../../constants/supabase';
 import { storage } from '../extra/storage';
-import { usePubSub } from './SimplePubSub';
+// ── CHANGED: import RealtimeSync instead of SimplePubSub ──────────────────────
+import { useRealtimeSync } from './RealtimeSync';
 import PaymentModal from './PaymentModal';
 import XLSX from "xlsx";
 import * as FileSystem from 'expo-file-system';
@@ -66,12 +67,8 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [bulkStatusUpdate, setBulkStatusUpdate] = useState(false);
-  const { readOrdersGlobal, getOrders, dispatch, getFilters, hasMoreOrders, fetchOrdersFromDB, updateOrderPayment } = useReadOrderItems();
+  const { readOrdersGlobal, getOrders, dispatch, getFilters, hasMoreOrders, fetchOrdersFromDB, updateOrderPayment, patchOrderInCache, prependOrderToCache } = useReadOrderItems();
   const orderType = 'Completed';
-  /*const orders = useMemo(() => {
-    return getOrders(orderType, false);
-  }, [getOrders, orderType]);
-  console.log(orders)*/
   const [orders, setOrders] = useState([]);
   const { isConnected } = useNetwork();
   const [loading, setLoading] = useState(true);
@@ -83,12 +80,14 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
   const INITIAL_SIZE = 50;
   const { currentUser, getNewDeviceLogin, updateNewDeviceLogin, newDeviceLogin } = useUser();
   const isNewDeviceLogin = useMemo(() => getNewDeviceLogin(), [getNewDeviceLogin]);
-  const { notify, updateCache, eligible } = usePubSub();
+  // ── CHANGED: useRealtimeSync instead of usePubSub ─────────────────────────
+  // notify, updateCache, eligible are all gone — not needed anymore
+  const { connected } = useRealtimeSync();
   const [isDownload, setIsDownload] = useState(false);
   const [activeFilter, setActiveFilter] = useState(null);
   const [searchValue, setSearchValue] = useState('');
   const [range1, setRange1] = useState({});
-  const [excelDateModalVisible, setExcelDateModalVisible] = useState(false)
+  const [excelDateModalVisible, setExcelDateModalVisible] = useState(false);
   
   const theme = useTheme();
   const searchFilters = [
@@ -105,90 +104,92 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
   const DeleteIcon = (props) => <Icon {...props} name='trash-2-outline' style={styles.deleteIcon} fill={'red'}/>;
   const ResendIcon = (props) => <Icon {...props} name='corner-down-left-outline' style={styles.resendIcon} fill={theme['color-primary-500']}/>;
 
-  // Single useEffect for initialization and event listeners
-	useEffect(() => {
-	  // Event handlers
-	  const handleNewOrderAdded = async () => {
-		console.log('New order added, reloading...');
-		if (!isConnected) {
-		  showErrorMessage("No Internet Connection");
-		  return;
-		}
-		
-		await readOrdersGlobal(null, orderType, statusCheckType, false, null, null, INITIAL_SIZE, null, isNewDeviceLogin);
-		setOffset(INITIAL_SIZE);
-		setRefreshTrigger(prev => prev + 1);
-	  };
+  // ── Single useEffect for initialization and ALL event listeners ────────────
+  useEffect(() => {
+    // ── existing handler: local order changes (same device) ─────────────────
+    const handleProductionUpdate = (param) => {
+      console.log('in handleProductionUpdate', param.orderNo, param.index);
+      setOrders(prevOrders => 
+        prevOrders.map(order => {
+          if (order.orderNo === param.orderNo) {
+            const updatedCheckingDone = [...order.checkingDone];
+            updatedCheckingDone[param.index] = param.shouldMark;
+            return { ...order, checkingDone: updatedCheckingDone };
+          }
+          return order;
+        })
+      );
+    };
 
-	  const handleProductionUpdate = (param) => {
-		console.log('in handleProductionUpdate', param.orderNo, param.index);
-		setOrders(prevOrders => 
-		  prevOrders.map(order => {
-			if (order.orderNo === param.orderNo) {
-			  const updatedCheckingDone = [...order.checkingDone];
-			  updatedCheckingDone[param.index] = param.shouldMark;
-			  
-			  return {
-				...order,
-				checkingDone: updatedCheckingDone
-			  };
-			}
-			return order;
-		  })
-		);
-	  };
+    // ── NEW handler: a row was UPDATED on another device via Realtime ────────
+    // patchOrderInCache updates both MMKV and readOrderItems React state.
+    // We then also patch the local orders state so the list rerenders immediately
+    // without waiting for a readOrdersGlobal call.
+    const handleRemoteUpdate = (updatedRow) => {
+      console.log('[IncompleteOrders] remoteOrderUpdated', updatedRow);
+      patchOrderInCache(updatedRow);
+      // Also patch local orders state directly for instant UI update
+      setOrders(prev =>
+        prev.map(o => o.orderNo === updatedRow.orderNo ? { ...o, ...updatedRow } : o)
+      );
+      setRefreshTrigger(prev => prev + 1);
+    };
 
-	  // Initial load function
-	  const initialLoad = async () => {
-		if (!isConnected) {
-		  showErrorMessage("No Internet Connection");
-		  return;
-		}
-		
-		console.log('in initialLoad');
-		console.log('isnewDeviceLogin: ' + isNewDeviceLogin);
-		
-		await readOrdersGlobal(null, orderType, statusCheckType, false, null, null, INITIAL_SIZE, null, isNewDeviceLogin);
-		setOffset(INITIAL_SIZE);
-		
-		if (newDeviceLogin) {
-		  updateNewDeviceLogin(false);
-		}
-		
-		setLoading(false);
-		setRefreshTrigger(prev => prev + 1);
-	  };
+    // ── NEW handler: a new row was INSERTED on another device via Realtime ───
+    const handleRemoteInsert = (newRow) => {
+      console.log('[IncompleteOrders] remoteOrderInserted', newRow.orderNo);
+      prependOrderToCache(newRow);
+      // Trigger a refresh so the orders state re-reads from readOrderItems
+      setRefreshTrigger(prev => prev + 1);
+    };
 
-	  // Set up event listeners
-	  eventEmitter.on('newOrderAdded', handleNewOrderAdded);
-	  eventEmitter.on('productionStageUpdated', handleProductionUpdate);
+    // Initial load
+    const initialLoad = async () => {
+      if (!isConnected) {
+        showErrorMessage("No Internet Connection");
+        return;
+      }
+      console.log('in initialLoad');
+      console.log('isnewDeviceLogin: ' + isNewDeviceLogin);
+      await readOrdersGlobal(null, orderType, statusCheckType, false, null, null, INITIAL_SIZE, null, isNewDeviceLogin);
+      setOffset(INITIAL_SIZE);
+      if (newDeviceLogin) {
+        updateNewDeviceLogin(false);
+      }
+      setLoading(false);
+      setRefreshTrigger(prev => prev + 1);
+    };
 
-	  // Run initial load
-	  initialLoad();
+    // Register all listeners
+    eventEmitter.on('productionStageUpdated', handleProductionUpdate);
+    eventEmitter.on('remoteOrderUpdated', handleRemoteUpdate);
+    eventEmitter.on('remoteOrderInserted', handleRemoteInsert);
 
-	  // Cleanup
-	  return () => {
-		eventEmitter.off('newOrderAdded', handleNewOrderAdded);
-		eventEmitter.off('productionStageUpdated', handleProductionUpdate);
-	  };
-	}, []); // Empty dependency - runs once on mount
+    initialLoad();
 
-	// Separate useEffect for orders updates (when data changes)
-	useEffect(() => {
-	  const newOrders = getOrders(orderType+'_'+statusCheckType);
-	  setOrders(newOrders || []);
-	}, [getOrders, orderType, refreshTrigger]);
+    // Cleanup all listeners
+    return () => {
+      eventEmitter.off('productionStageUpdated', handleProductionUpdate);
+      eventEmitter.off('remoteOrderUpdated', handleRemoteUpdate);
+      eventEmitter.off('remoteOrderInserted', handleRemoteInsert);
+    };
+  }, []); // runs once on mount
+
+  // Separate useEffect: re-read orders from context when data changes
+  useEffect(() => {
+    const newOrders = getOrders(orderType + '_' + statusCheckType);
+    setOrders(newOrders || []);
+  }, [getOrders, orderType, refreshTrigger]);
   
   const getEarliestDateFormatted = (dateArray) => {
-	  if(dateArray) {
-		  const earliest = new Date(Math.min(...dateArray.map(date => new Date(date))));
-		  return moment(earliest).format('DD-MM-YYYY');
-	  } else {
-			return '';
-	  }
-	};
+    if (dateArray) {
+      const earliest = new Date(Math.min(...dateArray.map(date => new Date(date))));
+      return moment(earliest).format('DD-MM-YYYY');
+    } else {
+      return '';
+    }
+  };
 
-  // Icons
   const MenuIcon = (props) => <Icon {...props} name='menu-outline' />;
   const SearchIcon = (props) => <Icon {...props} name='search-outline' />;
   const BellIcon = (props) => <Icon {...props} name='bell-outline' />;
@@ -207,7 +208,7 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
       'Finishing': '#F59E0B',
       'Checking': '#6366F1',
       'Billing': '#10B981',
-	  'Delivered': '#ccc'
+      'Delivered': '#ccc'
     };
     return colors[status] || '#6B7280';
   };
@@ -219,22 +220,18 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
 
   const getDaysUntilDue = (dueDate) => {
     const today = moment().startOf('day');
-	  const due = moment(dueDate, 'DD-MM-YYYY').startOf('day');
-
-	  const diffDays = due.diff(today, 'days');
-
-	  if (diffDays < 0) return `${Math.abs(diffDays)}d overdue`;
-	  if (diffDays === 0) return 'Due today';
-	  if (diffDays === 1) return 'Due tomorrow';
-	  return `${diffDays} days left`;
+    const due = moment(dueDate, 'DD-MM-YYYY').startOf('day');
+    const diffDays = due.diff(today, 'days');
+    if (diffDays < 0) return `${Math.abs(diffDays)}d overdue`;
+    if (diffDays === 0) return 'Due today';
+    if (diffDays === 1) return 'Due tomorrow';
+    return `${diffDays} days left`;
   };
 
   const getDueDateStatus = (dueDate) => {
-      const today = moment().startOf('day');
-	  const due = moment(dueDate, 'DD-MM-YYYY').startOf('day');
-
-	  const diffDays = due.diff(today, 'days');
-
+    const today = moment().startOf('day');
+    const due = moment(dueDate, 'DD-MM-YYYY').startOf('day');
+    const diffDays = due.diff(today, 'days');
     if (diffDays < 0) return 'danger';
     if (diffDays <= 2) return 'warning';
     return 'success';
@@ -249,96 +246,84 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
     }
   };
 
-  const updateOrderStatus = async(order, newStatus, updatedPaymentData) => {
-	  console.log('in updateOrderStatus')
-	  console.log(order.orderNo)
-	  console.log(newStatus)
-	  let newSt = (newStatus === 'Delivered' && 'Completed') || newStatus;
-      try {
-		setActionLoading(true);
-		let updObj = {orderStatus: newSt};
-		if(updatedPaymentData) {
-			updObj.paymentStatus = updatedPaymentData.paymentStatus;
-			updObj.advance = updatedPaymentData.advance;
-			updObj.paymentMode = updatedPaymentData.paymentMode;
-			updObj.paymentNotes = updatedPaymentData.paymentNotes
-		}
-		const {error} = await supabase
-			.from('OrderItems')
-			.update(updObj)
-			.eq('orderNo', order.orderNo);
-		
-		if (error) throw error;
-		const updItem = {
-				...order,
-				orderStatus: newSt
-		}
-		console.log(updItem);
-		updateCache('UPDATE_ORDER', updItem, `${orderType}_false`);    
-		await notify(currentUser.id, 'UPDATE_ORDER', `${orderType}_false`, updItem);
+  // ── CHANGED: removed updateCache and notify calls ──────────────────────────
+  const updateOrderStatus = async (order, newStatus, updatedPaymentData) => {
+    console.log('in updateOrderStatus');
+    console.log(order.orderNo);
+    console.log(newStatus);
+    let newSt = (newStatus === 'Delivered' && 'Completed') || newStatus;
+    try {
+      setActionLoading(true);
+      let updObj = { orderStatus: newSt };
+      if (updatedPaymentData) {
+        updObj.paymentStatus = updatedPaymentData.paymentStatus;
+        updObj.advance = updatedPaymentData.advance;
+        updObj.paymentMode = updatedPaymentData.paymentMode;
+        updObj.paymentNotes = updatedPaymentData.paymentNotes;
+      }
+      const { error } = await supabase
+        .from('OrderItems')
+        .update(updObj)
+        .eq('orderNo', order.orderNo);
+      
+      if (error) throw error;
 
-		queueMicrotask(() => {
-		  Promise.all([
-			readOrdersGlobal(null, orderType, false, false, null, null, INITIAL_SIZE),
-			readOrdersGlobal(null, orderType, true, false, null, null, INITIAL_SIZE)
-		  ]);
-		  setOffset(INITIAL_SIZE);
-		});
+      // ── REMOVED: updateCache('UPDATE_ORDER', ...) ──────────────────────
+      // ── REMOVED: await notify(...) ────────────────────────────────────
+      // Supabase Realtime pushes the changed row to all other devices.
+      // This device updates its own state via readOrdersGlobal below.
 
-		eventEmitter.emit('storageUpdated');
-		showSuccessMessage(`Order #${order.orderNo} marked as ${newStatus}!`);
-		return true;
+      queueMicrotask(() => {
+        Promise.all([
+          readOrdersGlobal(null, orderType, false, false, null, null, INITIAL_SIZE),
+          readOrdersGlobal(null, orderType, true, false, null, null, INITIAL_SIZE)
+        ]);
+        setOffset(INITIAL_SIZE);
+      });
 
-	  } catch (error) {
-		console.log(error); 
-		showErrorMessage(`Error: ${error.message}`);
-		return false;
-	  } finally {
-		setActionLoading(false);
-	  }
+      eventEmitter.emit('storageUpdated');
+      showSuccessMessage(`Order #${order.orderNo} marked as ${newStatus}!`);
+      return true;
+
+    } catch (error) {
+      console.log(error); 
+      showErrorMessage(`Error: ${error.message}`);
+      return false;
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const updateBulkStatus = async(newStatus) => {
-	/*setOrders(orders.map(order => 
-      selectedOrders.includes(order.orderNo) ? { ...order, status: newStatus } : order
-    ));*/
-	let newSt = (newStatus === 'Delivered' && 'Completed') || newStatus;
-	try {
-		setActionLoading(true)
-		const {error} = await supabase
-				.from('OrderItems')
-				.update({orderStatus: newSt})
-				.in('orderNo', selectedOrders);
-			
-		if (error) {throw error};
-		const orderSet = new Set(selectedOrders);
-		const updatedOrders = orders.map(order => {
-			if (orderSet.has(order.orderNo)) {
-				const updItem = {
-					...order,
-					orderStatus: newSt
-				};
-				return updItem;
-			}
-			return order;
-		});
+  // ── CHANGED: removed updateCache and notify calls ──────────────────────────
+  const updateBulkStatus = async (newStatus) => {
+    let newSt = (newStatus === 'Delivered' && 'Completed') || newStatus;
+    try {
+      setActionLoading(true);
+      const { error } = await supabase
+        .from('OrderItems')
+        .update({ orderStatus: newSt })
+        .in('orderNo', selectedOrders);
+          
+      if (error) { throw error; }
 
-		updateCache('BULK_UPDATE_ORDER', updatedOrders, `${orderType}_false`);    
-		await notify(currentUser.id, 'BULK_UPDATE_ORDER', `${orderType}_false`, updatedOrders);
-		queueMicrotask(() => {
-			  readOrdersGlobal(null, orderType, statusCheckType, false, null, null, INITIAL_SIZE)
-			  setOffset(INITIAL_SIZE);
-		});
-		
-		setSelectedOrders([]);
-		setBulkStatusUpdate(false);
-		setBulkMode(false);
-	} catch(error) {
-		console.log(error); 
-		showErrorMessage('Error updating orders!');
-	} finally {
-		setActionLoading(false);
-	}
+      // ── REMOVED: updateCache('BULK_UPDATE_ORDER', ...) ─────────────────
+      // ── REMOVED: await notify(...) ─────────────────────────────────────
+      // Supabase fires one UPDATE event per row to all subscribed devices.
+
+      queueMicrotask(() => {
+        readOrdersGlobal(null, orderType, statusCheckType, false, null, null, INITIAL_SIZE);
+        setOffset(INITIAL_SIZE);
+      });
+      
+      setSelectedOrders([]);
+      setBulkStatusUpdate(false);
+      setBulkMode(false);
+    } catch (error) {
+      console.log(error); 
+      showErrorMessage('Error updating orders!');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const toggleOrderSelection = (orderId) => {
@@ -353,25 +338,19 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
   
   const filterOrders = () => {
     let filtered = orders;
+    filtered = selectedStatus === 'All Orders' 
+      ? orders 
+      : orders.filter(order => order.orderStatus === selectedStatus);
     
-    // Apply status filter if statusCheckType is false
-    //if (!statusCheckType) {
-      filtered = selectedStatus === 'All Orders' 
-		? orders.filter(order => order.orderStatus !== 'Cancelled') 
-		: orders.filter(order => order.orderStatus === selectedStatus);
-    //}
-    
-    // Apply search filter if statusCheckType is true
     if (searchValue && activeFilter) {
       const searchLower = searchValue.toLowerCase();
-      
       filtered = filtered.filter(order => {
         switch(activeFilter) {
           case 'name':
             return order.custName.toLowerCase().includes(searchLower);
           case 'phone':
             return order.phoneNo.includes(searchValue);
-		  case 'orderNo':
+          case 'orderNo':
             return order.orderNo.toString().includes(searchValue);
           default:
             return true;
@@ -385,21 +364,20 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
   const filteredOrders = filterOrders();
 
   const renderSearchFilters = () => {
-	  return (
-		<ScrollView
-		  horizontal
-		  showsHorizontalScrollIndicator={false}
-		  style={styles.filterScrollView}
-		  contentContainerStyle={styles.filterContainer}
-		>
-		  {searchFilters.map(renderFilterButton)}
-		</ScrollView>
-	  );
-	};
+    return (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterScrollView}
+        contentContainerStyle={styles.filterContainer}
+      >
+        {searchFilters.map(renderFilterButton)}
+      </ScrollView>
+    );
+  };
 
   const renderStatusSelect = () => {
     if (statusCheckType) return null;
-    
     return (
       <Select
         style={styles.statusSelect}
@@ -418,37 +396,35 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
   const renderFilterButton = (filter) => {
     const isActive = activeFilter === filter.id;
     const IconComponent = (props) => <Icon {...props} name={filter.iconName} />;
-    
     return (
       <Button
-		  key={filter.id}
-		  appearance={isActive ? 'filled' : 'outline'}
-		  status={isActive ? 'success' : 'basic'}
-		  size='small'
-		  style={[styles.filterButton, isActive && styles.activeFilterButton]}
-		  onPress={() => {
-			if (activeFilter === filter.id) {
-			  setActiveFilter(null);
-			  setSearchValue('');
-			} else {
-			  setActiveFilter(filter.id);
-			  setSearchValue('');
-			}
-		  }}
-		>
-		  {evaProps => (
-			<View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-			  <Icon name={filter.iconName} style={{ width: 14, height: 14 }} fill={isActive ? 'white' : '#8F9BB3'} />
-			  <Text {...evaProps} style={{ fontSize: 12, color: isActive ? 'white' : '#8F9BB3' }}>{filter.label}</Text>
-			</View>
-		  )}
-		</Button>
+        key={filter.id}
+        appearance={isActive ? 'filled' : 'outline'}
+        status={isActive ? 'success' : 'basic'}
+        size='small'
+        style={[styles.filterButton, isActive && styles.activeFilterButton]}
+        onPress={() => {
+          if (activeFilter === filter.id) {
+            setActiveFilter(null);
+            setSearchValue('');
+          } else {
+            setActiveFilter(filter.id);
+            setSearchValue('');
+          }
+        }}
+      >
+        {evaProps => (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Icon name={filter.iconName} style={{ width: 14, height: 14 }} fill={isActive ? 'white' : '#8F9BB3'} />
+            <Text {...evaProps} style={{ fontSize: 12, color: isActive ? 'white' : '#8F9BB3' }}>{filter.label}</Text>
+          </View>
+        )}
+      </Button>
     );
   };
 
   const renderSearchInput = () => {
     if (!activeFilter) return null;
-    
     return (
       <View style={styles.searchContainer}>
         <Input
@@ -469,7 +445,6 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
     );
   };
 
-
   const renderStatusIcon = (status) => (
     <View style={[styles.statusDot, { backgroundColor: getStatusColor(status) }]} />
   );
@@ -489,70 +464,81 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
   );
   
   const handleCardPress = (item) => {
-	  const formattedDate = moment(item.orderDate).format('DD-MM-YYYY');
-	  navigation.navigate('OrderDetailsMain', {screen: 'OrderDetails',
-					params: {
-						item: item,
-						orderDate: formattedDate,
-						isShareIntent: false
-					}
-		});
-	  };
+    const formattedDate = moment(item.orderDate).format('DD-MM-YYYY');
+    navigation.navigate('OrderDetailsMain', { screen: 'OrderDetails',
+      params: {
+        item: item,
+        orderDate: formattedDate,
+        isShareIntent: false
+      }
+    });
+  };
 
-  const OrderCard = ({order, index, bulkMode, selectedOrders, toggleOrderSelection, updateOrderStatus}) => {
-	const [modalVisible, setModalVisible] = useState(false);
-	const [moveToModalVisible, setMoveToModalVisible] = useState(false);
-	const [clickPayment, setClickPayment] = useState(false);
-	const [menuVisible, setMenuVisible] = useState(false);
-	const earliestDueDate = getEarliestDateFormatted(order.dueDate);
-	let expressVal = order.expressCharges || Math.max(
-	  0,
-	  ...(order.expressDuration || [])
-		.filter(Boolean)
-		.map(obj => obj.price));
-	
-	const calculateOrderProgress = (order) => {
-	  if (!order.checkingDone || order.checkingDone?.length === 0) return 0;
-	  
-	  const totalDressItems = order.checkingDone.length;
-	  const completedDressItems = order.checkingDone.filter(isCompleted => isCompleted === true).length;
-	  
-	  return (completedDressItems / totalDressItems) * 100;
-	};
-
-	const progressPercentage = calculateOrderProgress(order);
-	
-    const handleStatusUpdate = (newStatus, updatedPaymentData) => {
-		console.log('in handleStatusUpdate', newStatus);
-		if(newStatus === 'Delivered') {
-			setModalVisible(true);
-		} else {
-		  updateOrderStatus(order, newStatus, updatedPaymentData);
-		  setMoveToModalVisible(false);
-		}
+  const OrderCard = ({ order, index, bulkMode, selectedOrders, toggleOrderSelection, updateOrderStatus }) => {
+    const [modalVisible, setModalVisible] = useState(false);
+    const [moveToModalVisible, setMoveToModalVisible] = useState(false);
+    const [clickPayment, setClickPayment] = useState(false);
+    const [menuVisible, setMenuVisible] = useState(false);
+    const earliestDueDate = getEarliestDateFormatted(order.dueDate);
+    let expressVal = order.expressCharges || Math.max(
+      0,
+      ...(order.expressDuration || [])
+        .filter(Boolean)
+        .map(obj => obj.price));
+    
+    const calculateOrderProgress = (order) => {
+      if (!order.checkingDone || order.checkingDone?.length === 0) return 0;
+      const totalDressItems = order.checkingDone.length;
+      const completedDressItems = order.checkingDone.filter(isCompleted => isCompleted === true).length;
+      return (completedDressItems / totalDressItems) * 100;
     };
-	
-	const savePaymentData = async(updatedPaymentData) => {
-		  let key = `${orderType}_${statusCheckType}`;
-		  updateOrderPayment(key, order.orderNo, updatedPaymentData);
-		  const updItem = {
-				...order,
-				paymentStatus: updatedPaymentData.paymentStatus,
-				advance: updatedPaymentData.advance,
-				paymentMode: updatedPaymentData.paymentMode,
-				paymentNotes: updatedPaymentData.paymentNotes
-		  }
-		  updateCache('UPDATE_ORDER', updItem, key);    
-		  await notify(currentUser.id, 'UPDATE_ORDER', key, updItem);
-		  eventEmitter.emit('payStatusChanged');
-          setModalVisible(false);
-		  if(order.orderStatus === 'Billing' && !clickPayment) {
-			await handleStatusUpdate('Completed', updatedPaymentData);
-		  }
-	}
-	
-	const renderMoveToModal = (order) => (
-	  <Modal
+
+    const progressPercentage = calculateOrderProgress(order);
+    
+    const handleStatusUpdate = (newStatus, updatedPaymentData) => {
+      console.log('in handleStatusUpdate', newStatus);
+      if (newStatus === 'Delivered') {
+        setModalVisible(true);
+      } else {
+        updateOrderStatus(order, newStatus, updatedPaymentData);
+        setMoveToModalVisible(false);
+      }
+    };
+    
+    // ── CHANGED: removed updateCache and notify calls ────────────────────────
+    const savePaymentData = async (updatedPaymentData) => {
+      let key = `${orderType}_${statusCheckType}`;
+      updateOrderPayment(key, order.orderNo, updatedPaymentData);
+
+      // Persist payment update to DB so Realtime pushes it to other devices
+      const { error } = await supabase
+        .from('OrderItems')
+        .update({
+          paymentStatus: updatedPaymentData.paymentStatus,
+          advance: updatedPaymentData.advance,
+          paymentMode: updatedPaymentData.paymentMode,
+          paymentNotes: updatedPaymentData.paymentNotes,
+        })
+        .eq('orderNo', order.orderNo);
+
+      if (error) {
+        console.error('savePaymentData error', error);
+        showErrorMessage('Failed to save payment: ' + error.message);
+        return;
+      }
+
+      // ── REMOVED: updateCache('UPDATE_ORDER', ...) ──────────────────────
+      // ── REMOVED: await notify(...) ────────────────────────────────────
+
+      eventEmitter.emit('payStatusChanged');
+      setModalVisible(false);
+      if (order.orderStatus === 'Billing' && !clickPayment) {
+        await handleStatusUpdate('Completed', updatedPaymentData);
+      }
+    };
+    
+    const renderMoveToModal = (order) => (
+      <Modal
         visible={moveToModalVisible}
         backdropStyle={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
         onBackdropPress={() => setMoveToModalVisible(false)}
@@ -562,7 +548,6 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
             <Text category="h6" style={{ marginBottom: 20, textAlign: 'center' }}>
               Move Order To
             </Text>
-            
             <ScrollView style={{ maxHeight: 300 }}>
               {workflowStatuses.map((status) => (
                 <TouchableOpacity
@@ -585,12 +570,7 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
                   <View style={{ marginRight: 12 }}>
                     {renderStatusIcon(status)}
                   </View>
-                  <Text 
-                    style={{ 
-                      flex: 1,
-                      color: order.orderStatus === status ? '#999' : '#000'
-                    }}
-                  >
+                  <Text style={{ flex: 1, color: order.orderStatus === status ? '#999' : '#000' }}>
                     {status}
                   </Text>
                   {order.orderStatus === status && (
@@ -599,7 +579,6 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            
             <Button
               style={{ marginTop: 16 }}
               appearance="outline"
@@ -610,228 +589,221 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
           </View>
         </Card>
       </Modal>
-	)
-	
-	const handleUpdateOrder = async (itemOrderNo, isDelete) => {
-		console.log('in handleUpdateOrder')
-		try {
-		  setLoading(true);
-		  const response = await supabase
-			  .from('OrderItems')
-			  .update({orderStatus: isDelete ? 'Cancelled' : 'New'})
-			  .eq('orderNo', itemOrderNo)
+    );
+    
+    // ── CHANGED: removed updateCache and notify calls ────────────────────────
+    const handleUpdateOrder = async (itemOrderNo, isDelete) => {
+      console.log('in handleUpdateOrder');
+      try {
+        setLoading(true);
+        const response = await supabase
+          .from('OrderItems')
+          .update({ orderStatus: isDelete ? 'Cancelled' : 'New' })
+          .eq('orderNo', itemOrderNo);
 
-			if (response.error) {
-			  console.error('Updation failed:', response.error.message);
-			  showErrorMessage('No matching order found!');
-			  throw error;
-			}
-			
-			updateCache(isDelete ? 'DELETE_ORDER' : 'RESTORE_ORDER', null, `${orderType}_${statusCheckType}`, itemOrderNo);    
-			await notify(currentUser.id, isDelete ? 'DELETE_ORDER' : 'RESTORE_ORDER', `${orderType}_${statusCheckType}`, null, itemOrderNo);
+        if (response.error) {
+          console.error('Updation failed:', response.error.message);
+          showErrorMessage('No matching order found!');
+          throw response.error;
+        }
 
-			queueMicrotask(() => {
-				readOrdersGlobal(null, orderType, statusCheckType, false, null, null, INITIAL_SIZE, null, true)
-				setOffset(INITIAL_SIZE);
-			});
-				isDelete ? showSuccessMessage('Order Deleted!') : showSuccessMessage('Order Restored!');
-				eventEmitter.emit('storageUpdated');
-				eventEmitter.emit('transactionAdded');
-				eventEmitter.emit('payStatusChanged');
-		} catch (error) {
-		  showErrorMessage('Failed to update the order: ' + error.message);
-		} finally {
-		  setLoading(false);
-		}
-	}
-	
-	const deleteOrderAlert = (item) => {
-        Alert.alert(
-            "Confirmation", "Do you want to delete this order?",
-            [
-                {
-                    text: 'Cancel',
-                    onPress: () => console.log("Cancel"),
-                    style: "cancel",
-                },
-                {
-                    text: 'OK',
-                    onPress: () => handleUpdateOrder(item.orderNo, true)
-                }
-            ],
-            {cancelable: true}
-        )
-    }
-	
-	const restoreOrderAlert = (item) => {
-        Alert.alert(
-            "Confirmation", "Do you want to restore this order?",
-            [
-                {
-                    text: 'Cancel',
-                    onPress: () => console.log("Cancel"),
-                    style: "cancel",
-                },
-                {
-                    text: 'OK',
-                    onPress: () => handleUpdateOrder(item.orderNo, false)
-                }
-            ],
-            {cancelable: true}
-        )
-    }
+        // ── REMOVED: updateCache(isDelete ? 'DELETE_ORDER' : 'RESTORE_ORDER', ...) ──
+        // ── REMOVED: await notify(...) ────────────────────────────────────────────
+        // The DB write above triggers a Supabase Realtime UPDATE event.
+        // All other devices receive the changed row and call patchOrderInCache.
+        // This device refreshes its own state via readOrdersGlobal below.
 
-	return (
-    <Card key={order.orderNo} style={styles.orderCard} onPress={() => handleCardPress(order)}>
-      <View style={styles.cardContent}>
-        {/* Bulk Selection */}
-        {bulkMode && (
-          <View style={styles.checkboxContainer}>
-            <CheckBox
-              checked={selectedOrders.includes(order.orderNo)}
-              onChange={() => toggleOrderSelection(order.orderNo)}
-            />
+        queueMicrotask(() => {
+          readOrdersGlobal(null, orderType, statusCheckType, false, null, null, INITIAL_SIZE, null, true);
+          setOffset(INITIAL_SIZE);
+        });
+
+        isDelete ? showSuccessMessage('Order Deleted!') : showSuccessMessage('Order Restored!');
+        eventEmitter.emit('storageUpdated');
+        eventEmitter.emit('transactionAdded');
+        eventEmitter.emit('payStatusChanged');
+      } catch (error) {
+        showErrorMessage('Failed to update the order: ' + error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    const deleteOrderAlert = (item) => {
+      Alert.alert(
+        "Confirmation", "Do you want to delete this order?",
+        [
+          { text: 'Cancel', onPress: () => console.log("Cancel"), style: "cancel" },
+          { text: 'OK', onPress: () => handleUpdateOrder(item.orderNo, true) }
+        ],
+        { cancelable: true }
+      );
+    };
+    
+    const restoreOrderAlert = (item) => {
+      Alert.alert(
+        "Confirmation", "Do you want to restore this order?",
+        [
+          { text: 'Cancel', onPress: () => console.log("Cancel"), style: "cancel" },
+          { text: 'OK', onPress: () => handleUpdateOrder(item.orderNo, false) }
+        ],
+        { cancelable: true }
+      );
+    };
+
+    return (
+      <Card key={order.orderNo} style={styles.orderCard} onPress={() => handleCardPress(order)}>
+        <View style={styles.cardContent}>
+          {/* Bulk Selection */}
+          {bulkMode && (
+            <View style={styles.checkboxContainer}>
+              <CheckBox
+                checked={selectedOrders.includes(order.orderNo)}
+                onChange={() => toggleOrderSelection(order.orderNo)}
+              />
+            </View>
+          )}
+
+          {/* Order Header */}
+          <View style={[styles.orderHeader, bulkMode && styles.orderHeaderWithCheckbox]}>
+            <View style={styles.innerHeader}>
+              <Text style={styles.orderNumber}>#{order.orderNo}</Text>
+              {!statusCheckType && renderStatusBadge(order.orderStatus)}
+            </View>
+            
+            {!statusCheckType && !bulkMode && (
+              <View style={styles.actionButtons}>
+                {getNextStatus(order.orderStatus) && (
+                  <Button
+                    size='tiny'
+                    appearance='ghost'
+                    status='primary'
+                    accessoryLeft={ArrowIcon}
+                    onPress={() => updateOrderStatus(order, getNextStatus(order.orderStatus))}
+                  >
+                    {getNextStatus(order.orderStatus)}
+                  </Button>
+                )}
+              </View>
+            )}
           </View>
-        )}
 
-        {/* Order Header */}
-        <View style={[styles.orderHeader, bulkMode && styles.orderHeaderWithCheckbox]}>
-          <View style={styles.innerHeader}>
-            <Text style={styles.orderNumber}>#{order.orderNo}</Text>
-            {!statusCheckType && renderStatusBadge(order.orderStatus)}
+          {/* Customer Info */}
+          <View style={[styles.infoRow, bulkMode && styles.infoRowWithCheckbox]}>
+            <PersonIcon style={styles.infoIcon} />
+            <Text style={styles.infoText}>
+              {order.custName}
+              {order.associateCustName ? ` (${order.associateCustName})` : ""}
+            </Text>
           </View>
-          
-          {!statusCheckType && !bulkMode && (
-            <View style={styles.actionButtons}>
-              {getNextStatus(order.orderStatus) && (
-                <Button
-                  size='tiny'
-                  appearance='ghost'
-                  status='primary'
-                  accessoryLeft={ArrowIcon}
-                  onPress={() => updateOrderStatus(order, getNextStatus(order.orderStatus))}
-                >
-                  {getNextStatus(order.orderStatus)}
-                </Button>
+
+          {/* Dress Item */}
+          <View style={[styles.infoRow, bulkMode && styles.infoRowWithCheckbox]}>
+            <PackageIcon style={styles.infoIcon} />
+            <Text style={styles.infoText}>{order.dressDetails}</Text>
+          </View>
+
+          {/* Due Date */}
+          {!statusCheckType && <View style={[styles.dueDateRow, bulkMode && styles.dueDateRowWithCheckbox]}>
+            <View style={styles.dueDateInfo}>
+              <ClockIcon style={styles.infoIcon} />
+              <Text style={styles.dueDateLabel}>
+                Due: {earliestDueDate}
+              </Text>
+            </View>
+            {renderDueDateBadge(earliestDueDate)}
+          </View>}
+          {!statusCheckType && (
+            <View style={[styles.progressRow, bulkMode && styles.progressRowWithCheckbox]}>
+              <Text category='c1' style={styles.progressText}>
+                {Math.round(progressPercentage / 100 * order.dressType?.length)} / {order.dressType?.length}
+              </Text>
+              <ProgressBar 
+                progress={progressPercentage}
+                color={progressPercentage === 100 ? "#4CAF50" : "#FF9800"}
+                style={styles.progressBar}
+              />
+            </View>
+          )}
+          {!bulkMode && (
+            <View style={[styles.actionButtonsRow, bulkMode && styles.actionButtonsRowWithCheckbox]}>
+              <Button
+                size='small'
+                appearance='outline'
+                status='info'
+                style={styles.roundedButton}
+                onPress={() => {
+                  setMenuVisible(false);
+                  setClickPayment(true);
+                  setModalVisible(true);
+                }}
+              >
+                {evaProps => <Text {...evaProps} style={styles.buttonText}>Payment</Text>}
+              </Button>
+              
+              <Button
+                size='small'
+                appearance='outline'
+                status='warning'
+                style={styles.roundedButton}
+                onPress={() => {
+                  setMenuVisible(false);
+                  setMoveToModalVisible(true);
+                }}
+              >
+                {evaProps => <Text {...evaProps} style={styles.buttonText}>Move Status</Text>}
+              </Button>
+              
+              <Button
+                size='small'
+                appearance='outline'
+                status='success'
+                style={styles.roundedButton}
+                onPress={() => {
+                  setMenuVisible(false);
+                  navigation.navigate('ProductionDetailsView', { order });
+                }}
+              >
+                {evaProps => <Text {...evaProps} style={styles.buttonText}>Prod Details</Text>}
+              </Button>
+              
+              {order.orderStatus !== 'Completed' && (
+                order.orderStatus === 'Cancelled' ? (
+                  <Button
+                    status='basic'
+                    appearance='ghost'
+                    accessoryLeft={ResendIcon}
+                    style={{ marginRight: -20 }}
+                    onPress={() => restoreOrderAlert(order)}
+                  />
+                ) : (
+                  <Button
+                    status='basic'
+                    appearance='ghost'
+                    accessoryLeft={DeleteIcon}
+                    style={{ marginRight: -20 }}
+                    onPress={() => deleteOrderAlert(order)}
+                  />
+                )
               )}
             </View>
           )}
         </View>
-
-        {/* Customer Info */}
-        <View style={[styles.infoRow, bulkMode && styles.infoRowWithCheckbox]}>
-          <PersonIcon style={styles.infoIcon} />
-		  <Text style={styles.infoText}>
-			  {order.custName}
-			  {order.associateCustName ? ` (${order.associateCustName})` : ""}
-			</Text>
-        </View>
-
-        {/* Dress Item */}
-        <View style={[styles.infoRow, bulkMode && styles.infoRowWithCheckbox]}>
-          <PackageIcon style={styles.infoIcon} />
-          <Text style={styles.infoText}>{order.dressDetails}</Text>
-        </View>
-
-        {/* Due Date */}
-        {!statusCheckType && <View style={[styles.dueDateRow, bulkMode && styles.dueDateRowWithCheckbox]}>
-          <View style={styles.dueDateInfo}>
-            <ClockIcon style={styles.infoIcon} />
-            <Text style={styles.dueDateLabel}>
-              Due: {earliestDueDate}
-            </Text>
-          </View>
-          {renderDueDateBadge(earliestDueDate)}
-        </View>}
-		{!statusCheckType && (
-		  <View style={[styles.progressRow, bulkMode && styles.progressRowWithCheckbox]}>
-			<Text category='c1' style={styles.progressText}>
-				{Math.round(progressPercentage / 100 * order.dressType?.length)} / {order.dressType?.length}
-			</Text>
-			<ProgressBar 
-			  progress={progressPercentage}
-			  color={progressPercentage === 100 ? "#4CAF50" : "#FF9800"}
-			  style={styles.progressBar}
-			/>
-		  </View>
-		)}
-		    {!bulkMode && (
-			  <View style={[styles.actionButtonsRow, bulkMode && styles.actionButtonsRowWithCheckbox]}>
-				<Button
-				  size='small'
-				  appearance='outline'
-				  status='info'
-				  style={styles.roundedButton}
-				  onPress={() => {
-					setMenuVisible(false);
-					setClickPayment(true);
-					setModalVisible(true);
-				  }}
-				>
-					{evaProps => <Text {...evaProps} style={styles.buttonText}>Payment</Text>}
-				</Button>
-				
-				<Button
-				  size='small'
-				  appearance='outline'
-				  status='warning'
-				  style={styles.roundedButton}
-				  onPress={() => {
-					setMenuVisible(false);
-					setMoveToModalVisible(true);
-				  }}
-				>
-				  {evaProps => <Text {...evaProps} style={styles.buttonText}>Move Status</Text>}
-				</Button>
-				
-				<Button
-				  size='small'
-				  appearance='outline'
-				  status='success'
-				  style={styles.roundedButton}
-				  onPress={() => {
-					  setMenuVisible(false);
-					  navigation.navigate('ProductionDetailsView', { order });
-				  }}
-				>
-				  {evaProps => <Text {...evaProps} style={styles.buttonText}>Prod Details</Text>}
-				</Button>
-				
-				{order.orderStatus !== 'Completed' && (
-					order.orderStatus === 'Cancelled' ? (<Button
-				  status='basic'
-				  appearance='ghost'
-				  accessoryLeft={ResendIcon}
-				  style={{marginRight: -20}}
-				  onPress={() => restoreOrderAlert(order)}
-				/>) : (
-					<Button
-					  status='basic'
-					  appearance='ghost'
-					  accessoryLeft={DeleteIcon}
-					  style={{marginRight: -20}}
-					  onPress={() => deleteOrderAlert(order)}
-					/>	
-				))}
-
-			  </View>
-			)}
-      </View>
-	  {renderMoveToModal(order)}
-	  <PaymentModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        orderNo={order.orderNo}
-        orderAmt={order.orderAmt + expressVal}
-        paymentStatus={order.paymentStatus}
-        advance={order.advance}
-		paymentMode={order.paymentMode}
-		paymentNotes={order.paymentNotes}
-        onSave={(updatedPaymentData) => savePaymentData(updatedPaymentData)}
-        noCache={order.orderStatus === 'Billing' && !clickPayment ? true : false}
-      />
-    </Card>
-  )
+        {renderMoveToModal(order)}
+        <PaymentModal
+          visible={modalVisible}
+          onClose={() => setModalVisible(false)}
+          orderNo={order.orderNo}
+          orderAmt={order.orderAmt + expressVal}
+          paymentStatus={order.paymentStatus}
+          advance={order.advance}
+          paymentMode={order.paymentMode}
+          paymentNotes={order.paymentNotes}
+          onSave={(updatedPaymentData) => savePaymentData(updatedPaymentData)}
+          noCache={order.orderStatus === 'Billing' && !clickPayment ? true : false}
+        />
+      </Card>
+    );
   };
 
   const renderBulkUpdateModal = () => (
@@ -871,54 +843,55 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
   );
   
   const ListEmptyComponent = () => {
-	  if (statusCheckType && !activeFilter) {
-		  return (
-			<Layout style={styles.emptyState}>
-			  <SearchIcon style={styles.emptyStateIcon} />
-			  <Text category='h6' style={styles.emptyStateTitle}>
-				Select a filter to search
-			  </Text>
-			  <Text appearance='hint' style={styles.emptyStateDescription}>
-				Choose Order ID, Name, or Phone to start searching orders.
-			  </Text>
-			</Layout>
-		  );
-		}
+    if (statusCheckType && !activeFilter) {
+      return (
+        <Layout style={styles.emptyState}>
+          <SearchIcon style={styles.emptyStateIcon} />
+          <Text category='h6' style={styles.emptyStateTitle}>
+            Select a filter to search
+          </Text>
+          <Text appearance='hint' style={styles.emptyStateDescription}>
+            Choose Order ID, Name, or Phone to start searching orders.
+          </Text>
+        </Layout>
+      );
+    }
 
-		if (statusCheckType && searchValue) {
-		  return (
-			<Layout style={styles.emptyState}>
-			  <SearchIcon style={styles.emptyStateIcon} />
-			  <Text category='h6' style={styles.emptyStateTitle}>
-				No orders found
-			  </Text>
-			  <Text appearance='hint' style={styles.emptyStateDescription}>
-				No orders match your search criteria "{searchValue}"
-			  </Text>
-			  <Button
-				appearance='ghost'
-				status='primary'
-				onPress={() => setSearchValue('')}
-				style={styles.clearButton}
-			  >
-				Clear search
-			  </Button>
-			</Layout>
-		  );
-		}
+    if (statusCheckType && searchValue) {
+      return (
+        <Layout style={styles.emptyState}>
+          <SearchIcon style={styles.emptyStateIcon} />
+          <Text category='h6' style={styles.emptyStateTitle}>
+            No orders found
+          </Text>
+          <Text appearance='hint' style={styles.emptyStateDescription}>
+            No orders match your search criteria "{searchValue}"
+          </Text>
+          <Button
+            appearance='ghost'
+            status='primary'
+            onPress={() => setSearchValue('')}
+            style={styles.clearButton}
+          >
+            Clear search
+          </Button>
+        </Layout>
+      );
+    }
 
-		if (!statusCheckType) {
-			return (<Layout style={styles.emptyState}>
-				  <PackageIcon style={styles.emptyIcon} />
-				  <Text style={styles.emptyTitle}>No orders found</Text>
-				  <Text style={styles.emptyDescription}>
-					No orders match the selected status filter.
-				  </Text>
-				</Layout>
-			);
-		}
-		return null;
-	};
+    if (!statusCheckType) {
+      return (
+        <Layout style={styles.emptyState}>
+          <PackageIcon style={styles.emptyIcon} />
+          <Text style={styles.emptyTitle}>No orders found</Text>
+          <Text style={styles.emptyDescription}>
+            No orders match the selected status filter.
+          </Text>
+        </Layout>
+      );
+    }
+    return null;
+  };
   
   const ListFooterComponent = useCallback(() => (
     !hasMoreOrders && orders.length > 0 ? (
@@ -933,98 +906,92 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
   }));
   
   const onRefresh = async () => {
-	console.log('in onRefresh')
-	dispatch({
-        type: 'RESET_FILTERS'
+    console.log('in onRefresh');
+    dispatch({ type: 'RESET_FILTERS' });
+    queueMicrotask(() => {
+      readOrdersGlobal(null, orderType, statusCheckType, false, null, null, INITIAL_SIZE, null, true);
+      setOffset(INITIAL_SIZE);
     });
-		queueMicrotask(() => {        
-			readOrdersGlobal(null, orderType, statusCheckType, false, null, null, INITIAL_SIZE, null, true)
-			setOffset(INITIAL_SIZE);
-		});
     setRefresh(false);
-  }
+  };
   
   const loadMoreOrders = useCallback(async () => {
     if (loading || !hasMoreOrders) return;
     setActionLoading(true);
-	queueMicrotask(() => {        
-		readOrdersGlobal(
-		  null,
-		  orderType,
-		  statusCheckType,
-		  new Date(),
-		  new Date(),
-		  offset,
-		  PAGE_SIZE
-		);
-		setOffset(prev => prev + PAGE_SIZE);
-	});
+    queueMicrotask(() => {
+      readOrdersGlobal(
+        null,
+        orderType,
+        statusCheckType,
+        new Date(),
+        new Date(),
+        offset,
+        PAGE_SIZE
+      );
+      setOffset(prev => prev + PAGE_SIZE);
+    });
     setActionLoading(false);
   }, [hasMoreOrders, orderType, offset]);
   
   const resetRange1 = () => {
-		setExcelDateModalVisible(false);
-		setRange1({});
+    setExcelDateModalVisible(false);
+    setRange1({});
   };
   
   const onDateChange1 = (nextRange) => {
-	console.log(nextRange);
+    console.log(nextRange);
     setRange1(nextRange);
-  }
+  };
   
   const onConfirmDatePicker1 = (selRange) => {
-	setExcelDateModalVisible(false);
-	const formattedStartDate = moment(selRange.startDate).format('YYYY-MM-DD')
-	const formattedEndDate = moment(selRange.endDate).format('YYYY-MM-DD')
-	console.log(formattedStartDate, formattedEndDate);
-	exportToExcel(formattedStartDate, formattedEndDate)
+    setExcelDateModalVisible(false);
+    const formattedStartDate = moment(selRange.startDate).format('YYYY-MM-DD');
+    const formattedEndDate = moment(selRange.endDate).format('YYYY-MM-DD');
+    console.log(formattedStartDate, formattedEndDate);
+    exportToExcel(formattedStartDate, formattedEndDate);
   };
   
   const CalendarModal = memo(({ visible, onClose, value, onSelect, onDateChange, onReset, isFilter }) => {
-   const [tempRange, setTempRange] = useState(value);
-   
-   useEffect(() => {
-    if (visible) {
-      console.log('in useEffect', value);
-      setTempRange(value);
-    }
-   }, [visible, value]);
-   
-   const handleReset = () => {
-    setTempRange({});
-    onReset();
-   };
-   
-   const handleSelect = () => {
-    onDateChange(tempRange);
-    onSelect(tempRange);
-   };
+    const [tempRange, setTempRange] = useState(value);
+    
+    useEffect(() => {
+      if (visible) {
+        console.log('in useEffect', value);
+        setTempRange(value);
+      }
+    }, [visible, value]);
+    
+    const handleReset = () => {
+      setTempRange({});
+      onReset();
+    };
+    
+    const handleSelect = () => {
+      onDateChange(tempRange);
+      onSelect(tempRange);
+    };
+
     const renderCalendarFooter = () => (
       <View style={styles.footerContainer}>
-       <Button
-         size="small"
-         appearance="outline"
-         style={styles.footerButton}
-         onPress={handleReset}>
-         Reset
-       </Button>
-       <Button
-         size="small"
-         style={styles.footerButton}
-         onPress={handleSelect}>
-         Select Range
-       </Button>
+        <Button size="small" appearance="outline" style={styles.footerButton} onPress={handleReset}>
+          Reset
+        </Button>
+        <Button size="small" style={styles.footerButton} onPress={handleSelect}>
+          Select Range
+        </Button>
       </View>
     );
+
     return (
       <Modal
-         visible={visible}
-         backdropStyle={styles.backdrop}
-         onBackdropPress={onClose}>
-         <Card disabled={true}>
-            <TouchableOpacity style={styles.modalCloseButton} onPress={onClose}>
-               <Icon name="close-outline" style={styles.modalCloseIcon} />
-            </TouchableOpacity>
+        visible={visible}
+        backdropStyle={styles.backdrop}
+        onBackdropPress={onClose}
+      >
+        <Card disabled={true}>
+          <TouchableOpacity style={styles.modalCloseButton} onPress={onClose}>
+            <Icon name="close-outline" style={styles.modalCloseIcon} />
+          </TouchableOpacity>
           <Text category="h6" style={styles.title}>Select Date Range</Text>
           <RangeCalendar
             range={tempRange}
@@ -1033,18 +1000,18 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
             min={new Date(1900, 0, 0)}
             max={new Date(2050, 0, 0)}
           />
-         </Card>
-       </Modal>
-      );
-   });
+        </Card>
+      </Modal>
+    );
+  });
   
   const exportToExcel = useCallback(async (startDateLocal, endDateLocal) => {
-	console.log('in exportToExcel', startDateLocal, endDateLocal)
+    console.log('in exportToExcel', startDateLocal, endDateLocal);
     setIsDownload(false);
     try {
       setActionLoading(true);
       const ordersAll = getOrders('all', startDateLocal);
-	  console.log('ordersAll', ordersAll);
+      console.log('ordersAll', ordersAll);
       const formattedData = ordersAll.map((item, index) => ({
         "S.No.": index + 1,
         "Order No.": item.orderNo,
@@ -1057,8 +1024,8 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
 
       const totalEarnings = ordersAll.reduce((total, item) => total + item.orderAmt, 0);
 
-		let endF = endDateLocal ? endDateLocal : moment(new Date()).format('YYYY-MM-DD');
-		console.log(startDateLocal + ',' + endF)
+      let endF = endDateLocal ? endDateLocal : moment(new Date()).format('YYYY-MM-DD');
+      console.log(startDateLocal + ',' + endF);
       const queryParams = { parameter2: startDateLocal, parameter3: endF };
 
       const { data, error } = await supabase.rpc('get_income_expense', queryParams);
@@ -1071,28 +1038,14 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
       }, { inc: 0, exp: 0 });
 
       formattedData.push(
-        {
-          "S.No.": "",
-          "Order No.": "Total Earnings",
-          "Order Amount": totalEarnings,
-        },
-        {
-          "S.No.": "",
-          "Order No.": "Other Income",
-          "Order Amount": inc,
-        },
-        {
-          "S.No.": "",
-          "Order No.": "Expenses",
-          "Order Amount": exp,
-        }
+        { "S.No.": "", "Order No.": "Total Earnings", "Order Amount": totalEarnings },
+        { "S.No.": "", "Order No.": "Other Income", "Order Amount": inc },
+        { "S.No.": "", "Order No.": "Expenses", "Order Amount": exp }
       );
 
-      // Create and save Excel file
       const worksheet = XLSX.utils.json_to_sheet(formattedData);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "List Data");
-      
       const excelFile = XLSX.write(workbook, { type: "base64", bookType: "xlsx" });
 
       const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
@@ -1119,103 +1072,102 @@ const IncompleteOrders = forwardRef(( props, ref ) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#3366FF" />
-	  {loading ? (
-		<ActivityIndicator size="large" style={styles.spinner} />
-	  ) : (
-	  <Layout style={styles.content}>
-        <Layout style={styles.header}>
-		  <View style={{flexDirection: 'row', gap: 20}}>
-			{!statusCheckType && <View style={styles.actionBar}>
-			  <Button
-				size='small'
-				appearance={bulkMode ? 'filled' : 'outline'}
-				onPress={() => {
-				  setBulkMode(!bulkMode);
-				  setSelectedOrders([]);
-				}}
-			  >
-				{bulkMode ? 'Cancel' : 'Bulk Edit'}
-			  </Button>
-			  
-			  {bulkMode && selectedOrders.length > 0 && (
-				<Button
-				  size='small'
-				  onPress={() => setBulkStatusUpdate(true)}
-				>
-				  Update {selectedOrders.length} orders
-				</Button>
-			  )}
-			</View>}
-		
-        	{renderSearchFilters()}
-		  </View>
-			
-			{activeFilter ? renderSearchInput() : renderStatusSelect()}
+      {loading ? (
+        <ActivityIndicator size="large" style={styles.spinner} />
+      ) : (
+        <Layout style={styles.content}>
+          <Layout style={styles.header}>
+            <View style={{ flexDirection: 'row', gap: 20 }}>
+              {!statusCheckType && <View style={styles.actionBar}>
+                <Button
+                  size='small'
+                  appearance={bulkMode ? 'filled' : 'outline'}
+                  onPress={() => {
+                    setBulkMode(!bulkMode);
+                    setSelectedOrders([]);
+                  }}
+                >
+                  {bulkMode ? 'Cancel' : 'Bulk Edit'}
+                </Button>
+                
+                {bulkMode && selectedOrders.length > 0 && (
+                  <Button
+                    size='small'
+                    onPress={() => setBulkStatusUpdate(true)}
+                  >
+                    Update {selectedOrders.length} orders
+                  </Button>
+                )}
+              </View>}
+            
+              {renderSearchFilters()}
+            </View>
+            
+            {activeFilter ? renderSearchInput() : renderStatusSelect()}
 
-			<Text appearance='hint' style={styles.resultsCounter}>
-			  {statusCheckType && activeFilter && searchValue 
-				? `${filteredOrders.length} results found`
-				: !statusCheckType 
-				? `${filteredOrders.length} orders`
-				: `${orders.length} total orders`
-			  }
-			</Text>
-		</Layout>
+            <Text appearance='hint' style={styles.resultsCounter}>
+              {statusCheckType && activeFilter && searchValue 
+                ? `${filteredOrders.length} results found`
+                : !statusCheckType 
+                ? `${filteredOrders.length} orders`
+                : `${orders.length} total orders`
+              }
+            </Text>
+          </Layout>
 
-		<List
-			data={filteredOrders}
-			  renderItem={({ item, index }) => (
-				<OrderCard 
-				  order={item} 
-				  index={index}
-				  bulkMode={bulkMode}
-				  selectedOrders={selectedOrders}
-				  toggleOrderSelection={toggleOrderSelection}
-				  updateOrderStatus={updateOrderStatus}
-				/>
-			  )}
-			windowSize={3} 
-			  maxToRenderPerBatch={5}
-			  initialNumToRender={8}
-			  updateCellsBatchingPeriod={50}
-			  removeClippedSubviews={true}
-			refreshing={refresh}
-			onRefresh={onRefresh}
-			onEndReached={loadMoreOrders}
-			onEndReachedThreshold={0.7}
-			ListEmptyComponent={ListEmptyComponent}
-			ListFooterComponent={ListFooterComponent}
-		  />
-      </Layout>
-	)}
-	
-	<Button
-			appearance='ghost'
-			size='large'
-			accessoryLeft={<MaterialCommunityIcons name="microsoft-excel" color='white' size={25}/>}
-			onPress={() => setExcelDateModalVisible(true)}
-			style={[styles.fab, {backgroundColor: theme['color-primary-500']}]}
-			status='control'
-	/>
-	
-	
-	  <CalendarModal
+          <List
+            data={filteredOrders}
+            renderItem={({ item, index }) => (
+              <OrderCard 
+                order={item} 
+                index={index}
+                bulkMode={bulkMode}
+                selectedOrders={selectedOrders}
+                toggleOrderSelection={toggleOrderSelection}
+                updateOrderStatus={updateOrderStatus}
+              />
+            )}
+            windowSize={3}
+            maxToRenderPerBatch={5}
+            initialNumToRender={8}
+            updateCellsBatchingPeriod={50}
+            removeClippedSubviews={true}
+            refreshing={refresh}
+            onRefresh={onRefresh}
+            onEndReached={loadMoreOrders}
+            onEndReachedThreshold={0.7}
+            ListEmptyComponent={ListEmptyComponent}
+            ListFooterComponent={ListFooterComponent}
+          />
+        </Layout>
+      )}
+    
+      <Button
+        appearance='ghost'
+        size='large'
+        accessoryLeft={<MaterialCommunityIcons name="microsoft-excel" color='white' size={25}/>}
+        onPress={() => setExcelDateModalVisible(true)}
+        style={[styles.fab, { backgroundColor: theme['color-primary-500'] }]}
+        status='control'
+      />
+      
+      <CalendarModal
         visible={excelDateModalVisible}
         onClose={() => setExcelDateModalVisible(false)}
         value={range1}
         onSelect={onConfirmDatePicker1}
-		onDateChange={onDateChange1}
-		onReset={resetRange1}
+        onDateChange={onDateChange1}
+        onReset={resetRange1}
       />
 
       {renderBulkUpdateModal()}
-	  
-	  <Modal
-					visible={actionLoading}
-					backdropStyle={styles.backdrop}
-				  >
-						<Spinner size="large" status="primary" />
-	  </Modal>
+      
+      <Modal
+        visible={actionLoading}
+        backdropStyle={styles.backdrop}
+      >
+        <Spinner size="large" status="primary" />
+      </Modal>
     </SafeAreaView>
   );
 });
@@ -1239,7 +1191,7 @@ const styles = StyleSheet.create({
   },
   statusSelect: {
     marginBottom: 16,
-	backgroundColor: 'white',
+    backgroundColor: 'white',
     borderRadius: 12,
   },
   scrollView: {
@@ -1248,7 +1200,7 @@ const styles = StyleSheet.create({
   orderCard: {
     marginBottom: 12,
     borderRadius: 16,
-	elevation: 2,
+    elevation: 2,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -1450,12 +1402,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-	color: 'color-primary-500'
+    color: 'color-primary-500'
   },
   moreButton: {
     marginRight: -20,
   },
-  innerHeader: {flex: 1},
+  innerHeader: { flex: 1 },
   actionButtonsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1467,68 +1419,68 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 4,
     borderRadius: 12,
-	width: 100
+    width: 100
   },
   buttonText: {
-	fontSize: 11
+    fontSize: 11
   },
   deleteIcon: {
-	width: 20,
-	height: 20
+    width: 20,
+    height: 20
   },
   resendIcon: {
-	width: 25,
-	height: 25
+    width: 25,
+    height: 25
   },
   progressText: {
-	marginTop: 10,
-	textAlign: 'center'
+    marginTop: 10,
+    textAlign: 'center'
   },
   progressBar: {
-	marginVertical: 5
+    marginVertical: 5
   },
   fab: {
-        alignItems: 'center',
-        justifyContent: 'center',
-		flexDirection: 'row',
-        height: 50,
-		width: 50,
-        position: 'absolute',
-		borderRadius: 10,
-        bottom: 45,
-        right: 35,
-        shadowColor: '#000',
-        shadowOffset: {width: 0, height: 4},
-        shadowOpacity: 1,
-        shadowRadius: 4,
-        elevation: 4,
-    },
-	footerContainer: {
-		flexDirection: 'row',
-		justifyContent: 'center',
-		alignItems: 'center',
-		marginTop: 16,
-		gap: 30
-	  },
-	  footerButton: {
-		marginLeft: 8,
-	  },
-	  title: {
-		marginBottom: 12,
-		textAlign: 'center',
-	  },
-	  modalCloseButton: {
-		position: 'absolute', // Absolute positioning for the button
-		top: -30, // Adjust vertical position
-		right: -30, // Adjust horizontal position
-		backgroundColor: 'rgba(255, 255, 255, 0.8)', // Optional: Add a background for better visibility
-		borderRadius: 15, // Make the button circular
-		padding: 5, // Add padding to increase touch area
-	  },
-	  modalCloseIcon: {
-		width: 30, // Size of the icon
-		height: 30,
-	  },
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    height: 50,
+    width: 50,
+    position: 'absolute',
+    borderRadius: 10,
+    bottom: 45,
+    right: 35,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  footerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+    gap: 30
+  },
+  footerButton: {
+    marginLeft: 8,
+  },
+  title: {
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: -30,
+    right: -30,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 15,
+    padding: 5,
+  },
+  modalCloseIcon: {
+    width: 30,
+    height: 30,
+  },
 });
 
 export default IncompleteOrders;
