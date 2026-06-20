@@ -131,6 +131,7 @@ const OrderDetails = ({ navigation }) => {
 	  0,
 	  ...(item.expressDuration || []).filter(Boolean).map(obj => obj.price)
 	);
+	const expressChargesRef = useRef(initialExpressVal);
 	const [expressCharges, setExpressCharges] = useState(initialExpressVal);
 
    useEffect(() => {
@@ -147,6 +148,10 @@ const OrderDetails = ({ navigation }) => {
             showErrorMessage("No Internet Connection");
         }
     }, []);
+	
+	useEffect(() => {
+	  expressChargesRef.current = expressCharges;
+	}, [expressCharges]);
 	
 	const toggleItemExpansion = useCallback((index) => {
 	  setExpandedItems(prev => {
@@ -679,7 +684,7 @@ const OrderDetails = ({ navigation }) => {
 		return rows;
 	  };
 	  
-	  const expressVal = expressCharges; // ← now uses the editable state
+	  const expressVal = expressChargesRef.current; // ← now uses the editable state
 	  const totalAmt = expressVal + item.orderAmt;
 	  console.log('expressVal', expressVal)
 	  console.log('totalAmt', totalAmt)
@@ -913,13 +918,14 @@ const OrderDetails = ({ navigation }) => {
 
   const generateBill = async () => {
 	  console.log('in generateBill')
+	  const currentExpressCharges = expressChargesRef.current;
     try {
       setLoading(true);
-	  if (expressCharges !== initialExpressVal) {
-		  console.log('expressCharges changed', expressCharges, initialExpressVal)
+	  if (currentExpressCharges !== initialExpressVal) {
+		  console.log('expressCharges changed', currentExpressCharges , initialExpressVal)
 		  const { error } = await supabase
 			.from('OrderItems')
-			.update({ expressCharges })
+			.update({ expressCharges: currentExpressCharges  })
 			.eq('orderNo', item.orderNo);
 
 		  if (error) {
@@ -929,7 +935,7 @@ const OrderDetails = ({ navigation }) => {
 
 		  // Update cache too
 		  const cacheKey = item.orderStatus === 'Completed' ? 'Completed_true' : 'Completed_false';
-		  const updVal = { ...item, expressCharges };
+		  const updVal = { ...item, expressCharges: currentExpressCharges  };
 		  patchOrderInCache(updVal);
 	  }
 	  let qrCode = null;
@@ -982,6 +988,11 @@ const OrderDetails = ({ navigation }) => {
 			generateBill();
 		}
 	}
+	
+	const handleExpressChargesChange = useCallback((val) => {
+	  expressChargesRef.current = val; // sync immediately
+	  setExpressCharges(val);          // triggers re-render
+	}, []);
   
   return (
     <View style={styles.container} ref={viewRef} collapsable={false}>
@@ -998,7 +1009,7 @@ const OrderDetails = ({ navigation }) => {
         ListFooterComponent={
           <View style={styles.footer}>
             <PaymentDetails item={item} selectedAddons={selectedAddons} expressCharges={expressCharges}
-      onExpressChargesChange={setExpressCharges}/>
+      onExpressChargesChange={handleExpressChargesChange}/>
 			<Button 
                   status='info' 
                   onPress={() => setVisible(true)} 

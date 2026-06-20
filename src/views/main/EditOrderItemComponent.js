@@ -23,6 +23,177 @@ const CameraIcon = (props) => <Icon {...props} name='camera-outline' />;
 const CalendarIcon = (props) => <Icon {...props} name='calendar-outline' />;
 const ShirtIcon = (props) => <Icon {...props} name='person-outline' />;
 const RulerIcon = (props) => <Icon {...props} name='maximize-outline' />;
+const ADDON_OPTIONS = [
+	  "Lining",
+	  "Piping",
+	  "Aari Embroidery",
+	  "Machine Embroidery",
+	  "Lace",
+	  "Hand Falls",
+	  "Machine Falls",
+	  "Zipper",
+	  "Other",
+	];
+
+const SectionHeader = ({ title, icon: IconComponent, isExpanded, onToggle }) => (
+    <TouchableOpacity 
+      style={styles.sectionHeader}
+      onPress={onToggle}
+    >
+      <View style={styles.sectionHeaderContent}>
+        <IconComponent style={styles.sectionIcon} />
+        <Text category='s1' style={styles.sectionTitle}>{title}</Text>
+      </View>
+      {isExpanded ? 
+        <ChevronUpIcon style={styles.chevronIcon} /> : 
+        <ChevronDownIcon style={styles.chevronIcon} />
+      }
+    </TouchableOpacity>
+  );
+
+const RenderExtraOptions = ({
+	  extraOptions,
+	  expandedSections,
+	  toggleSection,
+	  updateNestedField,
+	  addExtraOptions,
+	  setOrderAmtChanged
+	}) => {
+	  const [modalVisible, setModalVisible] = useState(false);
+	  const [selectedAddons, setSelectedAddons] = useState(extraOptions || {});
+
+	  const toggleAddon = (addon) => {
+		console.log('in toggleAddon ', addon)
+		setSelectedAddons((prev) => {
+		  const copy = { ...prev };
+		  if (copy[addon] !== undefined) {
+			delete copy[addon]; // remove if unchecked
+		  } else {
+			copy[addon] = ""; // default empty price
+		  }
+		  return copy;
+		});
+	  };
+
+	  const updateAddonPrice = (addon, value) => {
+		console.log('in updateAddonPrice', addon, value);
+		console.log(selectedAddons);
+		setSelectedAddons((prev) => ({
+		  ...prev,
+		  [addon]: value,
+		}));
+		setOrderAmtChanged(true);
+	  };
+
+	  const handleSave = () => {
+		console.log('in handleSave', selectedAddons)
+		addExtraOptions(selectedAddons); // send all selected with prices - need to call this somewhere else
+		setModalVisible(false);
+		//setSelectedAddons({});
+	  };
+	  
+	  const hasAddons = Object.keys(extraOptions || {}).length > 0;
+
+	  return (
+		<View style={styles.sectionContainer}>
+		  <SectionHeader
+			title="Add-ons"
+			icon={PlusIcon}
+			isExpanded={expandedSections.addons}
+			onToggle={() => toggleSection("addons")}
+		  />
+
+		  {expandedSections.addons && (
+			<View style={styles.sectionContent}>
+			{hasAddons ? (
+			  Object.entries(selectedAddons).map(([option, price]) => (
+				<View key={option} style={styles.addonItem}>
+				  <Text category="s2" style={styles.addonName1}>
+					{option}
+				  </Text>
+				  <Text category="s2" style={styles.addonPrice}>
+					₹{selectedAddons[option]?.toString() || '0'}
+				  </Text>
+				  
+				</View>
+			  ))) : (
+			    <View style={styles.emptyStateContainer}>
+					<Text style={styles.emptyStateText}>No Add-ons Selected</Text>
+				</View>
+			  )}
+
+		  <Button onPress={() => setModalVisible(true)} size="small" appearance="outline"
+			style={styles.addonButton}
+			  >
+				  {hasAddons ? "Add/Edit Add-ons" : "Add Add-ons"}
+				</Button>
+
+			  {hasAddons && (
+				<View style={styles.totalSection}>
+				  <Text category="s1" style={styles.totalLabel}>
+					Total Add-ons:
+				  </Text>
+				  <Text category="s1" style={styles.totalAmount}>
+					₹
+					{Object.values(selectedAddons).reduce(
+					  (sum, price) => sum + Number(price || 0),
+					  0
+					)}
+				  </Text>
+				</View>
+			  )}
+			</View>
+		  )}
+
+		  {/* Add-ons Modal */}
+		  <Modal
+			visible={modalVisible}
+			backdropStyle={styles.backdrop}
+			onBackdropPress={() => setModalVisible(false)}
+		  >
+			<View style={styles.modalContainer}>
+			  <Text category="s1" style={styles.modalTitle}>
+				Select Add-ons
+			  </Text>
+
+			  <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={true}
+								  persistentScrollbar={true} keyboardShouldPersistTaps="handled">
+				{ADDON_OPTIONS.map((addon) => (
+				  <CheckBox
+					key={addon}
+					checked={selectedAddons[addon] !== undefined}
+					onChange={() => toggleAddon(addon)}
+					style={styles.checkbox}
+				  >
+					{addon}
+				  </CheckBox>
+				))}
+				{Object.keys(selectedAddons).length > 0 && (
+					<View style={styles.addonInputsSection}>
+					  {Object.entries(selectedAddons).map(([addon, value]) => (
+						<View key={addon} style={styles.addonRow}>
+						  <Text style={styles.addonName}>{addon}</Text>
+						  <Input
+							placeholder="Price"
+							keyboardType="numeric"
+							style={styles.addonInput}
+							value={value}
+							onChangeText={(text) => updateAddonPrice(addon, text)}
+						  />
+						</View>
+					  ))}
+					</View>
+				)}
+			  </ScrollView>
+				
+			  <Button style={styles.saveButton} onPress={handleSave}>
+				Save
+			  </Button>
+			</View>
+		  </Modal>
+		</View>
+	  );
+	};
 
 const EditOrderItemComponent = (props, ref) => {
 	const { 
@@ -82,19 +253,6 @@ const EditOrderItemComponent = (props, ref) => {
 		: (item.dressSubType?.trim() || '')
 	);
 
-  
-  const ADDON_OPTIONS = [
-	  "Lining",
-	  "Piping",
-	  "Aari Embroidery",
-	  "Machine Embroidery",
-	  "Lace",
-	  "Hand Falls",
-	  "Machine Falls",
-	  "Zipper",
-	  "Other",
-	];
-  
   const sleeveOptions = [
 		"Ordinary",
 		"Puff",
@@ -127,22 +285,6 @@ const EditOrderItemComponent = (props, ref) => {
       [section]: !prev[section]
     }));
   };
-
-  const SectionHeader = ({ title, icon: IconComponent, isExpanded, onToggle }) => (
-    <TouchableOpacity 
-      style={styles.sectionHeader}
-      onPress={onToggle}
-    >
-      <View style={styles.sectionHeaderContent}>
-        <IconComponent style={styles.sectionIcon} />
-        <Text category='s1' style={styles.sectionTitle}>{title}</Text>
-      </View>
-      {isExpanded ? 
-        <ChevronUpIcon style={styles.chevronIcon} /> : 
-        <ChevronDownIcon style={styles.chevronIcon} />
-      }
-    </TouchableOpacity>
-  );
 
   const openModal = useCallback((images) => {
     setCurrentImages(images);
@@ -508,11 +650,11 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
 	console.log('in addExtraOptions ' , newAddons);
 	setEditableItem((prev) => ({
 			...prev,
-			extraOptions: { ...prev.extraOptions, ...newAddons },
+			extraOptions: { ...newAddons },
 	}));
 	setChangedFields((prev) => ({
 		...prev,
-		extraOptions: { ...prev.extraOptions, ...newAddons },
+		extraOptions: { ...newAddons },
 	  }));
   }
   
@@ -670,149 +812,6 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
     );
   };
   
-  const RenderExtraOptions = ({
-	  extraOptions,
-	  expandedSections,
-	  toggleSection,
-	  updateNestedField,
-	  addExtraOptions
-	}) => {
-	  const [modalVisible, setModalVisible] = useState(false);
-	  const [selectedAddons, setSelectedAddons] = useState(extraOptions || {});
-
-	  const toggleAddon = (addon) => {
-		console.log('in toggleAddon ', addon)
-		setSelectedAddons((prev) => {
-		  const copy = { ...prev };
-		  if (copy[addon] !== undefined) {
-			delete copy[addon]; // remove if unchecked
-		  } else {
-			copy[addon] = ""; // default empty price
-		  }
-		  return copy;
-		});
-	  };
-
-	  const updateAddonPrice = (addon, value) => {
-		console.log('in updateAddonPrice', addon, value);
-		console.log(selectedAddons);
-		setSelectedAddons((prev) => ({
-		  ...prev,
-		  [addon]: value,
-		}));
-		setOrderAmtChanged(true);
-	  };
-
-	  const handleSave = () => {
-		console.log('in handleSave', selectedAddons)
-		addExtraOptions(selectedAddons); // send all selected with prices - need to call this somewhere else
-		setModalVisible(false);
-		//setSelectedAddons({});
-	  };
-	  
-	  const hasAddons = Object.keys(extraOptions || {}).length > 0;
-
-	  return (
-		<View style={styles.sectionContainer}>
-		  <SectionHeader
-			title="Add-ons"
-			icon={PlusIcon}
-			isExpanded={expandedSections.addons}
-			onToggle={() => toggleSection("addons")}
-		  />
-
-		  {expandedSections.addons && (
-			<View style={styles.sectionContent}>
-			{hasAddons ? (
-			  Object.entries(selectedAddons).map(([option, price]) => (
-				<View key={option} style={styles.addonItem}>
-				  <Text category="s2" style={styles.addonName1}>
-					{option}
-				  </Text>
-				  <Text category="s2" style={styles.addonPrice}>
-					₹{selectedAddons[option]?.toString() || '0'}
-				  </Text>
-				  
-				</View>
-			  ))) : (
-			    <View style={styles.emptyStateContainer}>
-					<Text style={styles.emptyStateText}>No Add-ons Selected</Text>
-				</View>
-			  )}
-
-		  <Button onPress={() => setModalVisible(true)} size="small" appearance="outline"
-			style={styles.addonButton}
-			  >
-				  {hasAddons ? "Add/Edit Add-ons" : "Add Add-ons"}
-				</Button>
-
-			  {hasAddons && (
-				<View style={styles.totalSection}>
-				  <Text category="s1" style={styles.totalLabel}>
-					Total Add-ons:
-				  </Text>
-				  <Text category="s1" style={styles.totalAmount}>
-					₹
-					{Object.values(selectedAddons).reduce(
-					  (sum, price) => sum + Number(price || 0),
-					  0
-					)}
-				  </Text>
-				</View>
-			  )}
-			</View>
-		  )}
-
-		  {/* Add-ons Modal */}
-		  <Modal
-			visible={modalVisible}
-			backdropStyle={styles.backdrop}
-			onBackdropPress={() => setModalVisible(false)}
-		  >
-			<View style={styles.modalContainer}>
-			  <Text category="s1" style={styles.modalTitle}>
-				Select Add-ons
-			  </Text>
-
-			  <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={true}
-								  persistentScrollbar={true} keyboardShouldPersistTaps="handled">
-				{ADDON_OPTIONS.map((addon) => (
-				  <CheckBox
-					key={addon}
-					checked={selectedAddons[addon] !== undefined}
-					onChange={() => toggleAddon(addon)}
-					style={styles.checkbox}
-				  >
-					{addon}
-				  </CheckBox>
-				))}
-				{Object.keys(selectedAddons).length > 0 && (
-					<View style={styles.addonInputsSection}>
-					  {Object.entries(selectedAddons).map(([addon, value]) => (
-						<View key={addon} style={styles.addonRow}>
-						  <Text style={styles.addonName}>{addon}</Text>
-						  <Input
-							placeholder="Price"
-							keyboardType="numeric"
-							style={styles.addonInput}
-							value={value}
-							onChangeText={(text) => updateAddonPrice(addon, text)}
-						  />
-						</View>
-					  ))}
-					</View>
-				)}
-			  </ScrollView>
-				
-			  <Button style={styles.saveButton} onPress={handleSave}>
-				Save
-			  </Button>
-			</View>
-		  </Modal>
-		</View>
-	  );
-	};
-
   const renderDesignPictures = (designPics) => (
     <View style={styles.sectionContainer}>
       <SectionHeader 
@@ -1338,6 +1337,7 @@ const downloadDesignPics = useCallback(async(picsDb, picsType) => {
 					toggleSection={toggleSection}
 					updateNestedField={updateNestedField}
 					addExtraOptions={addExtraOptions}
+					setOrderAmtChanged={setOrderAmtChanged}
 			/>
 			{renderSlotSummary(editableItem.slots)}
             {renderDesignPictures(patternImages)}

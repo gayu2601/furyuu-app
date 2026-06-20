@@ -645,7 +645,6 @@ const RenderItemCollapsible = memo(forwardRef(({
     if (fieldName.includes('DesignFile')) {
       updateItem(selectedItemDesign.id, fieldName, value);
     }
-    setShowDesign(true);
   };
 
   const saveAllMeas = () => {
